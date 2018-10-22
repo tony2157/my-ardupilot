@@ -327,6 +327,10 @@ void Copter::init_ardupilot()
         enable_motor_output();
     }
 
+    // initialize CASS_Imet sensors
+    init_CASS_imet();
+    init_CASS_hyt271();
+
     // disable safety if requested
     BoardConfig.init_safety();    
 
