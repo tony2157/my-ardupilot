@@ -93,6 +93,9 @@
 #include <AP_Arming/AP_Arming.h>
 #include <AP_VisualOdom/AP_VisualOdom.h>
 
+#include <AC_CASS_IMET/AC_CASS_Imet.h>
+#include <AC_CASS_HYT271/AC_CASS_HYT271.h>
+
 // Configuration
 #include "defines.h"
 #include "config.h"
@@ -192,6 +195,11 @@ private:
     AP_Baro barometer;
     Compass compass;
     AP_InertialSensor ins;
+
+    // Imet Temperature sensors class declaration
+    AC_CASS_Imet CASS_Imet[4]; 
+    // HYT271 humidity sensors class declaration
+    AC_CASS_HYT271 CASS_HYT271[4];
 
     RangeFinder rangefinder {serial_manager, ROTATION_PITCH_270};
     struct {
@@ -1148,6 +1156,13 @@ private:
     void init_capabilities(void);
     void dataflash_periodic(void);
     void accel_cal_update(void);
+
+    // CASS Mavlink message
+    void send_cass_data(uint8_t messageType, float * values, uint8_t size);  
+
+    // CASS User sensor code initilizer
+    void init_CASS_imet(void);
+    void init_CASS_hyt271(void);  
 
 public:
     void mavlink_delay_cb();
