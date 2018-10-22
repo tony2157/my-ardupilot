@@ -705,14 +705,19 @@ bool AC_WPNav::advance_wp_target_along_track(float dt)
     if (_track_length_xy >= WPNAV_YAW_DIST_MIN) {
         if (_pos_control.get_leash_xy() < WPNAV_YAW_DIST_MIN) {
             // if the leash is short (i.e. moving slowly) and destination is at least 2m horizontally, point along the segment from origin to destination
-            set_yaw_cd(get_bearing_cd(_origin, _destination));
+            //set_yaw_cd(get_bearing_cd(_origin, _destination));
+            set_yaw_cd(turn_into_wind_heading);
         } else {
             Vector3f horiz_leash_xy = final_target - curr_pos;
             horiz_leash_xy.z = 0;
             if (horiz_leash_xy.length() > MIN(WPNAV_YAW_DIST_MIN, _pos_control.get_leash_xy()*WPNAV_YAW_LEASH_PCT_MIN)) {
-                set_yaw_cd(RadiansToCentiDegrees(atan2f(horiz_leash_xy.y,horiz_leash_xy.x)));
+                //set_yaw_cd(RadiansToCentiDegrees(atan2f(horiz_leash_xy.y,horiz_leash_xy.x)));
+                set_yaw_cd(turn_into_wind_heading);
             }
         }
+    }
+    else{
+        set_yaw_cd(turn_into_wind_heading);
     }
 
     // successfully advanced along track
@@ -1156,15 +1161,22 @@ bool AC_WPNav::advance_spline_target_along_track(float dt)
             if (_pos_control.get_leash_xy() < WPNAV_YAW_DIST_MIN) {
                 // if the leash is very short (i.e. flying at low speed) use the target point's velocity along the track
                 if (!is_zero(target_vel.x) && !is_zero(target_vel.y)) {
-                    set_yaw_cd(RadiansToCentiDegrees(atan2f(target_vel.y,target_vel.x)));
+                    //set_yaw_cd(RadiansToCentiDegrees(atan2f(target_vel.y,target_vel.x)));
+                    set_yaw_cd(turn_into_wind_heading);
                 }
             } else {
                 // point vehicle along the leash (i.e. point vehicle towards target point on the segment from origin to destination)
                 float track_error_xy_length = safe_sqrt(sq(track_error.x)+sq(track_error.y));
                 if (track_error_xy_length > MIN(WPNAV_YAW_DIST_MIN, _pos_control.get_leash_xy()*WPNAV_YAW_LEASH_PCT_MIN)) {
                     // To-Do: why is track_error sign reversed?
-                    set_yaw_cd(RadiansToCentiDegrees(atan2f(-track_error.y,-track_error.x)));
+                    //set_yaw_cd(RadiansToCentiDegrees(atan2f(-track_error.y,-track_error.x)));
+                    set_yaw_cd(turn_into_wind_heading);
                 }
+            }
+        }
+        else{
+            if (!is_zero(target_vel.x) && !is_zero(target_vel.y)) {
+                set_yaw_cd(turn_into_wind_heading);
             }
         }
 
