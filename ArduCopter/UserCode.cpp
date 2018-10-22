@@ -6,6 +6,10 @@
 const int N_RH = 4;     //supports up to 4
 float raw_H[4], rawRHt[4];
 
+//IMET sensor Params
+const int N_imet = 4;   //supports up to 4
+float volt[4], curr[4];
+
 #ifdef USERHOOK_INIT
 void Copter::userhook_init()
 {
@@ -55,7 +59,48 @@ void Copter::userhook_50Hz()
 #ifdef USERHOOK_MEDIUMLOOP
 void Copter::userhook_MediumLoop()
 {
-    // put your 10Hz code here
+    // Read temperature
+    curr[0] = copter.CASS_Imet[0].temperature();
+    curr[1] = copter.CASS_Imet[1].temperature();
+    curr[2] = copter.CASS_Imet[2].temperature();
+    curr[3] = copter.CASS_Imet[3].temperature();
+    // Read voltage
+    volt[0] = copter.CASS_Imet[0].voltage();
+    volt[1] = copter.CASS_Imet[1].voltage();
+    volt[2] = copter.CASS_Imet[2].voltage();
+    volt[3] = copter.CASS_Imet[3].voltage();
+
+    #if CONFIG_HAL_BOARD == HAL_BOARD_SITL
+        uint32_t m = AP_HAL::millis();
+        curr[0] = 298.15 + sin(m) * 25;
+        curr[1] = 1 + curr[0];
+        curr[2] = 1 + curr[1];
+        curr[3] = 1 + curr[2];
+        // curr[0] = 1;
+        // curr[1] = 2;
+        // curr[2] = 3;
+        // curr[3] = 4;        
+    #endif
+
+    // Write sensors packet into the SD card
+    struct log_IMET pkt_temp = {
+        LOG_PACKET_HEADER_INIT(LOG_IMET_MSG),
+        time_stamp             : AP_HAL::micros64(),
+        temperature1           : curr[0],
+        voltage1               : volt[0],
+        temperature2           : curr[1],
+        voltage2               : volt[1],
+        temperature3           : curr[2],
+        voltage3               : volt[2],
+        temperature4           : curr[3],
+        voltage4               : volt[3]
+    };
+    copter.DataFlash.WriteBlock(&pkt_temp, sizeof(pkt_temp));
+
+    // Send data to ground station
+    copter.send_cass_data(0, curr, 4);
+
+    // cliSerial->printf("\ncurr3: %f", curr[3]);
 }
 #endif
 
