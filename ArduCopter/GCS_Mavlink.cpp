@@ -2133,6 +2133,23 @@ void Copter::gcs_send_message(enum ap_message id)
 }
 
 /*
+ *  send a message on both GCS links
+ */
+ void Copter::send_cass_data(uint8_t messageType, float * values, uint8_t size) {
+    for (uint8_t i=0; i<num_gcs; i++) {
+         if (gcs_chan[i].initialised) {
+            mavlink_cass_sensor_raw_t packet;
+            packet.time_boot_ms = AP_HAL::millis();
+            packet.app_datatype = messageType;
+            packet.app_datalength = size;
+            memset(packet.values, 0, size * sizeof(float));
+            memcpy(packet.values, values, size * sizeof(float));
+            gcs_chan[i].send_cass_data(&packet);
+         }
+     }    
+}
+
+/*
  *  send a mission item reached message and load the index before the send attempt in case it may get delayed
  */
 void Copter::gcs_send_mission_item_reached_message(uint16_t mission_index)
