@@ -880,6 +880,12 @@ const struct LogStructure Copter::log_structure[] = {
       "THRO",  "QBffffbbbb",  "TimeUS,Stage,Vel,VelZ,Acc,AccEfZ,Throw,AttOk,HgtOk,PosOk" },
     { LOG_PROXIMITY_MSG, sizeof(log_Proximity),
       "PRX",   "QBfffffffffff","TimeUS,Health,D0,D45,D90,D135,D180,D225,D270,D315,DUp,CAn,CDis" },
+    { LOG_IMET_MSG, sizeof(log_IMET),
+      "IMET", "Qffffffff","Time,Temp1,Volt1,Temp2,Volt2,Temp3,Volt3,Temp4,Volt4"},
+    { LOG_RH_MSG, sizeof(log_RH),
+      "RHUM", "Qffffffff","Time,Humi1,Temp1,Humi2,Temp2,Humi3,Temp3,Humi4,Temp4"},
+    { LOG_WIND_MSG, sizeof(log_WIND),
+      "WIND", "Qfffffff","Time,wdir,wspeed,dvar,gvar,avgR,avgP,yaw"},
 };
 
 #if CLI_ENABLED == ENABLED
