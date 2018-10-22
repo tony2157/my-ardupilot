@@ -34,6 +34,8 @@ def build(bld):
             'AP_Beacon',
             'AP_Arming',
             'AP_VisualOdom',
+            'AC_CASS_IMET',
+            'AC_CASS_HYT271',
         ],
     )
 
