@@ -128,6 +128,16 @@ void Copter::init_CASS_imet(){
     CASS_Imet[3].set_sensor_coeff(coeff[3]);
 }
 
+void Copter::init_CASS_hyt271(){
+    for(uint8_t i=0; i<4; i++){
+        CASS_HYT271[i].init();
+    }
+    // Set I2C addresses
+    CASS_HYT271[1].set_i2c_addr(0x11);
+    CASS_HYT271[2].set_i2c_addr(0x12);
+    CASS_HYT271[3].set_i2c_addr(0x13);
+}
+
 // return barometric altitude in centimeters
 void Copter::read_barometer(void)
 {
