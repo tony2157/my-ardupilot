@@ -282,6 +282,10 @@ void Copter::init_ardupilot()
 
     // default enable RC override
     copter.ap.rc_override_enable = true;
+
+    // initialize CASS_Imet sensors
+    init_CASS_imet();
+    init_CASS_hyt271();
     
     hal.console->printf("\nReady to FLY ");
 
