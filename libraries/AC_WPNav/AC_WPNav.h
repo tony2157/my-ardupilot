@@ -38,6 +38,8 @@ class AC_WPNav
 {
 public:
 
+    float turn_into_wind_heading;
+
     // spline segment end types enum
     enum spline_segment_end_type {
         SEGMENT_END_STOP = 0,
