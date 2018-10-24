@@ -1613,6 +1613,24 @@ void Copter::mavlink_delay_cb()
 }
 
 /*
+ *  send a message on both GCS links
+ */
+ void Copter::send_cass_data(uint8_t messageType, float * values, uint8_t size) {
+    for (uint8_t i=0; i<copter.gcs().num_gcs(); i++) {
+         if (copter.gcs().chan(i).initialised) {
+            mavlink_cass_sensor_raw_t packet;
+            packet.time_boot_ms = AP_HAL::millis();
+            packet.app_datatype = messageType;
+            packet.app_datalength = size;
+            memset(packet.values, 0, size * sizeof(float));
+            memcpy(packet.values, values, size * sizeof(float));
+            copter.gcs().chan(i).send_cass_data(&packet);
+            //break;
+         }
+     }    
+}
+
+/*
  *  send data streams in the given rate range on both links
  */
 void Copter::gcs_data_stream_send(void)
