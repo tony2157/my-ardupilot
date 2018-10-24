@@ -987,6 +987,14 @@ void GCS_MAVLINK::send_system_time()
         AP_HAL::millis());
 }
 
+/* 
+    send the CASS sensor data 
+*/
+void GCS_MAVLINK::send_cass_data(mavlink_cass_sensor_raw_t * packet) 
+{ 
+    mavlink_msg_cass_sensor_raw_send_struct(chan, packet); 
+} 
+
 
 /*
   send RC_CHANNELS messages
