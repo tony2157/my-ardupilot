@@ -185,6 +185,7 @@ public:
 #if AP_AHRS_NAVEKF_AVAILABLE
     void send_opticalflow(const OpticalFlow &optflow);
 #endif
+    void send_cass_data(mavlink_cass_sensor_raw_t * packet);
     virtual void send_attitude() const;
     void send_autopilot_version() const;
     void send_local_position() const;
