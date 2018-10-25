@@ -114,7 +114,7 @@ void Copter::userhook_MediumLoop()
     copter.DataFlash.WriteBlock(&pkt_temp, sizeof(pkt_temp));
 
     // Send data to ground station
-    copter.send_cass_data(0, curr, 4);
+    //copter.send_cass_data(0, curr, 4);
 
     // cliSerial->printf("\ncurr3: %f", curr[3]);
 }
@@ -164,8 +164,8 @@ void Copter::userhook_SlowLoop()
     copter.DataFlash.WriteBlock(&pkt_RH, sizeof(pkt_RH));
 
     //Send data to ground station
-    copter.send_cass_data(1, raw_H, 4);
-    copter.send_cass_data(2, rawRHt, 4);  
+    //copter.send_cass_data(1, raw_H, 4);
+    //copter.send_cass_data(2, rawRHt, 4);  
 }
 #endif
 

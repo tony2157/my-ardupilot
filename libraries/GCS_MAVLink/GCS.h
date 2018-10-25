@@ -83,6 +83,7 @@ enum ap_message : uint8_t {
     MSG_LANDING,
     MSG_ESC_TELEMETRY,
     MSG_NAMED_FLOAT,
+    MSG_RAW_CASS, //CASS message ID
     MSG_LAST // MSG_LAST must be the last entry in this enum
 };
 
@@ -185,7 +186,7 @@ public:
 #if AP_AHRS_NAVEKF_AVAILABLE
     void send_opticalflow(const OpticalFlow &optflow);
 #endif
-    void send_cass_data(mavlink_cass_sensor_raw_t * packet);
+    //void send_cass_data(mavlink_cass_sensor_raw_t * packet);
     virtual void send_attitude() const;
     void send_autopilot_version() const;
     void send_local_position() const;
