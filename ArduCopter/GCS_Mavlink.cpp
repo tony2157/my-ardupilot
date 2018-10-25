@@ -285,6 +285,9 @@ bool GCS_MAVLINK_Copter::try_send_message(enum ap_message id)
 
     switch(id) {
 
+    case MSG_RAW_CASS:
+        copter.send_cass_data(chan);
+
     case MSG_EXTENDED_STATUS1:
         // send extended status only once vehicle has been initialised
         // to avoid unnecessary errors being reported to user
@@ -495,7 +498,8 @@ static const ap_message STREAM_EXTRA1_msgs[] = {
     MSG_PID_TUNING // Up to four PID_TUNING messages are sent, depending on GCS_PID_MASK parameter
 };
 static const ap_message STREAM_EXTRA2_msgs[] = {
-    MSG_VFR_HUD
+    MSG_VFR_HUD,
+    MSG_RAW_CASS
 };
 static const ap_message STREAM_EXTRA3_msgs[] = {
     MSG_AHRS,
@@ -1615,19 +1619,57 @@ void Copter::mavlink_delay_cb()
 /*
  *  send a message on both GCS links
  */
- void Copter::send_cass_data(uint8_t messageType, float * values, uint8_t size) {
-    for (uint8_t i=0; i<copter.gcs().num_gcs(); i++) {
-         if (copter.gcs().chan(i).initialised) {
-            mavlink_cass_sensor_raw_t packet;
-            packet.time_boot_ms = AP_HAL::millis();
-            packet.app_datatype = messageType;
-            packet.app_datalength = size;
-            memset(packet.values, 0, size * sizeof(float));
-            memcpy(packet.values, values, size * sizeof(float));
-            copter.gcs().chan(i).send_cass_data(&packet);
-            //break;
-         }
-     }    
+ //void Copter::send_cass_data(uint8_t messageType, float * values, uint8_t size) {
+void NOINLINE Copter::send_cass_data(mavlink_channel_t chan) {
+    mavlink_cass_sensor_raw_t packet;
+    float raw_sensor[4];
+    uint8_t size = 4;
+
+    // Send IMET temperature
+    for(int i=0; i<4; i++){
+        raw_sensor[i] = copter.CASS_Imet[i].temperature();
+    }
+    packet.time_boot_ms = AP_HAL::millis();
+    packet.app_datatype = 0;
+    packet.app_datalength = size;
+    memset(packet.values, 0, size * sizeof(float));
+    memcpy(packet.values, raw_sensor, size * sizeof(float));
+    mavlink_msg_cass_sensor_raw_send_struct(chan, &packet);
+
+    // Send HYT271 humidity
+    for(int i=0; i<4; i++){
+        raw_sensor[i] = copter.CASS_HYT271[i].relative_humidity();
+    }
+    packet.time_boot_ms = AP_HAL::millis();
+    packet.app_datatype = 1;
+    packet.app_datalength = size;
+    memset(packet.values, 0, size * sizeof(float));
+    memcpy(packet.values, raw_sensor, size * sizeof(float));
+    mavlink_msg_cass_sensor_raw_send_struct(chan, &packet);
+
+    // Send HYT271 temperature
+    for(int i=0; i<4; i++){
+        raw_sensor[i] = copter.CASS_HYT271[i].temperature();
+    }
+    packet.time_boot_ms = AP_HAL::millis();
+    packet.app_datatype = 2;
+    packet.app_datalength = size;
+    memset(packet.values, 0, size * sizeof(float));
+    memcpy(packet.values, raw_sensor, size * sizeof(float));
+    mavlink_msg_cass_sensor_raw_send_struct(chan, &packet);
+
+    // for (uint8_t i=0; i<copter.gcs().num_gcs(); i++) {
+    //      if (copter.gcs().chan(i).initialised) {
+    //         mavlink_cass_sensor_raw_t packet;
+    //         packet.time_boot_ms = AP_HAL::millis();
+    //         packet.app_datatype = messageType;
+    //         packet.app_datalength = size;
+    //         memset(packet.values, 0, size * sizeof(float));
+    //         memcpy(packet.values, values, size * sizeof(float));
+    //         copter.gcs().chan(i).send_cass_data(&packet);
+    //         //break;
+    //      }
+    //  }    
 }
 
 /*
