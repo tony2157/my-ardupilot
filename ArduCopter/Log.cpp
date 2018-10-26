@@ -1,4 +1,5 @@
 #include "Copter.h"
+#include "UserVariables.h"
 
 #if LOGGING_ENABLED == ENABLED
 
@@ -526,13 +527,13 @@ const struct LogStructure Copter::log_structure[] = {
     { LOG_GUIDEDTARGET_MSG, sizeof(log_GuidedTarget),
       "GUID",  "QBffffff",    "TimeUS,Type,pX,pY,pZ,vX,vY,vZ", "s-mmmnnn", "F-000000" },
 
-    //CASS Data Logging format for the SD card
+    //CASS Data Logging format for the SD card, 
     { LOG_IMET_MSG, sizeof(log_IMET),
-      "IMET", "Qffffffff","Time,Temp1,Volt1,Temp2,Volt2,Temp3,Volt3,Temp4,Volt4"},
+      "IMET", "Qffffffff","Time,Temp1,Volt1,Temp2,Volt2,Temp3,Volt3,Temp4,Volt4","s--------","F00000000"},
     { LOG_RH_MSG, sizeof(log_RH),
-      "RHUM", "Qffffffff","Time,Humi1,Temp1,Humi2,Temp2,Humi3,Temp3,Humi4,Temp4"},
+      "RHUM", "Qffffffff","Time,Humi1,Temp1,Humi2,Temp2,Humi3,Temp3,Humi4,Temp4","s--------","F00000000"},
     { LOG_WIND_MSG, sizeof(log_WIND),
-      "WIND", "Qfffffff","Time,wdir,wspeed,dvar,gvar,avgR,avgP,yaw"},
+      "WIND", "Qfffffff","Time,wdir,wspeed,dvar,gvar,avgR,avgP,yaw","s-------","F0000000"},
 };
 
 void Copter::Log_Write_Vehicle_Startup_Messages()
