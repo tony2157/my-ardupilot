@@ -287,6 +287,7 @@ bool GCS_MAVLINK_Copter::try_send_message(enum ap_message id)
 
     case MSG_RAW_CASS:
         copter.send_cass_data(chan);
+        break;
 
     case MSG_EXTENDED_STATUS1:
         // send extended status only once vehicle has been initialised
