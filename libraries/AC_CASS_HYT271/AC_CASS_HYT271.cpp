@@ -81,11 +81,11 @@ bool AC_CASS_HYT271::_collect(float &hum, float &temp)
     raw = (data[0] << 8) | data[1];
     raw = raw & 0x3FFF;
 
-    hum = (100.0 / ((float)pow(2,14) - 1)) * (float)raw;
+    hum = (100.0 / (powf(2,14) - 1)) * (float)raw;
 
     data[3] = (data[3] >> 2);
     raw = (data[2] << 6) | data[3];
-    temp = (165.0 / ((float)pow(2,14) - 1)) * (float)raw + 233.15f;
+    temp = (165.0 / (powf(2,14) - 1)) * (float)raw + 233.15f;
 
     return true;  
 }

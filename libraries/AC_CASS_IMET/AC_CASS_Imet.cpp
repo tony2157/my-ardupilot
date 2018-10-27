@@ -180,5 +180,5 @@ void AC_CASS_Imet::_calculate(float volt, float curr)
     float resist = 64900.0f * (volt / curr - 1.0f);
     _volt = curr * 0.1875f; //to store the voltage and send it
     //converts to temperature (kelvin)
-    _temperature = 1.0f / (coeff[0] + coeff[1] * (float)log(resist) + coeff[2] * (float)pow((float)log((float)resist), 3));
+    _temperature = 1.0f / (coeff[0] + coeff[1] * logf(resist) + coeff[2] * powf(logf(resist), 3));
 }
