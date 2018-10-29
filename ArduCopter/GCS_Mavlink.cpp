@@ -1681,6 +1681,8 @@ void NOINLINE Copter::send_cass_data(mavlink_channel_t chan) {
     memcpy(packet.values, raw_sensor, size * sizeof(float));
     mavlink_msg_cass_sensor_raw_send_struct(chan, &packet);
 
+    //printf("CASS message sent"); // For debugging
+
     // for (uint8_t i=0; i<copter.gcs().num_gcs(); i++) {
     //      if (copter.gcs().chan(i).initialised) {
     //         mavlink_cass_sensor_raw_t packet;
