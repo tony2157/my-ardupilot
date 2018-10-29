@@ -1630,6 +1630,14 @@ void NOINLINE Copter::send_cass_data(mavlink_channel_t chan) {
     for(int i=0; i<4; i++){
         raw_sensor[i] = copter.CASS_Imet[i].temperature();
     }
+    #if CONFIG_HAL_BOARD == HAL_BOARD_SITL
+    // Variables simulation for IMET sensors
+        uint32_t m = AP_HAL::millis();
+        raw_sensor[0] = 298.15 + sin(m) * 25;
+        raw_sensor[1] = 1 + raw_sensor[0];
+        raw_sensor[2] = 1 + raw_sensor[1];
+        raw_sensor[3] = 1 + raw_sensor[2];
+    #endif 
     packet.time_boot_ms = AP_HAL::millis();
     packet.app_datatype = 0;
     packet.app_datalength = size;
@@ -1641,6 +1649,13 @@ void NOINLINE Copter::send_cass_data(mavlink_channel_t chan) {
     for(int i=0; i<4; i++){
         raw_sensor[i] = copter.CASS_HYT271[i].relative_humidity();
     }
+    #if CONFIG_HAL_BOARD == HAL_BOARD_SITL
+    // Variables simulation for HYT271 humidity sensors
+        raw_sensor[0] = 50 + sin(m/100.0) * 25;
+        raw_sensor[1] = 1 + raw_sensor[0];
+        raw_sensor[2] = 1 + raw_sensor[1];
+        raw_sensor[3] = 1 + raw_sensor[2];     
+    #endif
     packet.time_boot_ms = AP_HAL::millis();
     packet.app_datatype = 1;
     packet.app_datalength = size;
@@ -1652,6 +1667,13 @@ void NOINLINE Copter::send_cass_data(mavlink_channel_t chan) {
     for(int i=0; i<4; i++){
         raw_sensor[i] = copter.CASS_HYT271[i].temperature();
     }
+    #if CONFIG_HAL_BOARD == HAL_BOARD_SITL
+    // Variables simulation for HYT271 temperature sensors
+        raw_sensor[0] = 298.15 + sin(m/200.0) * 15;
+        raw_sensor[1] = 1 + raw_sensor[0];
+        raw_sensor[2] = 1 + raw_sensor[1];
+        raw_sensor[3] = 1 + raw_sensor[2];     
+    #endif
     packet.time_boot_ms = AP_HAL::millis();
     packet.app_datatype = 2;
     packet.app_datalength = size;

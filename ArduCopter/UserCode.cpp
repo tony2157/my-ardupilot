@@ -133,8 +133,8 @@ void Copter::userhook_SlowLoop()
     rawRHt[0] = copter.CASS_HYT271[0].temperature();
     rawRHt[1] = copter.CASS_HYT271[1].temperature();
     rawRHt[2] = copter.CASS_HYT271[2].temperature(); 
-    rawRHt[3] = copter.CASS_HYT271[3].temperature();   
-
+    rawRHt[3] = copter.CASS_HYT271[3].temperature(); 
+         
     #if CONFIG_HAL_BOARD == HAL_BOARD_SITL
         uint32_t m = AP_HAL::millis();
         rawRHt[0] = 298.15 + sin(m) * 25;
@@ -146,8 +146,8 @@ void Copter::userhook_SlowLoop()
         raw_H[1] = 1 + raw_H[0];
         raw_H[2] = 1 + raw_H[1];
         raw_H[3] = 1 + raw_H[2];
-    #endif    
-
+    #endif   
+    
     // Write sensors packet into the SD card
     struct log_RH pkt_RH = {
         LOG_PACKET_HEADER_INIT(LOG_RH_MSG),
