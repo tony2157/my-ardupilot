@@ -1633,7 +1633,7 @@ void NOINLINE Copter::send_cass_data(mavlink_channel_t chan) {
     #if CONFIG_HAL_BOARD == HAL_BOARD_SITL
     // Variables simulation for IMET sensors
         uint32_t m = AP_HAL::millis();
-        raw_sensor[0] = 298.15 + sin(m) * 25;
+        raw_sensor[0] = 298.15 + sinf(m) * 25;
         raw_sensor[1] = 1 + raw_sensor[0];
         raw_sensor[2] = 1 + raw_sensor[1];
         raw_sensor[3] = 1 + raw_sensor[2];
@@ -1651,7 +1651,7 @@ void NOINLINE Copter::send_cass_data(mavlink_channel_t chan) {
     }
     #if CONFIG_HAL_BOARD == HAL_BOARD_SITL
     // Variables simulation for HYT271 humidity sensors
-        raw_sensor[0] = 50 + sin(m/100.0) * 25;
+        raw_sensor[0] = 50 + sinf(m/100.0) * 25;
         raw_sensor[1] = 1 + raw_sensor[0];
         raw_sensor[2] = 1 + raw_sensor[1];
         raw_sensor[3] = 1 + raw_sensor[2];     
@@ -1669,7 +1669,7 @@ void NOINLINE Copter::send_cass_data(mavlink_channel_t chan) {
     }
     #if CONFIG_HAL_BOARD == HAL_BOARD_SITL
     // Variables simulation for HYT271 temperature sensors
-        raw_sensor[0] = 298.15 + sin(m/200.0) * 15;
+        raw_sensor[0] = 298.15 + sinf(m/200.0) * 15;
         raw_sensor[1] = 1 + raw_sensor[0];
         raw_sensor[2] = 1 + raw_sensor[1];
         raw_sensor[3] = 1 + raw_sensor[2];     
@@ -1681,7 +1681,8 @@ void NOINLINE Copter::send_cass_data(mavlink_channel_t chan) {
     memcpy(packet.values, raw_sensor, size * sizeof(float));
     mavlink_msg_cass_sensor_raw_send_struct(chan, &packet);
 
-    //printf("CASS message sent"); // For debugging
+    //printf("CASS message sent\n"); // For debugging
+    //printf("Humidity: %5.2f \n",raw_sensor[0]);
 
     // for (uint8_t i=0; i<copter.gcs().num_gcs(); i++) {
     //      if (copter.gcs().chan(i).initialised) {
