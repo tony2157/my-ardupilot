@@ -286,6 +286,7 @@ bool GCS_MAVLINK_Copter::try_send_message(enum ap_message id)
     switch(id) {
 
     case MSG_RAW_CASS:
+        CHECK_PAYLOAD_SIZE(CASS_SENSOR_RAW);
         copter.send_cass_data(chan);
         break;
 
