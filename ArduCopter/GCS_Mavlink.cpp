@@ -286,8 +286,10 @@ bool GCS_MAVLINK_Copter::try_send_message(enum ap_message id)
     switch(id) {
 
     case MSG_RAW_CASS:
-        CHECK_PAYLOAD_SIZE(CASS_SENSOR_RAW);
-        copter.send_cass_data(chan);
+        for (uint8_t i=0; i<3; i++){
+            CHECK_PAYLOAD_SIZE(CASS_SENSOR_RAW);
+            copter.send_cass_data(chan,i);
+        }
         break;
 
     case MSG_EXTENDED_STATUS1:
@@ -501,7 +503,6 @@ static const ap_message STREAM_EXTRA1_msgs[] = {
 };
 static const ap_message STREAM_EXTRA2_msgs[] = {
     MSG_VFR_HUD,
-    MSG_RAW_CASS
 };
 static const ap_message STREAM_EXTRA3_msgs[] = {
     MSG_AHRS,
@@ -522,6 +523,7 @@ static const ap_message STREAM_EXTRA3_msgs[] = {
     MSG_VIBRATION,
     MSG_RPM,
     MSG_ESC_TELEMETRY,
+    MSG_RAW_CASS,
 };
 static const ap_message STREAM_ADSB_msgs[] = {
     MSG_ADSB_VEHICLE
@@ -1622,65 +1624,81 @@ void Copter::mavlink_delay_cb()
  *  send a message on both GCS links
  */
  //void Copter::send_cass_data(uint8_t messageType, float * values, uint8_t size) {
-void NOINLINE Copter::send_cass_data(mavlink_channel_t chan) {
+void NOINLINE Copter::send_cass_data(mavlink_channel_t chan, uint8_t k) {
     mavlink_cass_sensor_raw_t packet;
     float raw_sensor[4];
     uint8_t size = 4;
 
-    // Send IMET temperature
-    for(int i=0; i<4; i++){
-        raw_sensor[i] = copter.CASS_Imet[i].temperature();
-    }
-    #if CONFIG_HAL_BOARD == HAL_BOARD_SITL
-    // Variables simulation for IMET sensors
-        uint32_t m = AP_HAL::millis();
-        raw_sensor[0] = 298.15 + sinf(m) * 25;
-        raw_sensor[1] = 1 + raw_sensor[0];
-        raw_sensor[2] = 1 + raw_sensor[1];
-        raw_sensor[3] = 1 + raw_sensor[2];
-    #endif 
-    packet.time_boot_ms = AP_HAL::millis();
-    packet.app_datatype = 0;
-    packet.app_datalength = size;
-    memset(packet.values, 0, size * sizeof(float));
-    memcpy(packet.values, raw_sensor, size * sizeof(float));
-    mavlink_msg_cass_sensor_raw_send_struct(chan, &packet);
+    switch((int)k){
+        case 0:{
+            // Send IMET temperature
+            for(uint8_t i=0; i<4; i++){
+                raw_sensor[i] = copter.CASS_Imet[i].temperature();
+            }
+            #if CONFIG_HAL_BOARD == HAL_BOARD_SITL
+            // Variables simulation for IMET sensors
+                uint32_t m = AP_HAL::millis();
+                raw_sensor[0] = 298.15 + sinf(m) * 25;
+                raw_sensor[1] = 1 + raw_sensor[0];
+                raw_sensor[2] = 1 + raw_sensor[1];
+                raw_sensor[3] = 1 + raw_sensor[2];
+            #endif 
+            packet.time_boot_ms = AP_HAL::millis();
+            packet.app_datatype = 0;
+            packet.app_datalength = size;
+            memset(packet.values, 0, size * sizeof(float));
+            memcpy(packet.values, raw_sensor, size * sizeof(float));
+            mavlink_msg_cass_sensor_raw_send_struct(chan, &packet);
+            }
+            break;
+        
+        case 1:{
+            // Send HYT271 humidity
+            for(uint8_t i=0; i<4; i++){
+                raw_sensor[i] = copter.CASS_HYT271[i].relative_humidity();
+            }
+            #if CONFIG_HAL_BOARD == HAL_BOARD_SITL
+            // Variables simulation for HYT271 humidity sensors
+                uint32_t m = AP_HAL::millis();
+                raw_sensor[0] = 50 + sinf(m/100.0) * 25;
+                raw_sensor[1] = 1 + raw_sensor[0];
+                raw_sensor[2] = 1 + raw_sensor[1];
+                raw_sensor[3] = 1 + raw_sensor[2];     
+            #endif
+            packet.time_boot_ms = AP_HAL::millis();
+            packet.app_datatype = 1;
+            packet.app_datalength = size;
+            memset(packet.values, 0, size * sizeof(float));
+            memcpy(packet.values, raw_sensor, size * sizeof(float));
+            mavlink_msg_cass_sensor_raw_send_struct(chan, &packet);
+            }
+            break;
 
-    // Send HYT271 humidity
-    for(int i=0; i<4; i++){
-        raw_sensor[i] = copter.CASS_HYT271[i].relative_humidity();
+        case 2:{
+            // Send HYT271 temperature
+            for(uint8_t i=0; i<4; i++){
+                raw_sensor[i] = copter.CASS_HYT271[i].temperature();
+            }
+            #if CONFIG_HAL_BOARD == HAL_BOARD_SITL
+            // Variables simulation for HYT271 temperature sensors
+                uint32_t m = AP_HAL::millis();
+                raw_sensor[0] = 298.15 + sinf(m/200.0) * 15;
+                raw_sensor[1] = 1 + raw_sensor[0];
+                raw_sensor[2] = 1 + raw_sensor[1];
+                raw_sensor[3] = 1 + raw_sensor[2];     
+            #endif
+            packet.time_boot_ms = AP_HAL::millis();
+            packet.app_datatype = 2;
+            packet.app_datalength = size;
+            memset(packet.values, 0, size * sizeof(float));
+            memcpy(packet.values, raw_sensor, size * sizeof(float));
+            mavlink_msg_cass_sensor_raw_send_struct(chan, &packet);
+            }
+            break;
+        
+        default:
+            break;
     }
-    #if CONFIG_HAL_BOARD == HAL_BOARD_SITL
-    // Variables simulation for HYT271 humidity sensors
-        raw_sensor[0] = 50 + sinf(m/100.0) * 25;
-        raw_sensor[1] = 1 + raw_sensor[0];
-        raw_sensor[2] = 1 + raw_sensor[1];
-        raw_sensor[3] = 1 + raw_sensor[2];     
-    #endif
-    packet.time_boot_ms = AP_HAL::millis();
-    packet.app_datatype = 1;
-    packet.app_datalength = size;
-    memset(packet.values, 0, size * sizeof(float));
-    memcpy(packet.values, raw_sensor, size * sizeof(float));
-    mavlink_msg_cass_sensor_raw_send_struct(chan, &packet);
-
-    // Send HYT271 temperature
-    for(int i=0; i<4; i++){
-        raw_sensor[i] = copter.CASS_HYT271[i].temperature();
-    }
-    #if CONFIG_HAL_BOARD == HAL_BOARD_SITL
-    // Variables simulation for HYT271 temperature sensors
-        raw_sensor[0] = 298.15 + sinf(m/200.0) * 15;
-        raw_sensor[1] = 1 + raw_sensor[0];
-        raw_sensor[2] = 1 + raw_sensor[1];
-        raw_sensor[3] = 1 + raw_sensor[2];     
-    #endif
-    packet.time_boot_ms = AP_HAL::millis();
-    packet.app_datatype = 2;
-    packet.app_datalength = size;
-    memset(packet.values, 0, size * sizeof(float));
-    memcpy(packet.values, raw_sensor, size * sizeof(float));
-    mavlink_msg_cass_sensor_raw_send_struct(chan, &packet);
 
     //printf("CASS message sent\n"); // For debugging
     //printf("Humidity: %5.2f \n",raw_sensor[0]);

@@ -953,7 +953,7 @@ private:
     void userhook_auxSwitch3(uint8_t ch_flag);
 
     // CASS Mavlink message
-    void send_cass_data(mavlink_channel_t chan);  
+    void send_cass_data(mavlink_channel_t chan, uint8_t i);  
 
     // CASS Libraries sensor code initilizer
     void init_CASS_imet(void);
