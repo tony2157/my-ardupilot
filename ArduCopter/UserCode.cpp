@@ -11,8 +11,9 @@ const int N_imet = 4;   //supports up to 4
 float volt[4], curr[4];
 
 //Fan control params
-uint16_t fan_pwm_on = 1205;
-uint16_t fan_pwm_off = 800;
+//Appartently, the range is now from 0 to 100%
+uint16_t fan_pwm_on = 15;
+uint16_t fan_pwm_off = 0;
 
 //Wind estimator Params
 const int N = 60;               //filter order
