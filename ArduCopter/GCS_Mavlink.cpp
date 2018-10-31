@@ -1642,6 +1642,7 @@ void NOINLINE Copter::send_cass_data(mavlink_channel_t chan, uint8_t k) {
                 raw_sensor[1] = 1 + raw_sensor[0];
                 raw_sensor[2] = 1 + raw_sensor[1];
                 raw_sensor[3] = 1 + raw_sensor[2];
+                printf("Imet temp: %5.2f \n",raw_sensor[0]);
             #endif 
             packet.time_boot_ms = AP_HAL::millis();
             packet.app_datatype = 0;
@@ -1663,7 +1664,8 @@ void NOINLINE Copter::send_cass_data(mavlink_channel_t chan, uint8_t k) {
                 raw_sensor[0] = 50 + sinf(m/100.0) * 25;
                 raw_sensor[1] = 1 + raw_sensor[0];
                 raw_sensor[2] = 1 + raw_sensor[1];
-                raw_sensor[3] = 1 + raw_sensor[2];     
+                raw_sensor[3] = 1 + raw_sensor[2];
+                printf("HYT271 Humidity: %5.2f \n",raw_sensor[0]);     
             #endif
             packet.time_boot_ms = AP_HAL::millis();
             packet.app_datatype = 1;
@@ -1685,7 +1687,8 @@ void NOINLINE Copter::send_cass_data(mavlink_channel_t chan, uint8_t k) {
                 raw_sensor[0] = 298.15 + sinf(m/200.0) * 15;
                 raw_sensor[1] = 1 + raw_sensor[0];
                 raw_sensor[2] = 1 + raw_sensor[1];
-                raw_sensor[3] = 1 + raw_sensor[2];     
+                raw_sensor[3] = 1 + raw_sensor[2];   
+                printf("HYT271 temp: %5.2f \n",raw_sensor[0]);  
             #endif
             packet.time_boot_ms = AP_HAL::millis();
             packet.app_datatype = 2;
@@ -1699,9 +1702,6 @@ void NOINLINE Copter::send_cass_data(mavlink_channel_t chan, uint8_t k) {
         default:
             break;
     }
-
-    //printf("CASS message sent\n"); // For debugging
-    //printf("Humidity: %5.2f \n",raw_sensor[0]);
 
     // for (uint8_t i=0; i<copter.gcs().num_gcs(); i++) {
     //      if (copter.gcs().chan(i).initialised) {
