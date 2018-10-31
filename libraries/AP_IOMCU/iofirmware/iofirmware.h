@@ -28,6 +28,7 @@ private:
     void schedule_reboot(uint32_t time_ms);
     void safety_update();
     void rcout_mode_update();
+    void page_status_update(void);
 
     struct PACKED {
         /* default to RSSI ADC functionality */
@@ -79,8 +80,10 @@ private:
         uint16_t sbus_rate_hz;
     } rate;
 
-    uint8_t last_page;
-    uint8_t last_offset;
+    // sbus rate handling
+    uint32_t sbus_last_ms;
+    uint32_t sbus_interval_ms;
+
     uint32_t fmu_data_received_time;
     uint32_t last_heater_ms;
     uint32_t reboot_time;

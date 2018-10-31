@@ -550,7 +550,7 @@ class AutoTest(ABC):
         self.progress("Arm motors with radio")
         self.set_output_to_max(self.get_rudder_channel())
         tstart = self.get_sim_time()
-        while self.get_sim_time() < tstart + timeout:
+        while True:
             self.mav.wait_heartbeat()
             if self.mav.motors_armed():
                 arm_delay = self.get_sim_time() - tstart
@@ -558,6 +558,10 @@ class AutoTest(ABC):
                 self.set_output_to_trim(self.get_rudder_channel())
                 self.progress("Arm in %ss" % arm_delay)  # TODO check arming time
                 return True
+            tdelta = self.get_sim_time() - tstart
+            print("Not armed after %f seconds" % (tdelta))
+            if tdelta > timeout:
+                break
         self.progress("FAILED TO ARM WITH RADIO")
         self.set_output_to_trim(self.get_rudder_channel())
         return False
@@ -713,8 +717,8 @@ class AutoTest(ABC):
             self.progress("ACK received: %s" % str(m))
             if m.command == command:
                 if m.result != want_result:
-                    raise ValueError("Expected %s got %s" % (command,
-                                                             m.command))
+                    raise ValueError("Expected %s got %s" % (want_result,
+                                                             m.result))
                 break
 
     #################################################
@@ -1073,6 +1077,14 @@ class AutoTest(ABC):
                 self.progress("Reached location (%.2f meters)" % delta)
                 return True
         raise WaitLocationTimeout("Failed to attain location")
+
+    def wait_current_waypoint(self, wpnum, timeout=60):
+        tstart = self.get_sim_time()
+        while self.get_sim_time() < tstart + timeout:
+            seq = self.mav.waypoint_current()
+            self.progress("Waiting for wp=%u current=%u" % (wpnum, seq))
+            if seq == wpnum:
+                break;
 
     def wait_waypoint(self,
                       wpnum_start,

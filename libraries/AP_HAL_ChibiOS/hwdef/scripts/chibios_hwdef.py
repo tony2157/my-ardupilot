@@ -288,8 +288,26 @@ class generic_pin(object):
                 v = e
         return "PIN_PUPDR_%s(%uU)" % (v, self.pin)
 
+    def get_ODR_F1(self):
+        '''return one of LOW, HIGH'''
+        values = ['LOW', 'HIGH']
+        v = 'HIGH'
+        if self.type == 'OUTPUT':
+            v = 'LOW'
+        for e in self.extra:
+            if e in values:
+                v = e
+        #for some controllers input pull up down is selected by ODR
+        if self.type == "INPUT":
+            v = 'LOW'
+            if 'PULLUP' in self.extra:
+                v = "HIGH"
+        return "PIN_ODR_%s(%uU)" % (v, self.pin)
+
     def get_ODR(self):
         '''return one of LOW, HIGH'''
+        if mcu_series == "STM32F100":
+            return self.get_ODR_F1()
         values = ['LOW', 'HIGH']
         v = 'HIGH'
         for e in self.extra:
@@ -315,24 +333,6 @@ class generic_pin(object):
         if self.pin < 8:
             return None
         return self.get_AFIO()
-
-    #F1 series GPIO Cfg methods
-
-    def get_ODR(self):
-        '''return one of LOW, HIGH'''
-        values = ['LOW', 'HIGH']
-        v = 'HIGH'
-        if self.type == 'OUTPUT':
-            v = 'LOW'
-        for e in self.extra:
-            if e in values:
-                v = e
-        #for some controllers input pull up down is selected by ODR
-        if self.type == "INPUT":
-            v = 'LOW'
-            if 'PULLUP' in self.extra:
-                v = "HIGH"
-        return "PIN_ODR_%s(%uU)" % (v, self.pin)
 
     def get_CR(self):
         '''return CR FLAGS'''
@@ -773,7 +773,11 @@ def write_UART_config(f):
                     (dev, dev, rts_line))
     f.write('#define HAL_UART_DEVICE_LIST %s\n\n' % ','.join(devlist))
     if not need_uart_driver and not args.bootloader:
-        f.write('#define HAL_USE_SERIAL FALSE\n')
+        f.write('''
+#ifndef HAL_USE_SERIAL
+#define HAL_USE_SERIAL FALSE
+#endif
+''')
 
 def write_UART_config_bootloader(f):
     '''write UART config defines'''
@@ -1119,7 +1123,10 @@ def write_peripheral_enable(f):
     f.write('// peripherals enabled\n')
     for type in sorted(bytype.keys()):
         if type.startswith('USART') or type.startswith('UART'):
-            f.write('#define STM32_SERIAL_USE_%-6s             TRUE\n' % type)
+            dstr = 'STM32_SERIAL_USE_%-6s' % type
+            f.write('#ifndef %s\n' % dstr)
+            f.write('#define %s TRUE\n' % dstr)
+            f.write('#endif\n')
         if type.startswith('SPI'):
             f.write('#define STM32_SPI_USE_%s                  TRUE\n' % type)
         if type.startswith('OTG'):

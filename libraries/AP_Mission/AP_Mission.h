@@ -499,6 +499,9 @@ private:
     /// complete - mission is marked complete and clean-up performed including calling the mission_complete_fn
     void complete();
 
+    bool verify_command(const Mission_Command& cmd);
+    bool start_command(const Mission_Command& cmd);
+
     /// advance_current_nav_cmd - moves current nav command forward
     //      starting_index is used to set the index from which searching will begin, leave as 0 to search from the current navigation target
     ///     do command will also be loaded
@@ -575,6 +578,11 @@ private:
     // multi-thread support. This is static so it can be used from
     // const functions
     static HAL_Semaphore_Recursive _rsem;
+
+    // mission items common to all vehicles:
+    bool start_command_do_gripper(const AP_Mission::Mission_Command& cmd);
+    bool start_command_do_servorelayevents(const AP_Mission::Mission_Command& cmd);
+    bool start_command_camera(const AP_Mission::Mission_Command& cmd);
 };
 
 namespace AP {

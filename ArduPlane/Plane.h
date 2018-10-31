@@ -745,7 +745,7 @@ private:
     // Camera/Antenna mount tracking and stabilisation stuff
 #if MOUNT == ENABLED
     // current_loc uses the baro/gps soloution for altitude rather than gps only.
-    AP_Mount camera_mount{ahrs, current_loc};
+    AP_Mount camera_mount{current_loc};
 #endif
 
     // Arming/Disarming mangement class
@@ -1016,8 +1016,6 @@ private:
     void do_within_distance(const AP_Mission::Mission_Command& cmd);
     void do_change_speed(const AP_Mission::Mission_Command& cmd);
     void do_set_home(const AP_Mission::Mission_Command& cmd);
-    void do_digicam_configure(const AP_Mission::Mission_Command& cmd);
-    void do_digicam_control(const AP_Mission::Mission_Command& cmd);
     bool start_command_callback(const AP_Mission::Mission_Command &cmd);
     bool verify_command_callback(const AP_Mission::Mission_Command& cmd);
     void notify_flight_mode(enum FlightMode mode);

@@ -1,5 +1,20 @@
-//IO Controller Firmware
+/*
+   This program is free software: you can redistribute it and/or modify
+   it under the terms of the GNU General Public License as published by
+   the Free Software Foundation, either version 3 of the License, or
+   (at your option) any later version.
 
+   This program is distributed in the hope that it will be useful,
+   but WITHOUT ANY WARRANTY; without even the implied warranty of
+   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+   GNU General Public License for more details.
+
+   You should have received a copy of the GNU General Public License
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+/*
+  IOMCU main firmware
+ */
 #include <AP_HAL/AP_HAL.h>
 
 #if CONFIG_HAL_BOARD == HAL_BOARD_CHIBIOS
@@ -9,6 +24,9 @@
 #include "iofirmware.h"
 #include "hal.h"
 #include <AP_HAL_ChibiOS/RCInput.h>
+#include "analog.h"
+#include "sbus_out.h"
+
 extern const AP_HAL::HAL &hal;
 
 //#pragma GCC optimize("Og")
@@ -113,6 +131,10 @@ static UARTConfig uart_cfg = {
 
 void setup(void)
 {
+    // we need to release the JTAG reset pin to be used as a GPIO, otherwise we can't enable
+    // or disable SBUS out
+    AFIO->MAPR = AFIO_MAPR_SWJ_CFG_NOJNTRST;
+
     hal.rcin->init();
     hal.rcout->init();
 
@@ -139,6 +161,9 @@ void AP_IOMCU_FW::init()
     if (palReadLine(HAL_GPIO_PIN_IO_HW_DETECT1) == 1 && palReadLine(HAL_GPIO_PIN_IO_HW_DETECT2) == 0) {
         has_heater = true;
     }
+
+    adc_init();
+    sbus_out_init();
 }
 
 
@@ -157,8 +182,18 @@ void AP_IOMCU_FW::update()
         pwm_out_update();
     }
 
-    // run remaining functions at 1kHz
     uint32_t now = AP_HAL::millis();
+
+    // output SBUS if enabled
+    if ((reg_setup.features & P_SETUP_FEATURES_SBUS1_OUT) &&
+        reg_status.flag_safety_off &&
+        now - sbus_last_ms >= sbus_interval_ms) {
+        // output a new SBUS frame
+        sbus_last_ms = now;
+        sbus_out_write(reg_servo.pwm, IOMCU_MAX_CHANNELS);
+    }
+
+    // run remaining functions at 1kHz
     if (now != last_loop_ms) {
         last_loop_ms = now;
         heater_update();
@@ -267,6 +302,20 @@ void AP_IOMCU_FW::process_io_packet()
     }
 }
 
+/*
+  update dynamic elements of status page
+ */
+void AP_IOMCU_FW::page_status_update(void)
+{
+    if ((reg_setup.features & P_SETUP_FEATURES_SBUS1_OUT) == 0) {
+        // we can only get VRSSI when sbus is disabled
+        reg_status.vrssi = adc_sample_vrssi();
+    } else {
+        reg_status.vrssi = 0;
+    }
+    reg_status.vservo = adc_sample_vservo();
+}
+
 bool AP_IOMCU_FW::handle_code_read()
 {
     uint16_t *values = nullptr;
@@ -284,6 +333,7 @@ bool AP_IOMCU_FW::handle_code_read()
         COPY_PAGE(rc_input);
         break;
     case PAGE_STATUS:
+        page_status_update();
         COPY_PAGE(reg_status);
         break;
     case PAGE_SERVOS:
@@ -292,8 +342,6 @@ bool AP_IOMCU_FW::handle_code_read()
     default:
         return false;
     }
-    last_page = rx_io_packet.page;
-    last_offset = rx_io_packet.offset;
 
     /* if the offset is at or beyond the end of the page, we have no data */
     if (rx_io_packet.offset >= tx_io_packet.count) {
@@ -303,6 +351,7 @@ bool AP_IOMCU_FW::handle_code_read()
     /* correct the data pointer and count for the offset */
     values += rx_io_packet.offset;
     tx_io_packet.count -= rx_io_packet.offset;
+    tx_io_packet.count = MIN(tx_io_packet.count, rx_io_packet.count);
     memcpy(tx_io_packet.regs, values, sizeof(uint16_t)*tx_io_packet.count);
     tx_io_packet.crc = 0;
     tx_io_packet.crc =  crc_crc8((const uint8_t *)&tx_io_packet, tx_io_packet.get_size());
@@ -353,6 +402,8 @@ bool AP_IOMCU_FW::handle_code_write()
             update_default_rate = true;
             break;
         case PAGE_REG_SETUP_SBUS_RATE:
+            reg_setup.sbus_rate = rx_io_packet.regs[0];
+            sbus_interval_ms = MAX(1000U / reg_setup.sbus_rate,3);
             break;
         case PAGE_REG_SETUP_FEATURES:
             reg_setup.features = rx_io_packet.regs[0];
@@ -361,6 +412,12 @@ bool AP_IOMCU_FW::handle_code_write()
                 reg_setup.features &= ~(P_SETUP_FEATURES_PWM_RSSI |
                                         P_SETUP_FEATURES_ADC_RSSI |
                                         P_SETUP_FEATURES_SBUS2_OUT);
+
+                // enable SBUS output at specified rate
+                sbus_interval_ms = MAX(1000U / reg_setup.sbus_rate,3);
+                palClearLine(HAL_GPIO_PIN_SBUS_OUT_EN);
+            } else {
+                palSetLine(HAL_GPIO_PIN_SBUS_OUT_EN);
             }
             break;
         case PAGE_REG_SETUP_HEATER_DUTY_CYCLE:
