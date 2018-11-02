@@ -265,6 +265,7 @@ private:
         uint32_t start_time;
         uint8_t triggered;
         uint32_t last_valid_rc_ms;
+        uint32_t last_heartbeat_ms;
     } failsafe;
 
     // notification object for LEDs, buzzers etc (parameter set to false disables external leds)
@@ -272,9 +273,6 @@ private:
 
     // true if we have a position estimate from AHRS
     bool have_position;
-
-    // the time when the last HEARTBEAT message arrived from a GCS
-    uint32_t last_heartbeat_ms;
 
     // obstacle detection information
     struct {
@@ -387,6 +385,18 @@ private:
         LowPassFilterFloat throttle_filt = LowPassFilterFloat(2.0f);
     } cruise_learn;
 
+    // sailboat variables
+    enum Sailboat_Tack {
+        TACK_PORT,
+        TACK_STARBOARD
+    };
+    struct {
+        bool tacking;                   // true when sailboat is in the process of tacking to a new heading
+        float tack_heading_rad;         // target heading in radians while tacking in either acro or autonomous modes
+        uint32_t auto_tack_request_ms;  // system time user requested tack in autonomous modes
+        uint32_t auto_tack_start_ms;    // system time when tack was started in autonomous mode
+    } sailboat;
+
 private:
 
     // APMrover2.cpp
@@ -469,7 +479,6 @@ private:
     void send_pid_tuning(mavlink_channel_t chan);
     void send_wheel_encoder(mavlink_channel_t chan);
     void send_fence_status(mavlink_channel_t chan);
-    void send_wind(mavlink_channel_t chan);
     void gcs_data_stream_send(void);
     void gcs_update(void);
     void gcs_retry_deferred(void);
@@ -502,12 +511,19 @@ private:
     void init_rc_out();
     void rudder_arm_disarm_check();
     void read_radio();
-    void control_failsafe(uint16_t pwm);
+    void radio_failsafe_check(uint16_t pwm);
     bool trim_radio();
 
     // sailboat.cpp
     void sailboat_update_mainsail(float desired_speed);
     float sailboat_get_VMG() const;
+    void sailboat_handle_tack_request_acro();
+    float sailboat_get_tack_heading_rad() const;
+    void sailboat_handle_tack_request_auto();
+    void sailboat_clear_tack();
+    bool sailboat_tacking() const;
+    bool sailboat_use_indirect_route(float desired_heading_cd) const;
+    float sailboat_calc_heading(float desired_heading_cd);
 
     // sensors.cpp
     void init_compass(void);
@@ -521,6 +537,7 @@ private:
     void accel_cal_update(void);
     void read_rangefinders(void);
     void init_proximity();
+    void read_airspeed();
     void update_sensor_status_flags(void);
 
     // Steering.cpp
