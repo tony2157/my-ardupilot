@@ -147,23 +147,14 @@ float AC_CASS_Imet::_read_adc()
 
 void AC_CASS_Imet::_timer(void)
 {
-    if(flag == false){
-        adc_curr = _read_adc();
-        _config_read_volt();
-    }
-    else{
-        adc_volt = _read_adc();
-        _config_read_curr();
-    }
-
-    flag = !flag;
-
     if(sem->take(HAL_SEMAPHORE_BLOCK_FOREVER)){
-        if(adc_curr == 0.0 || adc_volt == 0.0){
-            _healthy = false;
+        if(flag == false){
+            adc_curr = _read_adc();
+            _healthy = _config_read_volt();
         }
         else{
-            _healthy = true;
+            adc_volt = _read_adc();
+            _healthy = _config_read_curr();
         }
 
         if (_healthy) {
@@ -173,6 +164,7 @@ void AC_CASS_Imet::_timer(void)
         }
         sem->give();
     }
+    flag = !flag;
 }
 
 void AC_CASS_Imet::_calculate(float volt, float curr)
