@@ -807,7 +807,7 @@ const AP_Param::Info Plane::var_info[] = {
     // @User: Advanced
     GSCALAR(flap_2_speed,           "FLAP_2_SPEED",   FLAP_2_SPEED),
 
-#if HAVE_PX4_MIXER
+#if HAVE_PX4_MIXER || HAL_WITH_IO_MCU
     // @Param: OVERRIDE_CHAN
     // @DisplayName: PX4IO override channel
     // @Description: If set to a non-zero value then this is an RC input channel number to use for giving PX4IO manual control in case the main FMU microcontroller on a PX4 or Pixhawk fails. When this RC input channel goes above 1750 the FMU microcontroller will no longer be involved in controlling the servos and instead the PX4IO microcontroller will directly control the servos. Note that PX4IO manual control will be automatically activated if the FMU crashes for any reason. This parameter allows you to test for correct manual behaviour without actually crashing the FMU. This parameter is can be set to a non-zero value either for ground testing purposes or for giving the effect of an external override control board. Please also see the docs on OVERRIDE_SAFETY. Note that you may set OVERRIDE_CHAN to the same channel as FLTMODE_CH to get PX4IO based override when in flight mode 6. Note that when override is triggered due to a FMU crash the 6 auxiliary output channels on Pixhawk will no longer be updated, so all the flight controls you need must be assigned to the first 8 channels.
@@ -1225,13 +1225,6 @@ const AP_Param::ConversionInfo conversion_table[] = {
     { Parameters::k_param_pidServoPitch, 2, AP_PARAM_FLOAT, "PTCH2SRV_D" },
     { Parameters::k_param_pidServoPitch, 3, AP_PARAM_FLOAT, "PTCH2SRV_IMAX" },
 
-    { Parameters::k_param_battery_monitoring, 0,      AP_PARAM_INT8,  "BATT_MONITOR" },
-    { Parameters::k_param_battery_volt_pin,   0,      AP_PARAM_INT8,  "BATT_VOLT_PIN" },
-    { Parameters::k_param_battery_curr_pin,   0,      AP_PARAM_INT8,  "BATT_CURR_PIN" },
-    { Parameters::k_param_volt_div_ratio,     0,      AP_PARAM_FLOAT, "BATT_VOLT_MULT" },
-    { Parameters::k_param_curr_amp_per_volt,  0,      AP_PARAM_FLOAT, "BATT_AMP_PERVOLT" },
-    { Parameters::k_param_curr_amp_offset,    0,      AP_PARAM_FLOAT, "BATT_AMP_OFFSET" },
-    { Parameters::k_param_pack_capacity,      0,      AP_PARAM_INT32, "BATT_CAPACITY" },
     { Parameters::k_param_log_bitmask_old,    0,      AP_PARAM_INT16, "LOG_BITMASK" },
     { Parameters::k_param_rally_limit_km_old, 0,      AP_PARAM_FLOAT, "RALLY_LIMIT_KM" },
     { Parameters::k_param_rally_total_old,    0,      AP_PARAM_INT8, "RALLY_TOTAL" },
@@ -1269,8 +1262,8 @@ const AP_Param::ConversionInfo conversion_table[] = {
     { Parameters::k_param_land_flap_percent,  0,      AP_PARAM_INT8,  "LAND_FLAP_PERCENT" },
 
     // battery failsafes
-    { Parameters::k_param_fs_batt_voltage,    0,      AP_PARAM_FLOAT, "BATT_FS_LOW_VOLT" },
-    { Parameters::k_param_fs_batt_mah,        0,      AP_PARAM_FLOAT, "BATT_FS_LOW_MAH" },
+    { Parameters::k_param_fs_batt_voltage,    0,      AP_PARAM_FLOAT, "BATT_LOW_VOLT" },
+    { Parameters::k_param_fs_batt_mah,        0,      AP_PARAM_FLOAT, "BATT_LOW_MAH" },
 
     { Parameters::k_param_arming,             3,      AP_PARAM_INT8,  "ARMING_RUDDER" },
 };
