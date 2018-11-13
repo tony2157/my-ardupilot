@@ -52,7 +52,6 @@ enum ap_message : uint8_t {
     MSG_GPS_RTK,
     MSG_GPS2_RAW,
     MSG_GPS2_RTK,
-    MSG_RAW_CASS, //CASS message ID
     MSG_SYSTEM_TIME,
     MSG_SERVO_OUT,
     MSG_NEXT_WAYPOINT,
@@ -84,6 +83,8 @@ enum ap_message : uint8_t {
     MSG_LANDING,
     MSG_ESC_TELEMETRY,
     MSG_NAMED_FLOAT,
+    MSG_CASS_IMET, //CASS message ID
+    MSG_CASS_HYT271,
     MSG_LAST // MSG_LAST must be the last entry in this enum
 };
 
