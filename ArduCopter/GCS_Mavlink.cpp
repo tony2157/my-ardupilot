@@ -435,14 +435,18 @@ bool GCS_MAVLINK_Copter::try_send_message(enum ap_message id)
         break;
     
     case MSG_CASS_IMET:
+    if (copter.ap.initialised) {
         CHECK_PAYLOAD_SIZE(CASS_SENSOR_RAW);
         copter.send_cass_imet(chan);
         break;
+    }
     
     case MSG_CASS_HYT271:
+    if (copter.ap.initialised) {
         CHECK_PAYLOAD_SIZE(CASS_SENSOR_RAW);
         copter.send_cass_hyt271(chan);
         break;
+    }
 
     default:
         return GCS_MAVLINK::try_send_message(id);
@@ -577,7 +581,9 @@ static const ap_message STREAM_EXTRA1_msgs[] = {
     MSG_PID_TUNING // Up to four PID_TUNING messages are sent, depending on GCS_PID_MASK parameter
 };
 static const ap_message STREAM_EXTRA2_msgs[] = {
-    MSG_VFR_HUD
+    MSG_VFR_HUD,
+    MSG_CASS_IMET,
+    MSG_CASS_HYT271
 };
 static const ap_message STREAM_EXTRA3_msgs[] = {
     MSG_AHRS,
@@ -597,9 +603,7 @@ static const ap_message STREAM_EXTRA3_msgs[] = {
     MSG_EKF_STATUS_REPORT,
     MSG_VIBRATION,
     MSG_RPM,
-    MSG_ESC_TELEMETRY,
-    MSG_CASS_IMET,
-    MSG_CASS_HYT271
+    MSG_ESC_TELEMETRY
 };
 static const ap_message STREAM_ADSB_msgs[] = {
     MSG_ADSB_VEHICLE
