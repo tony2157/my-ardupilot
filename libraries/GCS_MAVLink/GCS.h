@@ -183,7 +183,7 @@ public:
     void send_ahrs();
     void send_battery2();
 #if AP_AHRS_NAVEKF_AVAILABLE
-    void send_opticalflow(const OpticalFlow &optflow);
+    void send_opticalflow();
 #endif
     virtual void send_attitude() const;
     void send_autopilot_version() const;
@@ -386,6 +386,7 @@ protected:
     virtual float vfr_hud_climbrate() const;
     virtual float vfr_hud_airspeed() const;
     virtual int16_t vfr_hud_throttle() const { return 0; }
+    virtual float vfr_hud_alt() const;
     Vector3f vfr_hud_velned;
 
     static constexpr const float magic_force_arm_value = 2989.0f;

@@ -121,6 +121,10 @@ def get_alt_function(mcu, pin, function):
     '''return alternative function number for a pin'''
     lib = get_mcu_lib(mcu)
 
+    if function.endswith('_TXINV') or function.endswith('_RXINV'):
+        # RXINV and TXINV are special labels for inversion pins, not alt-functions
+        return None
+    
     if hasattr(lib, "AltFunction_map"):
         alt_map = lib.AltFunction_map
     else:
@@ -334,9 +338,45 @@ class generic_pin(object):
             return None
         return self.get_AFIO()
 
+    def get_CR_F1(self):
+        '''return CR FLAGS for STM32F1xx'''
+        #Check Speed
+        if self.sig_dir != "INPUT" or self.af is not None:
+            speed_values = ['SPEED_LOW', 'SPEED_MEDIUM', 'SPEED_HIGH']
+            v = 'SPEED_MEDIUM'
+            for e in self.extra:
+                if e in speed_values:
+                    v = e
+            speed_str = "PIN_%s(%uU) |" % (v, self.pin)
+        else:
+            speed_str = ""
+        if self.af is not None:
+            if self.label.endswith('_RX'):
+                # uart RX is configured as a input, and can be pullup, pulldown or float
+                if 'PULLUP' in self.extra or 'PULLDOWN' in self.extra:
+                    v = 'PUD'
+                else:
+                    v = "NOPULL"
+            else:
+                v = "AF_PP"
+        elif self.sig_dir == 'OUTPUT':
+            if 'OPENDRAIN' in self.extra:
+                v = 'OUTPUT_OD'
+            else:
+                v = "OUTPUT_PP"
+        elif self.type.startswith('ADC'):
+            v = "ANALOG"
+        else:
+            v = "PUD"
+            if 'FLOATING' in self.extra:
+                v = "NOPULL"
+        mode_str = "PIN_MODE_%s(%uU)" % (v, self.pin)
+        return "%s %s" % (speed_str, mode_str)
+
     def get_CR(self):
         '''return CR FLAGS'''
-        #Check Speed
+        if mcu_series == "STM32F100":
+            return self.get_CR_F1()
         if self.sig_dir != "INPUT":
             speed_values = ['SPEED_LOW', 'SPEED_MEDIUM', 'SPEED_HIGH']
             v = 'SPEED_MEDIUM'
@@ -705,6 +745,20 @@ def write_SPI_config(f):
     write_SPI_table(f)
 
 
+def get_gpio_bylabel(label):
+    '''get GPIO(n) setting on a pin label, or -1'''
+    p = bylabel.get(label)
+    if p is None:
+        return -1
+    return p.extra_value('GPIO', type=int, default=-1)
+
+def get_extra_bylabel(label, name, default=None):
+    '''get extra setting for a label by name'''
+    p = bylabel.get(label)
+    if p is None:
+        return default
+    return p.extra_value(name, type=str, default=default)
+
 def write_UART_config(f):
     '''write UART config defines'''
     get_config('UART_ORDER')
@@ -737,6 +791,7 @@ def write_UART_config(f):
             '#define HAL_UART_IO_DRIVER ChibiOS::UARTDriver uart_io(HAL_UART_IOMCU_IDX)\n'
         )
         uart_list.append(config['IOMCU_UART'][0])
+        f.write('#define HAL_HAVE_SERVO_VOLTAGE 1\n') # make the assumption that IO gurantees servo monitoring
     else:
         f.write('#define HAL_WITH_IO_MCU 0\n')
     f.write('\n')
@@ -769,8 +824,15 @@ def write_UART_config(f):
             f.write(
                 "#define HAL_%s_CONFIG { (BaseSequentialStream*) &SD%u, false, "
                 % (dev, n))
-            f.write("STM32_%s_RX_DMA_CONFIG, STM32_%s_TX_DMA_CONFIG, %s}\n" %
+            f.write("STM32_%s_RX_DMA_CONFIG, STM32_%s_TX_DMA_CONFIG, %s, " %
                     (dev, dev, rts_line))
+
+            # add inversion pins, if any
+            f.write("%d, " % get_gpio_bylabel(dev + "_RXINV"))
+            f.write("%s, " % get_extra_bylabel(dev + "_RXINV", "POL", "0"))
+            f.write("%d, " % get_gpio_bylabel(dev + "_TXINV"))
+            f.write("%s}\n" % get_extra_bylabel(dev + "_TXINV", "POL", "0"))
+
     f.write('#define HAL_UART_DEVICE_LIST %s\n\n' % ','.join(devlist))
     if not need_uart_driver and not args.bootloader:
         f.write('''
@@ -810,6 +872,8 @@ def write_I2C_config(f):
     if len(i2c_list) == 0:
         error("I2C_ORDER invalid")
     devlist = []
+
+    # write out config structures
     for dev in i2c_list:
         if not dev.startswith('I2C') or dev[3] not in "1234":
             error("Bad I2C_ORDER element %s" % dev)
@@ -817,17 +881,12 @@ def write_I2C_config(f):
         devlist.append('HAL_I2C%u_CONFIG' % n)
         f.write('''
 #if defined(STM32_I2C_I2C%u_RX_DMA_STREAM) && defined(STM32_I2C_I2C%u_TX_DMA_STREAM)
-#define HAL_I2C%u_CONFIG { &I2CD%u, STM32_I2C_I2C%u_RX_DMA_STREAM, STM32_I2C_I2C%u_TX_DMA_STREAM }
+#define HAL_I2C%u_CONFIG { &I2CD%u, STM32_I2C_I2C%u_RX_DMA_STREAM, STM32_I2C_I2C%u_TX_DMA_STREAM, HAL_GPIO_PIN_I2C%u_SCL, HAL_GPIO_PIN_I2C%u_SDA }
 #else
-#define HAL_I2C%u_CONFIG { &I2CD%u, SHARED_DMA_NONE, SHARED_DMA_NONE }
+#define HAL_I2C%u_CONFIG { &I2CD%u, SHARED_DMA_NONE, SHARED_DMA_NONE, HAL_GPIO_PIN_I2C%u_SCL, HAL_GPIO_PIN_I2C%u_SDA }
 #endif
 '''
-            % (n, n, n, n, n, n, n, n))
-        if dev + "_SCL" in bylabel:
-            p = bylabel[dev + "_SCL"]
-            f.write(
-                '#define HAL_%s_SCL_AF %d\n' % (dev, p.af)
-            )
+            % (n, n, n, n, n, n, n, n, n, n, n, n))
     f.write('\n#define HAL_I2C_DEVICE_LIST %s\n\n' % ','.join(devlist))
 
 def parse_timer(str):
@@ -1022,6 +1081,7 @@ def write_ADC_config(f):
         scale = p.extra_value('SCALE', default=None)
         if p.label == 'VDD_5V_SENS':
             f.write('#define ANALOG_VCC_5V_PIN %u\n' % chan)
+            f.write('#define HAL_HAVE_BOARD_VOLTAGE 1\n')
         adc_chans.append((chan, scale, p.label, p.portpin))
     adc_chans = sorted(adc_chans)
     vdd = get_config('STM32_VDD')

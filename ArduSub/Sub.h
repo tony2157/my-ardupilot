@@ -197,14 +197,14 @@ private:
 #endif
 
     // Mission library
-    AP_Mission mission{ahrs,
+    AP_Mission mission{
             FUNCTOR_BIND_MEMBER(&Sub::start_command, bool, const AP_Mission::Mission_Command &),
             FUNCTOR_BIND_MEMBER(&Sub::verify_command_callback, bool, const AP_Mission::Mission_Command &),
             FUNCTOR_BIND_MEMBER(&Sub::exit_mission, void)};
 
     // Optical flow sensor
 #if OPTFLOW == ENABLED
-    OpticalFlow optflow{ahrs};
+    OpticalFlow optflow;
 #endif
 
     // system time in milliseconds of last recorded yaw reset from ekf
@@ -427,7 +427,7 @@ private:
 
     // terrain handling
 #if AP_TERRAIN_AVAILABLE && AC_TERRAIN
-    AP_Terrain terrain{ahrs, mission, rally};
+    AP_Terrain terrain{mission, rally};
 #endif
 
     // used to allow attitude and depth control without a position system
@@ -485,7 +485,6 @@ private:
     void send_pid_tuning(mavlink_channel_t chan);
     void gcs_data_stream_send(void);
     void gcs_update(void);
-    void Log_Write_Optflow();
     void Log_Write_Control_Tuning();
     void Log_Write_Performance();
     void Log_Write_Attitude();
@@ -617,7 +616,6 @@ private:
     void init_compass();
 #if OPTFLOW == ENABLED
     void init_optflow();
-    void update_optical_flow(void);
 #endif
     void terrain_update();
     void terrain_logging();

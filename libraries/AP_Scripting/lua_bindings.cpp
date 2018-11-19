@@ -17,8 +17,8 @@ static const luaL_Reg gcs_functions[] =
 };
 
 int lua_servo_set_output_pwm(lua_State *state) {
-    int servo_function = luaL_checkinteger(state, 1);
-    int output_value = luaL_checknumber(state, 2);
+    int servo_function = luaL_checkinteger(state, -2);
+    int output_value = luaL_checknumber(state, -1);
 
     // range check the output function
     if ((servo_function < SRV_Channel::Aux_servo_function_t::k_scripting1) ||
@@ -31,8 +31,6 @@ int lua_servo_set_output_pwm(lua_State *state) {
     }
 
     SRV_Channels::set_output_pwm((SRV_Channel::Aux_servo_function_t)servo_function, output_value);
-
-    gcs().send_text(MAV_SEVERITY_INFO, "Set to %d", output_value);
     return 0;
 }
 
@@ -49,7 +47,3 @@ void load_lua_bindings(lua_State *state) {
     lua_setglobal(state, "servo");
 }
 
-void hook(lua_State *L, lua_Debug *ar) {
-    gcs().send_text(MAV_SEVERITY_INFO, "got a debug hook");
-    lua_error(L);
-}

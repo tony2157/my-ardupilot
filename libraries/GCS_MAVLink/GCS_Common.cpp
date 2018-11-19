@@ -1481,16 +1481,19 @@ MAV_RESULT GCS_MAVLINK::_set_mode_common(const MAV_MODE _base_mode, const uint32
 /*
   send OPTICAL_FLOW message
  */
-void GCS_MAVLINK::send_opticalflow(const OpticalFlow &optflow)
+void GCS_MAVLINK::send_opticalflow()
 {
+    const OpticalFlow *optflow = AP::opticalflow();
+
     // exit immediately if no optical flow sensor or not healthy
-    if (!optflow.healthy()) {
+    if (optflow == nullptr ||
+        !optflow->healthy()) {
         return;
     }
 
     // get rates from sensor
-    const Vector2f &flowRate = optflow.flowRate();
-    const Vector2f &bodyRate = optflow.bodyRate();
+    const Vector2f &flowRate = optflow->flowRate();
+    const Vector2f &bodyRate = optflow->bodyRate();
 
     const AP_AHRS &ahrs = AP::ahrs();
     float hagl = 0;
@@ -1509,7 +1512,7 @@ void GCS_MAVLINK::send_opticalflow(const OpticalFlow &optflow)
         flowRate.y,
         bodyRate.x,
         bodyRate.y,
-        optflow.quality(),
+        optflow->quality(),
         hagl,  // ground distance (in meters) set to zero
         flowRate.x,
         flowRate.y);
@@ -1789,6 +1792,11 @@ float GCS_MAVLINK::vfr_hud_climbrate() const
     return -vfr_hud_velned.z;
 }
 
+float GCS_MAVLINK::vfr_hud_alt() const
+{
+    return global_position_current_loc.alt * 0.01f; // cm -> m
+}
+
 void GCS_MAVLINK::send_vfr_hud()
 {
     AP_AHRS &ahrs = AP::ahrs();
@@ -1803,7 +1811,7 @@ void GCS_MAVLINK::send_vfr_hud()
         ahrs.groundspeed(),
         (ahrs.yaw_sensor / 100) % 360,
         vfr_hud_throttle(),
-        global_position_current_loc.alt * 0.01f, // cm -> m
+        vfr_hud_alt(),
         vfr_hud_climbrate());
 }
 
@@ -3196,6 +3204,11 @@ bool GCS_MAVLINK::try_send_message(const enum ap_message id)
     case MSG_MOUNT_STATUS:
         CHECK_PAYLOAD_SIZE(MOUNT_STATUS);
         send_mount_status();
+        break;
+
+    case MSG_OPTICAL_FLOW:
+        CHECK_PAYLOAD_SIZE(OPTICAL_FLOW);
+        send_opticalflow();
         break;
 
     case MSG_POSITION_TARGET_GLOBAL_INT:

@@ -281,7 +281,7 @@ public:
     bool requires_GPS() const override { return true; }
     bool has_manual_throttle() const override { return false; }
     bool allows_arming(bool from_gcs) const override { return false; };
-    bool in_guided_mode() const { return mode() == Auto_NavGuided; }
+    bool in_guided_mode() const override { return mode() == Auto_NavGuided; }
 
     // Auto
     AutoMode mode() const { return _mode; }
@@ -303,17 +303,17 @@ public:
 
     // return true if this flight mode supports user takeoff
     //  must_nagivate is true if mode must also control horizontal position
-    virtual bool has_user_takeoff(bool must_navigate) const { return false; }
+    virtual bool has_user_takeoff(bool must_navigate) const override { return false; }
 
     void payload_place_start();
 
-    // only out here temporarily
-    bool start_command(const AP_Mission::Mission_Command& cmd);
-    bool verify_command_callback(const AP_Mission::Mission_Command& cmd);
-    void exit_mission();
-
     // for GCS_MAVLink to call:
     bool do_guided(const AP_Mission::Mission_Command& cmd);
+
+    AP_Mission mission{
+        FUNCTOR_BIND_MEMBER(&Copter::ModeAuto::start_command, bool, const AP_Mission::Mission_Command &),
+        FUNCTOR_BIND_MEMBER(&Copter::ModeAuto::verify_command, bool, const AP_Mission::Mission_Command &),
+        FUNCTOR_BIND_MEMBER(&Copter::ModeAuto::exit_mission, void)};
 
 protected:
 
@@ -328,7 +328,9 @@ protected:
 
 private:
 
+    bool start_command(const AP_Mission::Mission_Command& cmd);
     bool verify_command(const AP_Mission::Mission_Command& cmd);
+    void exit_mission();
 
     void takeoff_run();
     void wp_run();
@@ -434,7 +436,6 @@ private:
         float descend_start_altitude;
         float descend_max; // centimetres
     } nav_payload_place;
-
 };
 
 #if AUTOTUNE_ENABLED == ENABLED
@@ -804,7 +805,7 @@ public:
     bool has_manual_throttle() const override { return false; }
     bool allows_arming(bool from_gcs) const override { return from_gcs; }
     bool is_autopilot() const override { return true; }
-    bool in_guided_mode() const { return true; }
+    bool in_guided_mode() const override { return true; }
     bool has_user_takeoff(bool must_navigate) const override { return true; }
 
     void set_angle(const Quaternion &q, float climb_rate_cms, bool use_yaw_rate, float yaw_rate_rads);

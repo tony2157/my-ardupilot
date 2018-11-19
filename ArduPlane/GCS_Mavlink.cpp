@@ -398,7 +398,12 @@ void Plane::send_pid_tuning(mavlink_channel_t chan)
     if ((g.gcs_pid_mask & TUNING_BITS_LAND) && (flight_stage == AP_Vehicle::FixedWing::FLIGHT_LAND)) {
         send_pid_info(chan, landing.get_pid_info(), PID_TUNING_LANDING, degrees(gyro.z));
     }
-}
+    if (g.gcs_pid_mask & TUNING_BITS_ACCZ && quadplane.in_vtol_mode()) {
+        const Vector3f &accel = ahrs.get_accel_ef();
+        pid_info = &quadplane.pos_control->get_accel_z_pid().get_pid_info();
+        send_pid_info(chan, pid_info, PID_TUNING_ACCZ, -accel.z);
+    }
+ }
 
 uint8_t GCS_MAVLINK_Plane::sysid_my_gcs() const
 {
@@ -468,15 +473,6 @@ bool GCS_MAVLINK_Plane::try_send_message(enum ap_message id)
     case MSG_WIND:
         CHECK_PAYLOAD_SIZE(WIND);
         plane.send_wind(chan);
-        break;
-
-    case MSG_OPTICAL_FLOW:
-#if OPTFLOW == ENABLED
-        if (plane.optflow.enabled()) {        
-            CHECK_PAYLOAD_SIZE(OPTICAL_FLOW);
-            send_opticalflow(plane.optflow);
-        }
-#endif
         break;
 
     case MSG_PID_TUNING:

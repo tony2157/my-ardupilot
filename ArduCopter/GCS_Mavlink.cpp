@@ -191,64 +191,56 @@ void NOINLINE Copter::send_rpm(mavlink_channel_t chan)
 #endif
 }
 
-
 /*
   send PID tuning message
  */
-void Copter::send_pid_tuning(mavlink_channel_t chan)
+void GCS_MAVLINK_Copter::send_pid_tuning()
 {
-    const Vector3f &gyro = ahrs.get_gyro();
-    if (g.gcs_pid_mask & 1) {
-        const DataFlash_Class::PID_Info &pid_info = attitude_control->get_rate_roll_pid().get_pid_info();
-        mavlink_msg_pid_tuning_send(chan, PID_TUNING_ROLL,
+    const Vector3f &gyro = AP::ahrs().get_gyro();
+    static const PID_TUNING_AXIS axes[] = {
+        PID_TUNING_ROLL,
+        PID_TUNING_PITCH,
+        PID_TUNING_YAW,
+        PID_TUNING_ACCZ
+    };
+    for (uint8_t i=0; i<ARRAY_SIZE(axes); i++) {
+        if (!(copter.g.gcs_pid_mask & (1<<(axes[i]-1)))) {
+            continue;
+        }
+        if (!HAVE_PAYLOAD_SPACE(chan, PID_TUNING)) {
+            return;
+        }
+        AC_PID &pid = copter.attitude_control->get_rate_roll_pid(); // dummy ref
+        float achieved;
+        switch (axes[i]) {
+        case PID_TUNING_ROLL:
+            pid = copter.attitude_control->get_rate_roll_pid();
+            achieved = degrees(gyro.x);
+            break;
+        case PID_TUNING_PITCH:
+            pid = copter.attitude_control->get_rate_pitch_pid();
+            achieved = degrees(gyro.y);
+            break;
+        case PID_TUNING_YAW:
+            pid = copter.attitude_control->get_rate_yaw_pid();
+            achieved = degrees(gyro.z);
+            break;
+        case PID_TUNING_ACCZ:
+            pid = copter.pos_control->get_accel_z_pid();
+            achieved = -(AP::ahrs().get_accel_ef_blended().z + GRAVITY_MSS);
+            break;
+        default:
+            continue;
+        }
+        const DataFlash_Class::PID_Info &pid_info = pid.get_pid_info();
+        mavlink_msg_pid_tuning_send(chan,
+                                    axes[i],
                                     pid_info.desired*0.01f,
-                                    degrees(gyro.x),
+                                    achieved,
                                     pid_info.FF*0.01f,
                                     pid_info.P*0.01f,
                                     pid_info.I*0.01f,
                                     pid_info.D*0.01f);
-        if (!HAVE_PAYLOAD_SPACE(chan, PID_TUNING)) {
-            return;
-        }
-    }
-    if (g.gcs_pid_mask & 2) {
-        const DataFlash_Class::PID_Info &pid_info = attitude_control->get_rate_pitch_pid().get_pid_info();
-        mavlink_msg_pid_tuning_send(chan, PID_TUNING_PITCH,
-                                    pid_info.desired*0.01f,
-                                    degrees(gyro.y),
-                                    pid_info.FF*0.01f,
-                                    pid_info.P*0.01f,
-                                    pid_info.I*0.01f,
-                                    pid_info.D*0.01f);
-        if (!HAVE_PAYLOAD_SPACE(chan, PID_TUNING)) {
-            return;
-        }
-    }
-    if (g.gcs_pid_mask & 4) {
-        const DataFlash_Class::PID_Info &pid_info = attitude_control->get_rate_yaw_pid().get_pid_info();
-        mavlink_msg_pid_tuning_send(chan, PID_TUNING_YAW,
-                                    pid_info.desired*0.01f,
-                                    degrees(gyro.z),
-                                    pid_info.FF*0.01f,
-                                    pid_info.P*0.01f,
-                                    pid_info.I*0.01f,
-                                    pid_info.D*0.01f);
-        if (!HAVE_PAYLOAD_SPACE(chan, PID_TUNING)) {
-            return;
-        }
-    }
-    if (g.gcs_pid_mask & 8) {
-        const DataFlash_Class::PID_Info &pid_info = copter.pos_control->get_accel_z_pid().get_pid_info();
-        mavlink_msg_pid_tuning_send(chan, PID_TUNING_ACCZ,
-                                    pid_info.desired*0.01f,
-                                    -(ahrs.get_accel_ef_blended().z + GRAVITY_MSS),
-                                    pid_info.FF*0.01f,
-                                    pid_info.P*0.01f,
-                                    pid_info.I*0.01f,
-                                    pid_info.D*0.01f);
-        if (!HAVE_PAYLOAD_SPACE(chan, PID_TUNING)) {
-            return;
-        }
     }
 }
 
@@ -322,13 +314,6 @@ bool GCS_MAVLINK_Copter::try_send_message(enum ap_message id)
 #endif
         break;
 
-    case MSG_OPTICAL_FLOW:
-#if OPTFLOW == ENABLED
-        CHECK_PAYLOAD_SIZE(OPTICAL_FLOW);
-        send_opticalflow(copter.optflow);
-#endif
-        break;
-
     case MSG_WIND:
     case MSG_SERVO_OUT:
     case MSG_AOA_SSA:
@@ -338,7 +323,7 @@ bool GCS_MAVLINK_Copter::try_send_message(enum ap_message id)
 
     case MSG_PID_TUNING:
         CHECK_PAYLOAD_SIZE(PID_TUNING);
-        copter.send_pid_tuning(chan);
+        send_pid_tuning();
         break;
 
     case MSG_ADSB_VEHICLE:
@@ -444,7 +429,7 @@ const AP_Param::GroupInfo GCS_MAVLINK::var_info[] = {
     // @Range: 0 50
     // @Increment: 1
     // @User: Advanced
-    AP_GROUPINFO("ADSB",   9, GCS_MAVLINK, streamRates[9],  5),
+    AP_GROUPINFO("ADSB",   9, GCS_MAVLINK, streamRates[9],  0),
 AP_GROUPEND
 };
 
@@ -790,8 +775,8 @@ MAV_RESULT GCS_MAVLINK_Copter::handle_command_long_packet(const mavlink_command_
     case MAV_CMD_MISSION_START:
         if (copter.motors->armed() && copter.set_mode(AUTO, MODE_REASON_GCS_COMMAND)) {
             copter.set_auto_armed(true);
-            if (copter.mission.state() != AP_Mission::MISSION_RUNNING) {
-                copter.mission.start_or_resume();
+            if (copter.mode_auto.mission.state() != AP_Mission::MISSION_RUNNING) {
+                copter.mode_auto.mission.start_or_resume();
             }
             return MAV_RESULT_ACCEPTED;
         }
@@ -1498,7 +1483,7 @@ bool GCS_MAVLINK_Copter::accept_packet(const mavlink_status_t &status, mavlink_m
 AP_Mission *GCS_MAVLINK_Copter::get_mission()
 {
 #if MODE_AUTO_ENABLED == ENABLED
-    return &copter.mission;
+    return &copter.mode_auto.mission;
 #else
     return nullptr;
 #endif
@@ -1560,4 +1545,14 @@ bool GCS_MAVLINK_Copter::set_mode(const uint8_t mode)
     }
 #endif
     return copter.set_mode((control_mode_t)mode, MODE_REASON_GCS_COMMAND);
+}
+
+float GCS_MAVLINK_Copter::vfr_hud_alt() const
+{
+    if (copter.g2.dev_options.get() & DevOptionVFR_HUDRelativeAlt) {
+        // compatability option for older mavlink-aware devices that
+        // assume Copter returns a relative altitude in VFR_HUD.alt
+        return copter.current_loc.alt / 100.0f;
+    }
+    return GCS_MAVLINK::vfr_hud_alt();
 }

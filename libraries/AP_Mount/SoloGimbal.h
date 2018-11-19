@@ -39,8 +39,7 @@ class SoloGimbal : AP_AccelCal_Client
 public:
     //Constructor
     SoloGimbal() :
-        _ekf(AP::ahrs_navekf()),
-        _ahrs(AP::ahrs_navekf()),
+        _ekf(),
         _state(GIMBAL_STATE_NOT_PRESENT),
         _vehicle_yaw_rate_ef_filt(0.0f),
         _vehicle_to_gimbal_quat(),
@@ -96,10 +95,10 @@ private:
 
     void readVehicleDeltaAngle(uint8_t ins_index, Vector3f &dAng);
 
-    void _acal_save_calibrations();
-    bool _acal_get_ready_to_sample();
-    bool _acal_get_saving();
-    AccelCalibrator* _acal_get_calibrator(uint8_t instance);
+    void _acal_save_calibrations() override;
+    bool _acal_get_ready_to_sample() override;
+    bool _acal_get_saving() override;
+    AccelCalibrator* _acal_get_calibrator(uint8_t instance) override;
 
     gimbal_mode_t get_mode();
 
@@ -107,7 +106,6 @@ private:
 
     // private member variables
     SoloGimbalEKF            _ekf;      // state of small EKF for gimbal
-    const AP_AHRS_NavEKF    &_ahrs;     //  Main EKF
 
     gimbal_state_t _state;
 
