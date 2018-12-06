@@ -14,6 +14,7 @@ float volt[4], curr[4];
 //Appartently, the range is now from 0 to 100%
 uint16_t fan_pwm_on = 1210;
 uint16_t fan_pwm_off = 800;
+bool flag_fan_on = false;
 
 //Wind estimator Params
 const int N = 60;               //filter order
@@ -185,27 +186,23 @@ void Copter::userhook_SuperSlowLoop()
     //Fan Control    
     if(hal.util->safety_switch_state() == AP_HAL::Util::SAFETY_DISARMED){
         SRV_Channels::set_output_pwm(SRV_Channel::k_egg_drop, fan_pwm_off);
+        flag_fan_on = false;
     }
-    // else{
-    //     if(alt > 1.8f){
-    //         SRV_Channels::set_output_pwm(SRV_Channel::k_egg_drop, fan_pwm_on);
-    //     }
-    //     else{
-    //         if(alt < 1.6f){
-    //             SRV_Channels::set_output_pwm(SRV_Channel::k_egg_drop, fan_pwm_off);
-    //         }
-    //     }
-    // }
 
     //Start estimation after Copter took off
-    if(!ap.land_complete){ // !arming.is_armed()        
-        if(alt > 1.8f){
+    if(!ap.land_complete){ // !arming.is_armed()
+        // FAN control. Turn on/off at given heights
+        if(alt > 1.8f && flag_fan_on == false){
             SRV_Channels::set_output_pwm(SRV_Channel::k_egg_drop, fan_pwm_on);
         }
-        else{
-            if(alt < 1.6f){
-                SRV_Channels::set_output_pwm(SRV_Channel::k_egg_drop, fan_pwm_off);
-            }
+        if(alt > 5.0f && flag_fan_on == false){
+            flag_fan_on = true;
+        }
+        if(alt < 3.0f && flag_fan_on == true){
+            SRV_Channels::set_output_pwm(SRV_Channel::k_egg_drop, fan_pwm_off);
+        }
+        if(alt < 1.0f && flag_fan_on == true){
+            flag_fan_on == false;
         }
 
         if(alt > 2.0f){
@@ -301,6 +298,7 @@ void Copter::userhook_SuperSlowLoop()
     else{
         copter.wp_nav->turn_into_wind_heading = (float)copter.initial_armed_bearing;
         SRV_Channels::set_output_pwm(SRV_Channel::k_egg_drop, fan_pwm_off);
+        flag_fan_on = false;
         k = 0;
         _roll_sum = 0.0f;
         _pitch_sum = 0.0f;
