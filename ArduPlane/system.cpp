@@ -212,6 +212,16 @@ void Plane::init_ardupilot()
 #if GRIPPER_ENABLED == ENABLED
     g2.gripper.init();
 #endif
+    // initialize CASS sensors
+    #ifdef USERHOOK_TEMPLOOP
+    init_CASS_imet();
+    #endif
+    #ifdef USERHOOK_RHLOOP
+    init_CASS_hyt271();
+    #endif
+    #ifdef USERHOOK_CO2LOOP
+    init_CASS_co2();
+    #endif
 
     // disable safety if requested
     BoardConfig.init_safety();

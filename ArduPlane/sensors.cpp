@@ -1,6 +1,102 @@
 #include "Plane.h"
 #include <AP_RSSI/AP_RSSI.h>
 
+void Plane::init_CASS_imet(){
+
+    float coeff[4][3];
+
+    // //CS2.2 COPTERSONDE SENSORS
+    // //IMET temp number 56236:
+    // coeff[0][0] = 1.00993256e-03f;
+    // coeff[0][1] = 2.62155349e-04f;
+    // coeff[0][2] = 1.48648209e-07f;
+
+    // //IMET temp number 45364:
+    // coeff[1][0] = 1.01307391e-03f;
+    // coeff[1][1] = 2.61020114e-04f;
+    // coeff[1][2] = 1.52660155e-07f;
+
+    // //IMET temp number 56220:
+    // coeff[2][0] = 1.01704202e-03f;
+    // coeff[2][1] = 2.61212821e-04f;
+    // coeff[2][2] = 1.51670179e-07f;
+
+    // //IMET temp number none:
+    // coeff[3][0] = 1.0;
+    // coeff[3][1] = 1.0;
+    // coeff[3][2] = 1.0;
+    
+    //CS2.1 COPTERSONDE SENSORS
+    //IMET temp number 56238:
+    coeff[0][0] = 9.99731794e-04f;
+    coeff[0][1] = 2.63482606e-04f;
+    coeff[0][2] = 1.46874135e-07f;
+
+    //IMET temp number 56237:
+    coeff[1][0] = 1.00379726e-03f;
+    coeff[1][1] = 2.62770143e-04f;
+    coeff[1][2] = 1.48291724e-07f;
+
+    //IMET temp number 56239:
+    coeff[2][0] = 9.99173098e-04f;
+    coeff[2][1] = 2.63582305e-04f;
+    coeff[2][2] = 1.46930574e-07f;
+
+    //IMET temp number none:
+    coeff[3][0] = 1.0;
+    coeff[3][1] = 1.0;
+    coeff[3][2] = 1.0;
+
+    // //RED COPTERSONDE SENSORS
+    // //IMET temp number 48623:
+    // coeff[0][0] = 1.00733068f * (float)pow(10, -3);
+    // coeff[0][1] = 2.62299300f * (float)pow(10, -4);
+    // coeff[0][2] = 1.48361439f * (float)pow(10, -7);
+
+    // //IMET temp number 48627:
+    // coeff[1][0] = 1.00097308f * (float)pow(10, -3);
+    // coeff[1][1] = 2.62806129f * (float)pow(10, -4);
+    // coeff[1][2] = 1.46350112f * (float)pow(10, -7);
+
+    // //IMET temp number 45363:
+    // coeff[2][0] = 9.93118592f * (float)pow(10, -4);
+    // coeff[2][1] = 2.63743049f * (float)pow(10, -4);
+    // coeff[2][2] = 1.47415476f * (float)pow(10, -7);
+
+    // //IMET temp number 48622:
+    // coeff[3][0] = 1.00880279f * (float)pow(10, -3);
+    // coeff[3][1] = 2.61500024f * (float)pow(10, -4);
+    // coeff[3][2] = 1.49421629f * (float)pow(10, -7);
+
+    for(uint8_t i=0; i<4; i++){
+        CASS_Imet[i].init();
+    }
+    // Set I2C addresses
+    CASS_Imet[1].set_i2c_addr(0x4B);
+    CASS_Imet[2].set_i2c_addr(0x4A);
+    CASS_Imet[3].set_i2c_addr(0x49);
+    // Set sensor coefficients
+    CASS_Imet[0].set_sensor_coeff(coeff[0]);
+    CASS_Imet[1].set_sensor_coeff(coeff[1]);
+    CASS_Imet[2].set_sensor_coeff(coeff[2]);
+    CASS_Imet[3].set_sensor_coeff(coeff[3]);
+}
+
+void Plane::init_CASS_hyt271(){
+    for(uint8_t i=0; i<4; i++){
+        CASS_HYT271[i].init();
+    }
+    // Set I2C addresses
+    CASS_HYT271[1].set_i2c_addr(0x11);
+    CASS_HYT271[2].set_i2c_addr(0x12);
+    CASS_HYT271[3].set_i2c_addr(0x13);
+}
+
+void Plane::init_CASS_co2(){
+    CASS_CO2[0].initUART0();
+    CASS_CO2[1].initUART1();
+}
+
 /*
   read the rangefinder and update height estimate
  */

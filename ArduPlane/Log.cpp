@@ -315,6 +315,13 @@ const struct LogStructure Plane::log_structure[] = {
       "QTUN", "Qffffhhfffff", "TimeUS,AngBst,ThrOut,DAlt,Alt,DCRt,CRt,DVx,DVy,DAx,DAy,TMix", "s--mmnnnnoo-", "F--BBBB0000-" },
     { LOG_AOA_SSA_MSG, sizeof(log_AOA_SSA),
       "AOA", "Qff", "TimeUS,AOA,SSA", "sdd", "F00" },
+    //CASS Data Logging format for the SD card, 
+    { LOG_IMET_MSG, sizeof(log_IMET),
+      "IMET", "Qffffffff","Time,Temp1,Volt1,Temp2,Volt2,Temp3,Volt3,Temp4,Volt4","s--------","F00000000"},
+    { LOG_RH_MSG, sizeof(log_RH),
+      "RHUM", "Qffffffff","Time,Humi1,Temp1,Humi2,Temp2,Humi3,Temp3,Humi4,Temp4","s--------","F00000000"},
+    { LOG_CO2_MSG, sizeof(log_CO2),
+            "CO2", "QHHHH","Time,co2Val0, errorCode0, co2Val1, errorCode1", "s----","F0000"},
 #if OPTFLOW == ENABLED
     { LOG_OPTFLOW_MSG, sizeof(log_Optflow),
       "OF",   "QBffff",   "TimeUS,Qual,flowX,flowY,bodyX,bodyY", "s-EEEE", "F-0000" },

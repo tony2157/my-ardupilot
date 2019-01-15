@@ -324,6 +324,108 @@ void NOINLINE Plane::send_rpm(mavlink_channel_t chan)
     }
 }
 
+/*
+ *  send a message on both GCS links
+ */
+void NOINLINE Plane::send_cass_imet(mavlink_channel_t chan) {
+    mavlink_cass_sensor_raw_t packet;
+    float raw_sensor[5];
+    uint8_t size = 5;
+    memset(raw_sensor, 0, size * sizeof(float));
+    // Send IMET temperature
+    /*for(uint8_t i=0; i<4; i++){
+        raw_sensor[i] = plane.CASS_Imet[i].temperature();
+    }*/
+    raw_sensor[0] = (float) plane.CASS_CO2[0].co2Value();
+    raw_sensor[1] = (float) plane.CASS_CO2[0].errorCode();
+    raw_sensor[2] = (float) plane.CASS_CO2[1].co2Value();
+    raw_sensor[3] = (float) plane.CASS_CO2[1].errorCode();
+    #if CONFIG_HAL_BOARD == HAL_BOARD_SITL
+    // Variables simulation for IMET sensors
+        uint32_t m = AP_HAL::millis();
+        raw_sensor[0] = 298.15 + sinf(m) * 25;
+        raw_sensor[1] = 1 + raw_sensor[0];
+        raw_sensor[2] = 1 + raw_sensor[1];
+        raw_sensor[3] = 1 + raw_sensor[2];
+        printf("Imet temp: %5.2f \n",raw_sensor[0]);
+    #endif 
+    packet.time_boot_ms = AP_HAL::millis();
+    packet.app_datatype = (uint8_t)0;
+    packet.app_datalength = size;
+    mav_array_memcpy(packet.values, raw_sensor, size * sizeof(float));
+    mavlink_msg_cass_sensor_raw_send_struct(chan, &packet);
+}
+
+void NOINLINE Plane::send_cass_hyt271(mavlink_channel_t chan) {
+    mavlink_cass_sensor_raw_t packet;
+    float raw_sensor[5];
+    uint8_t size = 5;
+    memset(raw_sensor, 0, size * sizeof(float));
+    // Send HYT271 humidity
+    /*for(uint8_t i=0; i<4; i++){
+        raw_sensor[i] = plane.CASS_HYT271[i].relative_humidity();
+    }*/
+    raw_sensor[0] = plane.CASS_HYT271[0].relative_humidity();
+    raw_sensor[1] = plane.CASS_HYT271[0].temperature();
+    raw_sensor[2] = plane.CASS_HYT271[1].relative_humidity();
+    raw_sensor[3] = plane.CASS_HYT271[1].temperature();
+    #if CONFIG_HAL_BOARD == HAL_BOARD_SITL
+    // Variables simulation for HYT271 humidity sensors
+        uint32_t m = AP_HAL::millis();
+        raw_sensor[0] = 50 + sinf(m/100.0) * 25;
+        raw_sensor[1] = 1 + raw_sensor[0];
+        raw_sensor[2] = 1 + raw_sensor[1];
+        raw_sensor[3] = 1 + raw_sensor[2];
+        printf("HYT271 Humidity: %5.2f \n",raw_sensor[0]);     
+    #endif
+    packet.time_boot_ms = AP_HAL::millis();
+    packet.app_datatype = (uint8_t)1;
+    packet.app_datalength = size;
+    mav_array_memcpy(packet.values, raw_sensor, size * sizeof(float));
+    mavlink_msg_cass_sensor_raw_send_struct(chan, &packet);
+
+    // Send extra temperature measurements packet from the HYT271 sensor if there is still space
+    if(!HAVE_PAYLOAD_SPACE(chan, CASS_SENSOR_RAW)){
+        return;
+    }
+    /*for(uint8_t i=0; i<4; i++){
+        raw_sensor[i] = plane.CASS_HYT271[i].temperature();
+    }*/
+    raw_sensor[0] = plane.CASS_HYT271[0].temperature();
+    raw_sensor[1] = plane.CASS_HYT271[1].temperature();
+    raw_sensor[2] = 32.0;
+    raw_sensor[3] = 32.0;
+    #if CONFIG_HAL_BOARD == HAL_BOARD_SITL
+    // Variables simulation for HYT271 temperature sensors
+        raw_sensor[0] = 298.15 + sinf(m/200.0) * 15;
+        raw_sensor[1] = 1 + raw_sensor[0];
+        raw_sensor[2] = 1 + raw_sensor[1];
+        raw_sensor[3] = 1 + raw_sensor[2];   
+        printf("HYT271 temp: %5.2f \n",raw_sensor[0]);  
+    #endif
+    packet.time_boot_ms = AP_HAL::millis();
+    packet.app_datatype = (uint8_t)2;
+    mav_array_memcpy(packet.values, raw_sensor, size * sizeof(float));
+    mavlink_msg_cass_sensor_raw_send_struct(chan, &packet);
+}
+
+void NOINLINE Plane::send_cass_co2(mavlink_channel_t chan) {
+    mavlink_cass_sensor_raw_t packet;
+    uint16_t raw_sensor[4];
+    uint8_t size = 4;
+    memset(raw_sensor, 0, size * sizeof(uint16_t));
+    // Send CO2
+    for(uint8_t i=0; i<1; i++){
+        raw_sensor[i] = plane.CASS_CO2[i].co2Value();
+        raw_sensor[i+1] = plane.CASS_CO2[i].errorCode();
+    }
+    
+    packet.time_boot_ms = AP_HAL::millis();
+    packet.app_datatype = (uint8_t)3;
+    packet.app_datalength = size;
+    mav_array_memcpy(packet.values, raw_sensor, size * sizeof(uint16_t));
+    mavlink_msg_cass_sensor_raw_send_struct(chan, &packet);
+}
 // sends a single pid info over the provided channel
 void Plane::send_pid_info(const mavlink_channel_t chan, const DataFlash_Class::PID_Info *pid_info,
                           const uint8_t axis, const float achieved)
@@ -499,6 +601,23 @@ bool GCS_MAVLINK_Plane::try_send_message(enum ap_message id)
     case MSG_LANDING:
         plane.landing.send_landing_message(chan);
         break;
+    case MSG_CASS_IMET:
+        CHECK_PAYLOAD_SIZE(CASS_SENSOR_RAW);
+        plane.send_cass_imet(chan);
+        break;
+    
+    
+    case MSG_CASS_HYT271:
+        CHECK_PAYLOAD_SIZE(CASS_SENSOR_RAW);
+        plane.send_cass_hyt271(chan);
+        break;
+    
+
+    /*case MSG_CASS_CO2:
+        CHECK_PAYLOAD_SIZE(CASS_SENSOR_RAW);
+        plane.send_cass_co2(chan);
+        break;*/
+    
     default:
         return GCS_MAVLINK::try_send_message(id);
     }
@@ -640,7 +759,10 @@ static const ap_message STREAM_EXTRA1_msgs[] = {
     MSG_ESC_TELEMETRY,
 };
 static const ap_message STREAM_EXTRA2_msgs[] = {
-    MSG_VFR_HUD
+    MSG_VFR_HUD,
+    MSG_CASS_IMET,
+    MSG_CASS_HYT271,
+    MSG_CASS_CO2
 };
 static const ap_message STREAM_EXTRA3_msgs[] = {
     MSG_AHRS,
