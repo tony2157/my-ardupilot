@@ -99,6 +99,20 @@ const AP_Scheduler::Task Plane::scheduler_tasks[] = {
 #if OSD_ENABLED == ENABLED
     SCHED_TASK(publish_osd_info, 1, 10),
 #endif
+
+#ifdef USERHOOK_CO2LOOP
+ SCHED_TASK(userhook_CO2,         10,     75),
+ SCHED_TASK(readCO2_0,         4,     100),
+ SCHED_TASK(readCO2_1,         4,     100),
+#endif
+
+#ifdef USERHOOK_TEMPLOOP 
+ SCHED_TASK(userhook_TempLoop,   10,     75),
+#endif                      
+
+#ifdef USERHOOK_RHLOOP
+ SCHED_TASK(userhook_RHLoop,     10,    75),
+#endif               
 };
 
 constexpr int8_t Plane::_failsafe_priorities[5];

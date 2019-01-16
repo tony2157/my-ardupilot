@@ -117,6 +117,13 @@
 #include <SITL/SITL.h>
 #endif
 
+#include <AC_CASS_IMET/AC_CASS_Imet.h>
+#include <AC_CASS_HYT271/AC_CASS_HYT271.h>
+#include <AC_CASS_CO2/AC_CASS_CO2.h>
+#ifdef USERHOOK_VARIABLES
+# include USERHOOK_VARIABLES
+#endif
+
 /*
   a plane specific AP_AdvancedFailsafe class
  */
@@ -205,6 +212,13 @@ private:
     Compass compass;
 
     AP_InertialSensor ins;
+
+    // Imet Temperature sensors class declaration
+    AC_CASS_Imet CASS_Imet[4]; 
+    // HYT271 humidity sensors class declaration
+    AC_CASS_HYT271 CASS_HYT271[4];
+    // CO2 sensors class declaration
+    AC_CASS_CO2 CASS_CO2[2];
 
     RangeFinder rangefinder{serial_manager, ROTATION_PITCH_270};
 
@@ -1032,6 +1046,22 @@ private:
     void accel_cal_update(void);
     void update_soft_armed();
     void update_soaring();
+
+    // User sensor code initilizer
+    void init_CASS_imet(void);
+    void init_CASS_hyt271(void);
+    void init_CASS_co2(void);
+    // CASS Mavlink message
+    void send_cass_imet(mavlink_channel_t chan);
+    void send_cass_hyt271(mavlink_channel_t chan);
+    void send_cass_co2(mavlink_channel_t chan);
+
+    void userhook_init();
+    void userhook_CO2();
+    void readCO2_0();
+    void readCO2_1();
+    void userhook_TempLoop();
+    void userhook_RHLoop();
 
     // support for AP_Avoidance custom flight mode, AVOID_ADSB
     bool avoid_adsb_init(bool ignore_checks);
