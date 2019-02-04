@@ -83,7 +83,7 @@
 //#define MODE_LOITER_ENABLED   DISABLED            // disable loiter mode support
 //#define MODE_POSHOLD_ENABLED  DISABLED            // disable poshold mode support
 //#define MODE_RTL_ENABLED DISABLED                 // disable rtl mode support
-//#define MODE_SMARTRTL_ENABLED DISABLED            // disable smartrtl mode support
+#define MODE_SMARTRTL_ENABLED DISABLED            // disable smartrtl mode support
 #define MODE_SPORT_ENABLED DISABLED               // disable sport mode support
 #define MODE_THROW_ENABLED    DISABLED            // disable throw mode support
 #define DEVO_TELEM_ENABLED DISABLED               // disable DEVO telemetry, if you don't use Walkera RX-707 (or newer) receivers
