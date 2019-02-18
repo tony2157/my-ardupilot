@@ -57,11 +57,6 @@ void Copter::init_CASS_imet(){
     // coeff[1][1] = 2.61214144e-04f;
     // coeff[1][2] = 1.50257257e-07f;
 
-    // //IMET temp number 57556:
-    // coeff[2][0] = 1.01819012e-03f;
-    // coeff[2][1] = 2.60580910e-04f;
-    // coeff[2][2] = 1.52793158e-07f;
-
     // //IMET temp number 58822:
     // coeff[2][0] = 1.00761568e-03f;
     // coeff[2][1] = 2.61899525e-04f;
