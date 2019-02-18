@@ -11,10 +11,8 @@ const int N_imet = 4;   //supports up to 4
 float volt[4], curr[4];
 
 //Fan control params
-//Appartently, the range is now from 0 to 100%
-uint16_t fan_pwm_on = 1210;
+uint16_t fan_pwm_on = 1215;
 uint16_t fan_pwm_off = 800;
-bool flag_fan_on = false;
 
 //Wind estimator Params
 const int N = 60;               //filter order
@@ -186,13 +184,11 @@ void Copter::userhook_SuperSlowLoop()
     //Fan Control    
     if(hal.util->safety_switch_state() == AP_HAL::Util::SAFETY_DISARMED){
         SRV_Channels::set_output_pwm(SRV_Channel::k_egg_drop, fan_pwm_off);
-        flag_fan_on = false;
     }
 
     //Fan Control    
     if(hal.util->safety_switch_state() == AP_HAL::Util::SAFETY_DISARMED){
         SRV_Channels::set_output_pwm(SRV_Channel::k_egg_drop, fan_pwm_off);
-        flag_fan_on = false;
     }
     else{
         if(alt > 2.5f){
@@ -320,7 +316,6 @@ void Copter::userhook_SuperSlowLoop()
     else{
         copter.wp_nav->turn_into_wind_heading = (float)copter.initial_armed_bearing;
         SRV_Channels::set_output_pwm(SRV_Channel::k_egg_drop, fan_pwm_off);
-        flag_fan_on = false;
         k = 0;
         _roll_sum = 0.0f;
         _pitch_sum = 0.0f;
