@@ -46,6 +46,8 @@ struct PACKED log_WIND {
     float _yaw;
 };
 
+float wind_direction;
+
 #endif  // USERHOOK_VARIABLES
 
 
