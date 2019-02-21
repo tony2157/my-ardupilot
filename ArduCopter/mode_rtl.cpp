@@ -177,10 +177,15 @@ void Copter::ModeRTL::loiterathome_start()
     _loiter_start_time = millis();
 
     // yaw back to initial take-off heading yaw unless pilot has already overridden yaw
-    if(auto_yaw.default_mode(true) != AUTO_YAW_HOLD) {
-        auto_yaw.set_mode(AUTO_YAW_RESETTOARMEDYAW);
-    } else {
-        auto_yaw.set_mode(AUTO_YAW_HOLD);
+    // CASS modification: if AUTO_YAW_INTO_WIND is enabled, keep it.
+    if(auto_yaw.default_mode(true) == AUTO_YAW_INTO_WIND){
+        auto_yaw.set_mode(AUTO_YAW_INTO_WIND);}
+    else{
+        if(auto_yaw.default_mode(true) != AUTO_YAW_HOLD) {
+            auto_yaw.set_mode(AUTO_YAW_RESETTOARMEDYAW);
+        } else {
+            auto_yaw.set_mode(AUTO_YAW_HOLD);
+        }
     }
 }
 
