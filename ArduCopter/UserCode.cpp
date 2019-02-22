@@ -234,7 +234,7 @@ void Copter::userhook_SuperSlowLoop()
             speed = norm(vel_xyz.x,vel_xyz.y); // m/s
             dist_to_wp = copter.wp_nav->get_wp_distance_to_destination(); // cm (horizontally)
 
-            if(speed < 120.0f && dist_to_wp < 800){
+            if(speed < 120.0f && dist_to_wp < 500){
                 if(k <= N-1){
                     // Roll and Pitch accumulation
                     _roll_sum = _roll_sum + _roll;
