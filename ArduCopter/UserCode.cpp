@@ -15,11 +15,11 @@ uint16_t fan_pwm_on = 1215;
 uint16_t fan_pwm_off = 800;
 
 //Wind estimator Params
+float wsA = 32.8;               //Coefficient A of the linear wind speed equation, from calibration
+float wsB = -4.5;               //Coefficient B of the linear wind speed equation, from calibration
 const int N = 60;               //filter order
 float _wind_speed, _wind_dir;   //Estimated parameters
 float _roll, _pitch, _yaw;      //UAS attitude
-float A0, Cd, rho, Drag;        //Estimator parameter: Minimum Area exposed, Drag coeff, air density, Drag force
-float mass, Ps, R;              //UAS mass, Propeller Permeability coeff, prop radius
 float var_temp_dir, var_temp_gamma;
 float _roll_sum, _pitch_sum, avgR, avgP;
 float mean_aux_dir[2],var_aux_dir[2];
@@ -40,12 +40,6 @@ void Copter::userhook_init()
 
     //Initialize Wind estimator
     _wind_dir = 0.0f; _roll = 0.0f; _pitch = 0.0f; _yaw = 0.0f;
-    A0 = 0.011f; //m2
-    Cd = 4.8f;
-    rho = 1.225f; //kg/m3
-    mass = 22.6f; //N
-    Ps = 0.1f;
-    R = 0.14f; //m
     _roll_sum = 0.0f; _pitch_sum = 0.0f;
     avgR = 0.0; avgP = 0.0;
     var_temp_dir = 0.0f; var_temp_gamma = 0.0f;
@@ -263,9 +257,7 @@ void Copter::userhook_SuperSlowLoop()
                     //Filter wind speed measurements
                     if(var_gamma < 0.04f && alt > 4.0f){
                         if(fabs(_pitch_sum)>0.03){
-                            _wind_speed = mass*fabs(tanf(mean_gamma));
-                            A = A0 + 135.0f*Ps*R*R*fabs(sinf(mean_gamma));
-                            _wind_speed = sqrtf(2.0f*_wind_speed/(rho*A*Cd));
+                            _wind_speed = wsA * sqrtf(tanf(acosf(cosf(avgP)*cos(avgR)))) + wsB;
                         }
                         else{
                             _wind_speed = 0;
