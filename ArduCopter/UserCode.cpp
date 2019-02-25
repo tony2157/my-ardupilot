@@ -262,6 +262,7 @@ void Copter::userhook_SuperSlowLoop()
                         else{
                             _wind_speed = 0;
                         }
+                        copter.cass_wind_speed = _wind_speed;
                     }
 
                     //Filter wind direction measurements
@@ -270,7 +271,7 @@ void Copter::userhook_SuperSlowLoop()
                         // Send wind direction to the Flight control 
                         if(alt>4.0f && var_wind_dir<0.8f && fabs(_pitch_sum)+fabs(_roll_sum)>0.05f){
                                 //copter.wp_nav->turn_into_wind_heading = _wind_dir;
-                                copter.wind_direction = _wind_dir;
+                                copter.cass_wind_direction = _wind_dir;
                         }
                     }
                     // Singularities avoidance algorithm
@@ -278,20 +279,20 @@ void Copter::userhook_SuperSlowLoop()
                         if(fabs(_roll_sum) > fabs(_pitch_sum)){
                             if(_roll_sum > 0){
                                 //copter.wp_nav->turn_into_wind_heading = wrap_360_cd(copter.wp_nav->turn_into_wind_heading + 1000.0f);
-                                copter.wind_direction = wrap_360_cd(copter.wind_direction + 1000.0f);
+                                copter.cass_wind_direction = wrap_360_cd(copter.cass_wind_direction + 1000.0f);
                             }
                             else{
-                                copter.wind_direction = wrap_360_cd(copter.wind_direction - 1000.0f);
+                                copter.cass_wind_direction = wrap_360_cd(copter.cass_wind_direction - 1000.0f);
                                 //copter.wp_nav->turn_into_wind_heading = wrap_360_cd(copter.wp_nav->turn_into_wind_heading - 1000.0f);
                             }
                         }
                         else{
                             if(_pitch_sum > 0){
-                                copter.wind_direction = wrap_360_cd(copter.wind_direction + 18000.0f);
+                                copter.cass_wind_direction = wrap_360_cd(copter.cass_wind_direction + 18000.0f);
                                 //copter.wp_nav->turn_into_wind_heading = wrap_360_cd(copter.wp_nav->turn_into_wind_heading + 18000.0f);
                             }
                             else{
-                                copter.wind_direction = copter.wind_direction;
+                                copter.cass_wind_direction = copter.cass_wind_direction;
                                 //copter.wp_nav->turn_into_wind_heading = copter.wp_nav->turn_into_wind_heading;
                             }
                         }
@@ -309,7 +310,8 @@ void Copter::userhook_SuperSlowLoop()
     }
     else{
         //copter.wp_nav->turn_into_wind_heading = (float)copter.initial_armed_bearing;
-        copter.wind_direction = (float)copter.initial_armed_bearing;
+        copter.cass_wind_direction = (float)copter.initial_armed_bearing;
+        copter.cass_wind_speed = 0.0;
         SRV_Channels::set_output_pwm(SRV_Channel::k_egg_drop, fan_pwm_off);
         k = 0;
         _roll_sum = 0.0f;
