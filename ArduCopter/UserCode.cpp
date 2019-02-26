@@ -214,7 +214,7 @@ void Copter::userhook_SuperSlowLoop()
         // }
 
         if(alt > 200.0f){
-            float aux, A=0.0f; //Total area exposed to wind and aux variable
+            float aux; //Total area exposed to wind and aux variable
 
             //Current Attitude of the UAS
             copter.EKF2.getEulerAngles(-1,e_angles);
@@ -225,7 +225,7 @@ void Copter::userhook_SuperSlowLoop()
             //Estimated horizontal velocity calculated by the EKF2
             //copter.EKF2.getVelNED(-1,vel_xyz);
             vel_xyz = copter.inertial_nav.get_velocity();
-            speed = norm(vel_xyz.x,vel_xyz.y); // m/s
+            speed = norm(vel_xyz.x,vel_xyz.y); // cm/s
             dist_to_wp = copter.wp_nav->get_wp_distance_to_destination(); // cm (horizontally)
 
             if(speed < 120.0f && dist_to_wp < 500){
