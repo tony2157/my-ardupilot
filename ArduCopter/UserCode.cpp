@@ -257,7 +257,7 @@ void Copter::userhook_SuperSlowLoop()
                     //Filter wind speed measurements
                     if(var_gamma < 0.04f && alt > 4.0f){
                         if(fabs(_pitch_sum)>0.03){
-                            _wind_speed = wsA * sqrtf(tanf(acosf(cosf(avgP)*cos(avgR)))) + wsB;
+                            _wind_speed = wsA * sqrtf(tanf(acosf(cosf(avgP)*cosf(avgR)))) + wsB;
                         }
                         else{
                             _wind_speed = 0;
