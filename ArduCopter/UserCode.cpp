@@ -184,14 +184,14 @@ void Copter::userhook_SuperSlowLoop()
         if(alt > 250.0f){
             SRV_Channels::set_output_pwm(SRV_Channel::k_egg_drop, fan_pwm_on);
             #if CONFIG_HAL_BOARD == HAL_BOARD_SITL
-                printf("FAN ON \n");  
+                //printf("FAN ON \n");  
             #endif
         }
         else{
             if(alt < 200.0f){
                 SRV_Channels::set_output_pwm(SRV_Channel::k_egg_drop, fan_pwm_off);
                 #if CONFIG_HAL_BOARD == HAL_BOARD_SITL
-                    printf("FAN OFF \n");  
+                    //printf("FAN OFF \n");  
                 #endif
             }
         }
