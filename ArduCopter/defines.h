@@ -20,6 +20,7 @@ enum autopilot_yaw_mode {
     AUTO_YAW_RESETTOARMEDYAW =  5,  // point towards heading at time motors were armed
     AUTO_YAW_RATE =             6,  // turn at a specified rate (held in auto_yaw_rate)
     AUTO_YAW_INTO_WIND =        7,  // CASS: turn into wind moving verticaly or steady (for vertical profiles)
+    AUTO_YAW_WIND_CT2 =         8,  // CASS: point to specific vector for CT2 profiling
 };
 
 // Ch6... Ch12 aux switch control
@@ -194,6 +195,7 @@ enum tuning_func {
 #define WP_YAW_BEHAVIOR_LOOK_AT_NEXT_WP_EXCEPT_RTL    2   // auto pilot will face next waypoint except when doing RTL at which time it will stay in it's last
 #define WP_YAW_BEHAVIOR_LOOK_AHEAD                    3   // auto pilot will look ahead during missions and rtl (primarily meant for traditional helicotpers)
 #define WP_YAW_BEHAVIOR_INTO_WIND                     4   // CASS: auto pilot will look into the wind
+#define WP_YAW_BEHAVIOR_WIND_CT2                      5   // CASS: auto pilot CT2 wind vector
 
 // Auto modes
 enum AutoMode {
