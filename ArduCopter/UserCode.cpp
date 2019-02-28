@@ -49,6 +49,9 @@ void Copter::userhook_init()
     memset(var_aux_dir,1000.0f,sizeof(var_aux_dir));
     memset(mean_aux_speed,0.0f,sizeof(mean_aux_speed));
     memset(var_aux_speed,1000.0f,sizeof(var_aux_speed));
+
+    // Initialize Fan Control
+    SRV_Channels::set_output_pwm(SRV_Channel::k_egg_drop, fan_pwm_off);
 }
 #endif
 
@@ -172,47 +175,28 @@ void Copter::userhook_SuperSlowLoop()
     Vector3f e_angles, vel_xyz;
     float alt;
 
-    //copter.ahrs.get_relative_position_D_home(alt);
-    alt = copter.inertial_nav.get_altitude();
-    //alt = -1.0f*alt;
+    copter.ahrs.get_relative_position_D_home(alt);
+    //alt = copter.inertial_nav.get_altitude();
+    alt = -100.0f*alt;
 
     //Fan Control    
-    if(hal.util->safety_switch_state() == AP_HAL::Util::SAFETY_DISARMED){
-        SRV_Channels::set_output_pwm(SRV_Channel::k_egg_drop, fan_pwm_off);
+    if(alt > 250.0f){
+        SRV_Channels::set_output_pwm(SRV_Channel::k_egg_drop, fan_pwm_on);
+        #if CONFIG_HAL_BOARD == HAL_BOARD_SITL
+            printf("FAN ON \n");  
+        #endif
     }
     else{
-        if(alt > 250.0f){
-            SRV_Channels::set_output_pwm(SRV_Channel::k_egg_drop, fan_pwm_on);
+        if(alt < 200.0f){
+            SRV_Channels::set_output_pwm(SRV_Channel::k_egg_drop, fan_pwm_off);
             #if CONFIG_HAL_BOARD == HAL_BOARD_SITL
-                //printf("FAN ON \n");  
+                printf("FAN OFF \n");  
             #endif
-        }
-        else{
-            if(alt < 200.0f){
-                SRV_Channels::set_output_pwm(SRV_Channel::k_egg_drop, fan_pwm_off);
-                #if CONFIG_HAL_BOARD == HAL_BOARD_SITL
-                    //printf("FAN OFF \n");  
-                #endif
-            }
         }
     }
 
     //Start estimation after Copter took off
     if(!ap.land_complete){ // !arming.is_armed()
-        // // FAN control. Turn on/off at given heights
-        // if(alt > 1.8f && flag_fan_on == false){
-        //     SRV_Channels::set_output_pwm(SRV_Channel::k_egg_drop, fan_pwm_on);
-        // }
-        // if(alt > 5.0f && flag_fan_on == false){
-        //     flag_fan_on = true;
-        // }
-        // if(alt < 3.0f && flag_fan_on == true){
-        //     SRV_Channels::set_output_pwm(SRV_Channel::k_egg_drop, fan_pwm_off);
-        // }
-        // if(alt < 1.0f && flag_fan_on == true){
-        //     flag_fan_on == false;
-        // }
-
         if(alt > 200.0f){
             float aux; //Total area exposed to wind and aux variable
 
@@ -270,30 +254,30 @@ void Copter::userhook_SuperSlowLoop()
                         _wind_dir = wrap_360_cd((_yaw + mean_wind_dir)*5729.6f);
                         // Send wind direction to the Flight control 
                         if(alt>4.0f && var_wind_dir<0.8f && fabs(_pitch_sum)+fabs(_roll_sum)>0.05f){
-                                //copter.wp_nav->turn_into_wind_heading = _wind_dir;
-                                copter.cass_wind_direction = _wind_dir;
+                            copter.cass_wind_direction = _wind_dir;
+                        }
+                        if(fabs(_pitch_sum)+fabs(_roll_sum) < 0.05f) 
+                        {
+                            // If wind speeds are very slow or none at all (TODO: use wind speed estimation)
+                            copter.cass_wind_direction = copter.wp_nav->get_yaw();
                         }
                     }
                     // Singularities avoidance algorithm
                     else if (var_wind_dir >= 1.5f && alt > 4.0f){
                         if(fabs(_roll_sum) > fabs(_pitch_sum)){
                             if(_roll_sum > 0){
-                                //copter.wp_nav->turn_into_wind_heading = wrap_360_cd(copter.wp_nav->turn_into_wind_heading + 1000.0f);
                                 copter.cass_wind_direction = wrap_360_cd(copter.cass_wind_direction + 1000.0f);
                             }
                             else{
                                 copter.cass_wind_direction = wrap_360_cd(copter.cass_wind_direction - 1000.0f);
-                                //copter.wp_nav->turn_into_wind_heading = wrap_360_cd(copter.wp_nav->turn_into_wind_heading - 1000.0f);
                             }
                         }
                         else{
                             if(_pitch_sum > 0){
                                 copter.cass_wind_direction = wrap_360_cd(copter.cass_wind_direction + 18000.0f);
-                                //copter.wp_nav->turn_into_wind_heading = wrap_360_cd(copter.wp_nav->turn_into_wind_heading + 18000.0f);
                             }
                             else{
                                 copter.cass_wind_direction = copter.cass_wind_direction;
-                                //copter.wp_nav->turn_into_wind_heading = copter.wp_nav->turn_into_wind_heading;
                             }
                         }
                     }
