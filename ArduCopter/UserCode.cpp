@@ -13,6 +13,7 @@ float volt[4], curr[4];
 //Fan control params
 uint16_t fan_pwm_on = 1215;
 uint16_t fan_pwm_off = 800;
+bool fan_status = false;
 
 //Wind estimator Params
 float wsA = 32.8;               //Coefficient A of the linear wind speed equation, from calibration
@@ -52,6 +53,7 @@ void Copter::userhook_init()
 
     // Initialize Fan Control
     SRV_Channels::set_output_pwm(SRV_Channel::k_egg_drop, fan_pwm_off);
+    fan_status = false;
 }
 #endif
 
@@ -175,20 +177,25 @@ void Copter::userhook_SuperSlowLoop()
     Vector3f e_angles, vel_xyz;
     float alt;
 
-    copter.ahrs.get_relative_position_D_home(alt);
+    //copter.ahrs.get_relative_position_D_home(alt);
+    //copter.EKF2.getHAGL(alt);
     //alt = copter.inertial_nav.get_altitude();
-    alt = -100.0f*alt;
+    copter.ahrs.get_hagl(alt);
+    alt = 100.0f*alt;           // get AGL altitude in cm
+    //printf("Alt: %5.2f \n",alt);
 
     //Fan Control    
-    if(alt > 250.0f){
+    if(alt > 250.0f && fan_status == false){
         SRV_Channels::set_output_pwm(SRV_Channel::k_egg_drop, fan_pwm_on);
+        fan_status = true;
         #if CONFIG_HAL_BOARD == HAL_BOARD_SITL
             printf("FAN ON \n");  
         #endif
     }
     else{
-        if(alt < 200.0f){
+        if(alt < 200.0f && fan_status == true){
             SRV_Channels::set_output_pwm(SRV_Channel::k_egg_drop, fan_pwm_off);
+            fan_status = false;
             #if CONFIG_HAL_BOARD == HAL_BOARD_SITL
                 printf("FAN OFF \n");  
             #endif
@@ -297,6 +304,7 @@ void Copter::userhook_SuperSlowLoop()
         copter.cass_wind_direction = (float)copter.initial_armed_bearing;
         copter.cass_wind_speed = 0.0;
         SRV_Channels::set_output_pwm(SRV_Channel::k_egg_drop, fan_pwm_off);
+        fan_status = false;
         k = 0;
         _roll_sum = 0.0f;
         _pitch_sum = 0.0f;
