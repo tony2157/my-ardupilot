@@ -52,7 +52,7 @@ void Copter::userhook_init()
     memset(var_aux_speed,1000.0f,sizeof(var_aux_speed));
 
     // Initialize Fan Control
-    SRV_Channels::set_output_pwm(SRV_Channel::k_egg_drop, fan_pwm_off);
+    SRV_Channels::set_output_scaled(SRV_Channel::k_egg_drop, fan_pwm_off);
     fan_status = false;
 }
 #endif
@@ -186,7 +186,7 @@ void Copter::userhook_SuperSlowLoop()
 
     //Fan Control    
     if(alt > 250.0f && fan_status == false){
-        SRV_Channels::set_output_pwm(SRV_Channel::k_egg_drop, fan_pwm_on);
+        SRV_Channels::set_output_scaled(SRV_Channel::k_egg_drop, fan_pwm_on);
         fan_status = true;
         #if CONFIG_HAL_BOARD == HAL_BOARD_SITL
             printf("FAN ON \n");  
@@ -194,13 +194,14 @@ void Copter::userhook_SuperSlowLoop()
     }
     else{
         if(alt < 200.0f && fan_status == true){
-            SRV_Channels::set_output_pwm(SRV_Channel::k_egg_drop, fan_pwm_off);
+            SRV_Channels::set_output_scaled(SRV_Channel::k_egg_drop, fan_pwm_off);
             fan_status = false;
             #if CONFIG_HAL_BOARD == HAL_BOARD_SITL
                 printf("FAN OFF \n");  
             #endif
         }
     }
+    //printf("PWM: %5.2f \n",(float)SRV_Channels::get_output_scaled(SRV_Channel::k_egg_drop));
 
     //Start estimation after Copter took off
     if(!ap.land_complete){ // !arming.is_armed()
@@ -303,7 +304,7 @@ void Copter::userhook_SuperSlowLoop()
         //copter.wp_nav->turn_into_wind_heading = (float)copter.initial_armed_bearing;
         copter.cass_wind_direction = (float)copter.initial_armed_bearing;
         copter.cass_wind_speed = 0.0;
-        SRV_Channels::set_output_pwm(SRV_Channel::k_egg_drop, fan_pwm_off);
+        SRV_Channels::set_output_scaled(SRV_Channel::k_egg_drop, fan_pwm_off);
         fan_status = false;
         k = 0;
         _roll_sum = 0.0f;
