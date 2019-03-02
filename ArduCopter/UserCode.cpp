@@ -11,8 +11,9 @@ const int N_imet = 4;   //supports up to 4
 float volt[4], curr[4];
 
 //Fan control params
-uint16_t fan_pwm_on = 1215;
-uint16_t fan_pwm_off = 800;
+//It will run the fan at SERVO_MAX, which can be set in the params list
+uint16_t fan_pwm_on = 100; // 40
+uint16_t fan_pwm_off = 0;
 bool fan_status = false;
 
 //Wind estimator Params
@@ -177,11 +178,11 @@ void Copter::userhook_SuperSlowLoop()
     Vector3f e_angles, vel_xyz;
     float alt;
 
-    //copter.ahrs.get_relative_position_D_home(alt);
+    copter.ahrs.get_relative_position_D_home(alt);
     //copter.EKF2.getHAGL(alt);
     //alt = copter.inertial_nav.get_altitude();
-    copter.ahrs.get_hagl(alt);
-    alt = 100.0f*alt;           // get AGL altitude in cm
+    //copter.ahrs.get_hagl(alt);
+    alt = -100.0f*alt;           // get AGL altitude in cm
     //printf("Alt: %5.2f \n",alt);
 
     //Fan Control    
@@ -201,7 +202,9 @@ void Copter::userhook_SuperSlowLoop()
             #endif
         }
     }
-    //printf("PWM: %5.2f \n",(float)SRV_Channels::get_output_scaled(SRV_Channel::k_egg_drop));
+    //uint16_t pwm;
+    //SRV_Channels::get_output_pwm(SRV_Channel::k_egg_drop, pwm);
+    //printf("PWM: %5.2f \n",(float)pwm);
 
     //Start estimation after Copter took off
     if(!ap.land_complete){ // !arming.is_armed()
