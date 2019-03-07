@@ -38,8 +38,8 @@ float Copter::Mode::AutoYaw::turn_into_wind_CT2()
     float _xy_speed = copter.wp_nav->get_speed_xy();    // Copters target speed in cm/s
     float _wp_bearing = copter.wp_nav->get_yaw();       // Bearing for the next waypoint in centi-degrees
     float w_x, w_y, s_x, s_y;
-    if (copter.wp_nav->reached_wp_destination()){
-        _wind_dir = _wp_bearing;
+    if (copter.wp_nav->reached_wp_destination() || fabs(copter.inertial_nav.get_velocity_z()) > 80){
+        _wind_CT2_yaw = _wind_dir;
     } else {
         s_x = _xy_speed*sinf(_wp_bearing*1.745e-4f);
         s_y = _xy_speed*cosf(_wp_bearing*1.745e-4f);
