@@ -178,36 +178,38 @@ void Copter::userhook_SuperSlowLoop()
     Vector3f e_angles, vel_xyz;
     float alt;
 
-    copter.ahrs.get_relative_position_D_home(alt);
     //copter.EKF2.getHAGL(alt);
     //alt = copter.inertial_nav.get_altitude();
     //copter.ahrs.get_hagl(alt);
+    copter.ahrs.get_relative_position_D_home(alt);
     alt = -100.0f*alt;           // get AGL altitude in cm
     //printf("Alt: %5.2f \n",alt);
 
-    //Fan Control    
-    if(alt > 250.0f && fan_status == false){
-        SRV_Channels::set_output_scaled(SRV_Channel::k_egg_drop, fan_pwm_on);
-        fan_status = true;
-        #if CONFIG_HAL_BOARD == HAL_BOARD_SITL
-            printf("FAN ON \n");  
-        #endif
-    }
-    else{
-        if(alt < 200.0f && fan_status == true){
-            SRV_Channels::set_output_scaled(SRV_Channel::k_egg_drop, fan_pwm_off);
-            fan_status = false;
+    //Start estimation after Copter takes off
+    if(motors->armed()){ // !arming.is_armed(), !ap.land_complete
+
+        //Fan Control    
+        if(alt > 180.0f && fan_status == false){
+            SRV_Channels::set_output_scaled(SRV_Channel::k_egg_drop, fan_pwm_on);
+            fan_status = true;
             #if CONFIG_HAL_BOARD == HAL_BOARD_SITL
-                printf("FAN OFF \n");  
+                printf("FAN ON \n");  
             #endif
         }
-    }
-    //uint16_t pwm;
-    //SRV_Channels::get_output_pwm(SRV_Channel::k_egg_drop, pwm);
-    //printf("PWM: %5.2f \n",(float)pwm);
+        else{
+            if(alt < 140.0f && fan_status == true){
+                SRV_Channels::set_output_scaled(SRV_Channel::k_egg_drop, fan_pwm_off);
+                fan_status = false;
+                #if CONFIG_HAL_BOARD == HAL_BOARD_SITL
+                    printf("FAN OFF \n");  
+                #endif
+            }
+        }
+        //uint16_t pwm;
+        //SRV_Channels::get_output_pwm(SRV_Channel::k_egg_drop, pwm);
+        //printf("PWM: %5.2f \n",(float)pwm);
 
-    //Start estimation after Copter took off
-    if(!ap.land_complete){ // !arming.is_armed()
+        //Wind Estimator Algorithm
         if(alt > 200.0f){
             float aux; //Total area exposed to wind and aux variable
 
