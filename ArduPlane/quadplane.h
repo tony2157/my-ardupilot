@@ -35,6 +35,8 @@ public:
     void setup_target_position(void);
     void takeoff_controller(void);
     void waypoint_controller(void);
+
+    void update_throttle_thr_mix(void);
     
     // update transition handling
     void update(void);
@@ -189,9 +191,11 @@ private:
     void run_rate_controller(void);
 
     void init_loiter(void);
-    void init_land(void);
+    void init_qland(void);
     void control_loiter(void);
     void check_land_complete(void);
+    bool land_detector(uint32_t timeout_ms);
+    bool check_land_final(void);
 
     void init_qrtl(void);
     void control_qrtl(void);
@@ -462,6 +466,16 @@ private:
       return true if current mission item is a vtol landing
      */
     bool is_vtol_land(uint16_t id) const;
+
+    /*
+      are we in the approach phase of a VTOL landing?
+     */
+    bool in_vtol_land_approach(void) const;
+
+    /*
+      are we in the descent phase of a VTOL landing?
+     */
+    bool in_vtol_land_descent(void) const;
     
 public:
     void motor_test_output();
