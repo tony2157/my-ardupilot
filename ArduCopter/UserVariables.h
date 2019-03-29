@@ -32,6 +32,7 @@ struct PACKED log_IMET {
     float voltage3;
     float temperature4;
     float voltage4;
+    uint8_t fan_status;
 };
 
 struct PACKED log_WIND {
