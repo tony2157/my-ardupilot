@@ -14,6 +14,7 @@ float volt[4], curr[4];
 //It will run the fan at SERVO_MAX, which can be set in the params list
 uint16_t fan_pwm_on = 100; // 40
 uint16_t fan_pwm_off = 0;
+bool _fan_status;
 
 //Wind estimator Params
 float wsA = 32.8;               //Coefficient A of the linear wind speed equation, from calibration
@@ -53,6 +54,7 @@ void Copter::userhook_init()
 
     // Initialize Fan Control
     SRV_Channels::set_output_scaled(SRV_Channel::k_egg_drop, fan_pwm_off);
+    _fan_status = false;
 }
 #endif
 
@@ -107,7 +109,8 @@ void Copter::userhook_MediumLoop()
         temperature3           : curr[2],
         voltage3               : volt[2],
         temperature4           : curr[3],
-        voltage4               : volt[3]
+        voltage4               : volt[3],
+        fan_status             : _fan_status
     };
     copter.DataFlash.WriteBlock(&pkt_temp, sizeof(pkt_temp));
 
@@ -187,8 +190,9 @@ void Copter::userhook_SuperSlowLoop()
     if(motors->armed()){ // !arming.is_armed(), !ap.land_complete
 
         //Fan Control    
-        if(alt > 180.0f){
+        if(alt > 185.0f){
             SRV_Channels::set_output_scaled(SRV_Channel::k_egg_drop, fan_pwm_on);
+            _fan_status = true;
             #if CONFIG_HAL_BOARD == HAL_BOARD_SITL
                 printf("FAN ON \n");  
             #endif
@@ -196,6 +200,7 @@ void Copter::userhook_SuperSlowLoop()
         else{
             if(alt < 140.0f){
                 SRV_Channels::set_output_scaled(SRV_Channel::k_egg_drop, fan_pwm_off);
+                _fan_status = false;
                 #if CONFIG_HAL_BOARD == HAL_BOARD_SITL
                     printf("FAN OFF \n");  
                 #endif
@@ -306,6 +311,7 @@ void Copter::userhook_SuperSlowLoop()
         copter.cass_wind_direction = (float)copter.initial_armed_bearing;
         copter.cass_wind_speed = 0.0;
         SRV_Channels::set_output_scaled(SRV_Channel::k_egg_drop, fan_pwm_off);
+        _fan_status = false;
         k = 0;
         _roll_sum = 0.0f;
         _pitch_sum = 0.0f;
