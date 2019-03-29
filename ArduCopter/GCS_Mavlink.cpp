@@ -581,7 +581,7 @@ static const ap_message STREAM_RAW_SENSORS_msgs[] = {
 };
 static const ap_message STREAM_EXTENDED_STATUS_msgs[] = {
     MSG_EXTENDED_STATUS1, // SYS_STATUS, POWER_STATUS
-    //MSG_EXTENDED_STATUS2, // MEMINFO
+    MSG_EXTENDED_STATUS2, // MEMINFO
     MSG_CURRENT_WAYPOINT, // MISSION_CURRENT
     MSG_GPS_RAW,
     MSG_GPS_RTK,
@@ -611,12 +611,13 @@ static const ap_message STREAM_EXTRA2_msgs[] = {
 };
 static const ap_message STREAM_EXTRA3_msgs[] = {
     MSG_AHRS,
-    //MSG_HWSTATUS,
+    MSG_HWSTATUS,
     MSG_SYSTEM_TIME,
     MSG_RANGEFINDER,
 #if AP_TERRAIN_AVAILABLE && AC_TERRAIN
     MSG_TERRAIN,
 #endif
+    MSG_CASS_IMET,
     MSG_BATTERY2,
     MSG_BATTERY_STATUS,
     MSG_MOUNT_STATUS,
@@ -625,14 +626,13 @@ static const ap_message STREAM_EXTRA3_msgs[] = {
     MSG_MAG_CAL_REPORT,
     MSG_MAG_CAL_PROGRESS,
     MSG_EKF_STATUS_REPORT,
-    //MSG_VIBRATION,
+    MSG_VIBRATION,
     MSG_RPM,
-    //MSG_ESC_TELEMETRY
+    MSG_ESC_TELEMETRY,
     MSG_CASS_HYT271
 };
 static const ap_message STREAM_ADSB_msgs[] = {
-    MSG_ADSB_VEHICLE,
-    MSG_CASS_IMET
+    MSG_ADSB_VEHICLE
 };
 
 const struct GCS_MAVLINK::stream_entries GCS_MAVLINK::all_stream_entries[] = {
