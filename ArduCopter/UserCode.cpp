@@ -88,7 +88,7 @@ void Copter::userhook_MediumLoop()
 
     #if CONFIG_HAL_BOARD == HAL_BOARD_SITL
         uint32_t m = AP_HAL::millis();
-        curr[0] = 298.15 + sin(m) * 25;
+        curr[0] = 298.15 + sin(0.0005*m) * 1;
         curr[1] = 1 + curr[0];
         curr[2] = 1 + curr[1];
         curr[3] = 1 + curr[2];
@@ -138,7 +138,7 @@ void Copter::userhook_SlowLoop()
          
     #if CONFIG_HAL_BOARD == HAL_BOARD_SITL
         uint32_t m = AP_HAL::millis();
-        rawRHt[0] = 298.15 + sin(m) * 25;
+        rawRHt[0] = 298.15 + sin(0.0003*m) * 2;
         rawRHt[1] = 1 + rawRHt[0];
         rawRHt[2] = 1 + rawRHt[1];
         rawRHt[3] = 1 + rawRHt[2];
