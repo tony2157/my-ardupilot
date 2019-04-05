@@ -87,14 +87,14 @@
 #include <AP_HAL/utility/sparse-endian.h>
 #include <AP_Vehicle/AP_Vehicle.h>
 
-#define IMET_DEFAULT_ADDR 0x48
+//#define IMET_DEFAULT_ADDR 0x48
 
 class AC_CASS_Imet {
 public:
     AC_CASS_Imet(void);
     ~AC_CASS_Imet(void){}
 
-    bool init(void);
+    bool init(uint8_t busId, uint8_t i2cAddr);
     float temperature(void) { return _temperature; } // temperature in kelvin
     float voltage(void) { return _volt; }   // voltage read by the ADCS
     bool healthy(void) { return _healthy; } // do we have a valid temperature reading?

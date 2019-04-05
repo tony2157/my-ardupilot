@@ -109,13 +109,12 @@ void Copter::init_CASS_imet(){
     // coeff[3][1] = 2.61500024f * (float)pow(10, -4);
     // coeff[3][2] = 1.49421629f * (float)pow(10, -7);
 
+    // Initialize and set I2C addresses
+    uint8_t deafult_i2cAddr = 0x48;
+    uint8_t busId = 0;
     for(uint8_t i=0; i<4; i++){
-        CASS_Imet[i].init();
+        CASS_Imet[i].init(busId,deafult_i2cAddr + i);
     }
-    // Set I2C addresses
-    CASS_Imet[1].set_i2c_addr(0x49);
-    CASS_Imet[2].set_i2c_addr(0x4A);
-    CASS_Imet[3].set_i2c_addr(0x4B);
     // Set sensor coefficients
     CASS_Imet[0].set_sensor_coeff(coeff[0]);
     CASS_Imet[1].set_sensor_coeff(coeff[1]);
@@ -124,13 +123,12 @@ void Copter::init_CASS_imet(){
 }
 
 void Copter::init_CASS_hyt271(){
+    // Initialize and set I2C addresses
+    uint8_t deafult_i2cAddr = 0x10;
+    uint8_t busId = 0;
     for(uint8_t i=0; i<4; i++){
-        CASS_HYT271[i].init();
+        CASS_HYT271[i].init(busId,deafult_i2cAddr + i);
     }
-    // Set I2C addresses
-    CASS_HYT271[1].set_i2c_addr(0x11);
-    CASS_HYT271[2].set_i2c_addr(0x12);
-    CASS_HYT271[3].set_i2c_addr(0x13);
 }
 
 // return barometric altitude in centimeters

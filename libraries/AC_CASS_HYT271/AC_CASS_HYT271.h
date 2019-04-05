@@ -6,14 +6,14 @@
 #include <AP_HAL/utility/sparse-endian.h>
 #include <AP_Vehicle/AP_Vehicle.h>
 
-#define HYT271_DEFAULT_ADDR 0x10
+//#define HYT271_DEFAULT_ADDR 0x10
 
 class AC_CASS_HYT271 {
 public:
     AC_CASS_HYT271(void);
     ~AC_CASS_HYT271(void){}
 
-    bool init(void);
+    bool init(uint8_t busId, uint8_t i2cAddr);
     float relative_humidity(void) { return _humidity; } // temperature in kelvin
     float temperature(void) { return _temperature; }   // voltage read by the ADCS
     bool healthy(void) { return _healthy; } // do we have a valid temperature reading?
