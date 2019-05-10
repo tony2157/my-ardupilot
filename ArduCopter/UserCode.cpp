@@ -187,7 +187,7 @@ void Copter::userhook_SuperSlowLoop()
     //printf("Alt: %5.2f \n",alt);
 
     //Start estimation after Copter takes off
-    if(motors->armed()){ // !arming.is_armed(), !ap.land_complete
+    if(motors->armed() && copter.position_ok()){ // !arming.is_armed(), !ap.land_complete
 
         //Fan Control    
         if(alt > 185.0f){

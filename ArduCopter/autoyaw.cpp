@@ -32,10 +32,12 @@ float Copter::Mode::AutoYaw::turn_into_wind()
     Vector3f vel_xyz = copter.inertial_nav.get_velocity();
     float speed = norm(vel_xyz.x,vel_xyz.y); // cm/s
     float dist_to_wp = copter.wp_nav->get_wp_distance_to_destination(); // cm (horizontally)
-    if(speed < 110.0f && dist_to_wp < 300){
-        _wind_yaw = copter.cass_wind_direction;
-    } else {
-        _wind_yaw = copter.wp_nav->get_yaw();
+    if(copter.position_ok()){
+        if(speed < 110.0f && dist_to_wp < 300){
+            _wind_yaw = copter.cass_wind_direction;
+        } else {
+            _wind_yaw = copter.wp_nav->get_yaw();
+        }
     }
     return _wind_yaw;
 }
@@ -47,14 +49,16 @@ float Copter::Mode::AutoYaw::turn_into_wind_CT2()
     float _xy_speed = copter.wp_nav->get_speed_xy();    // Copters target speed in cm/s
     float _wp_bearing = copter.wp_nav->get_yaw();       // Bearing for the next waypoint in centi-degrees
     float w_x, w_y, s_x, s_y;
-    if (copter.wp_nav->reached_wp_destination() || fabs(copter.inertial_nav.get_velocity_z()) > 80){
-        _wind_CT2_yaw = _wind_dir;
-    } else {
-        s_x = _xy_speed*sinf(_wp_bearing*1.745e-4f);
-        s_y = _xy_speed*cosf(_wp_bearing*1.745e-4f);
-        w_x = 100*_wind_spd*sinf(_wind_dir*1.745e-4f);
-        w_y = 100*_wind_spd*cosf(_wind_dir*1.745e-4f);
-        _wind_CT2_yaw = wrap_360_cd(atan2f((s_x + w_x),(s_y + w_y))*5729.6f);
+    if(copter.position_ok()){
+        if (copter.wp_nav->reached_wp_destination() || fabs(copter.inertial_nav.get_velocity_z()) > 80){
+            _wind_CT2_yaw = _wind_dir;
+        } else {
+            s_x = _xy_speed*sinf(_wp_bearing*1.745e-4f);
+            s_y = _xy_speed*cosf(_wp_bearing*1.745e-4f);
+            w_x = 100*_wind_spd*sinf(_wind_dir*1.745e-4f);
+            w_y = 100*_wind_spd*cosf(_wind_dir*1.745e-4f);
+            _wind_CT2_yaw = wrap_360_cd(atan2f((s_x + w_x),(s_y + w_y))*5729.6f);
+        }
     }
     return _wind_CT2_yaw;
 }
