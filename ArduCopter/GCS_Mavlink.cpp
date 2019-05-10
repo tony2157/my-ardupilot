@@ -461,18 +461,14 @@ bool GCS_MAVLINK_Copter::try_send_message(enum ap_message id)
         break;
     
     case MSG_CASS_IMET:
-    if (copter.ap.initialised) {
         CHECK_PAYLOAD_SIZE(CASS_SENSOR_RAW);
         copter.send_cass_imet(chan);
         break;
-    }
     
     case MSG_CASS_HYT271:
-    if (copter.ap.initialised) {
         CHECK_PAYLOAD_SIZE(CASS_SENSOR_RAW);
         copter.send_cass_hyt271(chan);
         break;
-    }
 
     default:
         return GCS_MAVLINK::try_send_message(id);
