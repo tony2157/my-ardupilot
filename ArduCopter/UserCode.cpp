@@ -88,14 +88,25 @@ void Copter::userhook_MediumLoop()
 
     #if CONFIG_HAL_BOARD == HAL_BOARD_SITL
         uint32_t m = AP_HAL::millis();
-        curr[0] = 298.15 + sin(0.0005*m) * 1;
-        curr[1] = 1 + curr[0];
-        curr[2] = 1 + curr[1];
-        curr[3] = 1 + curr[2];
-        // curr[0] = 1;
-        // curr[1] = 2;
-        // curr[2] = 3;
-        // curr[3] = 4;        
+        float alt; float simT;
+        copter.ahrs.get_relative_position_D_home(alt);
+        alt = -1*alt;  
+        if(alt < 50){
+            simT = 300 - 2*alt*alt/2500;
+        }
+        else if(alt < 150){
+            simT = 298 - 0.01*alt;
+        }
+        else if(alt < 200){
+            simT = 296 + 2*alt*alt/40000;
+        }
+        else{
+            simT = 298;
+        }
+        curr[0] = simT + sin(0.0005*m) * 0.001;
+        curr[1] = 2 + curr[0] + sin(0.0006*m) * 0.001;
+        curr[2] = 2 + curr[1] + sin(0.0004*m) * 0.001;
+        curr[3] = 2 + curr[2] + sin(0.0007*m) * 0.001; 
     #endif
 
     // Write sensors packet into the SD card
@@ -174,7 +185,7 @@ void Copter::userhook_SlowLoop()
 void Copter::userhook_SuperSlowLoop()
 {
     float var_gamma = 0.0f, var_wind_dir = 0.0f;
-    float mean_gamma = 0.0f, mean_wind_dir = 0.0f;
+    float body_wind_dir = 0.0f;
     float speed = 0.0f, dist_to_wp = 0.0f;
     Vector3f e_angles, vel_xyz;
     float alt;
@@ -187,7 +198,7 @@ void Copter::userhook_SuperSlowLoop()
     //printf("Alt: %5.2f \n",alt);
 
     //Start estimation after Copter takes off
-    if(motors->armed() && copter.position_ok()){ // !arming.is_armed(), !ap.land_complete
+    if(!ap.land_complete && copter.position_ok()){ // !arming.is_armed(), !ap.land_complete, motors->armed()
 
         //Fan Control    
         if(alt > 185.0f){
@@ -238,11 +249,11 @@ void Copter::userhook_SuperSlowLoop()
                 }
                 else{
                     // 1st order Estimator, Mean and variance calculation
-                    mean_gamma = avgP = _pitch_sum = _pitch_sum/N;
-                    mean_wind_dir = avgR = _roll_sum = _roll_sum/N;
-                    mean_wind_dir = atan2f(sinf(mean_wind_dir), -sinf(mean_gamma));
-                    var_gamma = var_temp_gamma/N - mean_gamma*mean_gamma;
-                    var_wind_dir = var_temp_dir/N - mean_wind_dir*mean_wind_dir;
+                    avgP = _pitch_sum/N;
+                    avgR = _roll_sum/N;
+                    body_wind_dir = atan2f(sinf(avgR), -sinf(avgP));
+                    var_gamma = var_temp_gamma/N - avgP*avgP;
+                    var_wind_dir = var_temp_dir/N - body_wind_dir*body_wind_dir;
                     if (var_wind_dir < 1e-6f){
                         var_wind_dir = 0.0f;
                     }
@@ -254,7 +265,7 @@ void Copter::userhook_SuperSlowLoop()
 
                     //Filter wind speed measurements
                     if(var_gamma < 0.04f && alt > 4.0f){
-                        if(fabs(_pitch_sum)>0.03){
+                        if(fabs(avgP)>0.03){
                             _wind_speed = wsA * sqrtf(tanf(acosf(cosf(avgP)*cosf(avgR)))) + wsB;
                         }
                         else{
@@ -265,12 +276,12 @@ void Copter::userhook_SuperSlowLoop()
 
                     //Filter wind direction measurements
                     if(var_wind_dir < 1.5f){
-                        _wind_dir = wrap_360_cd((_yaw + mean_wind_dir)*5729.6f);
+                        _wind_dir = wrap_360_cd((_yaw + body_wind_dir)*5729.6f);
                         // Send wind direction to the Flight control 
-                        if(alt>4.0f && var_wind_dir<0.8f && fabs(_pitch_sum)+fabs(_roll_sum)>0.05f){
+                        if(alt>4.0f && var_wind_dir<0.8f && fabs(avgP)+fabs(avgR)>0.05f){
                             copter.cass_wind_direction = _wind_dir;
                         }
-                        if(fabs(_pitch_sum)+fabs(_roll_sum) < 0.05f) 
+                        if(fabs(avgP)+fabs(avgR) < 0.05f) 
                         {
                             // If wind speeds are very slow or none at all (TODO: use wind speed estimation)
                             copter.cass_wind_direction = copter.wp_nav->get_yaw();
@@ -278,8 +289,8 @@ void Copter::userhook_SuperSlowLoop()
                     }
                     // Singularities avoidance algorithm
                     else if (var_wind_dir >= 1.5f && alt > 4.0f){
-                        if(fabs(_roll_sum) > fabs(_pitch_sum)){
-                            if(_roll_sum > 0){
+                        if(fabs(avgR) > fabs(avgP)){
+                            if(avgR > 0){
                                 copter.cass_wind_direction = wrap_360_cd(copter.cass_wind_direction + 1000.0f);
                             }
                             else{
@@ -287,7 +298,7 @@ void Copter::userhook_SuperSlowLoop()
                             }
                         }
                         else{
-                            if(_pitch_sum > 0){
+                            if(avgP > 0){
                                 copter.cass_wind_direction = wrap_360_cd(copter.cass_wind_direction + 18000.0f);
                             }
                             else{
@@ -295,7 +306,6 @@ void Copter::userhook_SuperSlowLoop()
                             }
                         }
                     }
-
                     //Reset variables for next loop
                     k = 0;
                     _roll_sum = 0.0f;
