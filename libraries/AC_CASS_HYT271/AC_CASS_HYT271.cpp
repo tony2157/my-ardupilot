@@ -95,11 +95,8 @@ void AC_CASS_HYT271::_timer(void)
     if(sem->take(HAL_SEMAPHORE_BLOCK_FOREVER)){
         if (_healthy) {
             _collect(_humidity, _temperature);
-        } else {
-            _temperature = 0;
-            _humidity = 0;
-        }
-
+        } 
+        
         _healthy = _measure();
         
         sem->give();
