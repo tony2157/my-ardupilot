@@ -11,28 +11,36 @@
 struct PACKED log_RH {
     LOG_PACKET_HEADER;
     uint64_t time_stamp;
+    uint8_t healthy1;
+    uint8_t healthy2;
+    uint8_t healthy3;
+    uint8_t healthy4;
     float humidity1;
-    float RHtemp1;
     float humidity2;
-    float RHtemp2;
     float humidity3;
-    float RHtemp3;
     float humidity4;
+    float RHtemp1;
+    float RHtemp2;
+    float RHtemp3;
     float RHtemp4;
 };
 
 struct PACKED log_IMET {
     LOG_PACKET_HEADER;
     uint64_t time_stamp;
-    float temperature1;
-    float voltage1;
-    float temperature2;
-    float voltage2;
-    float temperature3;
-    float voltage3;
-    float temperature4;
-    float voltage4;
     uint8_t fan_status;
+    uint8_t healthy1;
+    uint8_t healthy2;
+    uint8_t healthy3;
+    uint8_t healthy4;
+    float temperature1;
+    float temperature2;
+    float temperature3;
+    float temperature4;
+    float resist1;
+    float resist2;
+    float resist3;
+    float resist4;
 };
 
 struct PACKED log_WIND {
