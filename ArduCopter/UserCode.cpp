@@ -5,10 +5,12 @@
 //Humidity sensor Params
 const int N_RH = 4;     //supports up to 4
 float raw_H[4], rawRHt[4];
+uint8_t healthy_RH[4];
 
 //IMET sensor Params
 const int N_imet = 4;   //supports up to 4
-float volt[4], curr[4];
+float resist[4], curr[4];
+uint8_t healthy_imet[4];
 
 //Fan control params
 //It will run the fan at SERVO_MAX, which can be set in the params list
@@ -37,8 +39,10 @@ void Copter::userhook_init()
     //Initialize Global Variables
     memset(raw_H,0,sizeof(raw_H));
     memset(rawRHt,0,sizeof(rawRHt));
-    memset(volt,0,sizeof(volt));
+    memset(resist,0,sizeof(resist));
     memset(curr,0,sizeof(curr));
+    memset(healthy_imet,0,sizeof(healthy_imet));
+    memset(healthy_RH,0,sizeof(healthy_RH));
 
     //Initialize Wind estimator
     _wind_dir = 0.0f; _roll = 0.0f; _pitch = 0.0f; _yaw = 0.0f;
@@ -80,11 +84,16 @@ void Copter::userhook_MediumLoop()
     curr[1] = copter.CASS_Imet[1].temperature();
     curr[2] = copter.CASS_Imet[2].temperature();
     curr[3] = copter.CASS_Imet[3].temperature();
-    // Read voltage
-    volt[0] = copter.CASS_Imet[0].voltage();
-    volt[1] = copter.CASS_Imet[1].voltage();
-    volt[2] = copter.CASS_Imet[2].voltage();
-    volt[3] = copter.CASS_Imet[3].voltage();
+    // Read resistance
+    resist[0] = copter.CASS_Imet[0].resistance();
+    resist[1] = copter.CASS_Imet[1].resistance();
+    resist[2] = copter.CASS_Imet[2].resistance();
+    resist[3] = copter.CASS_Imet[3].resistance();
+    // Read Health
+    healthy_imet[0] = copter.CASS_Imet[0].healthy();
+    healthy_imet[1] = copter.CASS_Imet[1].healthy();
+    healthy_imet[2] = copter.CASS_Imet[2].healthy();
+    healthy_imet[3] = copter.CASS_Imet[3].healthy();
 
     #if CONFIG_HAL_BOARD == HAL_BOARD_SITL
         uint32_t m = AP_HAL::millis();
@@ -113,15 +122,19 @@ void Copter::userhook_MediumLoop()
     struct log_IMET pkt_temp = {
         LOG_PACKET_HEADER_INIT(LOG_IMET_MSG),
         time_stamp             : AP_HAL::micros64(),
+        fan_status             : _fan_status,
+        healthy1               : healthy_imet[0],
+        healthy2               : healthy_imet[1],
+        healthy3               : healthy_imet[2],
+        healthy4               : healthy_imet[3],
         temperature1           : curr[0],
-        voltage1               : volt[0],
         temperature2           : curr[1],
-        voltage2               : volt[1],
         temperature3           : curr[2],
-        voltage3               : volt[2],
         temperature4           : curr[3],
-        voltage4               : volt[3],
-        fan_status             : _fan_status
+        resist1                : resist[0],
+        resist2                : resist[1],
+        resist3                : resist[2],
+        resist4                : resist[3]
     };
     copter.DataFlash.WriteBlock(&pkt_temp, sizeof(pkt_temp));
 
@@ -140,13 +153,17 @@ void Copter::userhook_SlowLoop()
     raw_H[1] = copter.CASS_HYT271[1].relative_humidity();
     raw_H[2] = copter.CASS_HYT271[2].relative_humidity();
     raw_H[3] = copter.CASS_HYT271[3].relative_humidity();
-
     // Read Temperature
     rawRHt[0] = copter.CASS_HYT271[0].temperature();
     rawRHt[1] = copter.CASS_HYT271[1].temperature();
     rawRHt[2] = copter.CASS_HYT271[2].temperature(); 
-    rawRHt[3] = copter.CASS_HYT271[3].temperature(); 
-         
+    rawRHt[3] = copter.CASS_HYT271[3].temperature();
+    // Read Health
+    healthy_RH[0] = copter.CASS_HYT271[0].healthy();
+    healthy_RH[1] = copter.CASS_HYT271[1].healthy();
+    healthy_RH[2] = copter.CASS_HYT271[2].healthy();
+    healthy_RH[3] = copter.CASS_HYT271[3].healthy();
+
     #if CONFIG_HAL_BOARD == HAL_BOARD_SITL
         uint32_t m = AP_HAL::millis();
         rawRHt[0] = 298.15 + sin(0.0003*m) * 2;
@@ -164,13 +181,17 @@ void Copter::userhook_SlowLoop()
     struct log_RH pkt_RH = {
         LOG_PACKET_HEADER_INIT(LOG_RH_MSG),
         time_stamp             : AP_HAL::micros64(), //- _last_read_ms),
+        healthy1               : healthy_RH[0],
+        healthy2               : healthy_RH[1],
+        healthy3               : healthy_RH[2],
+        healthy4               : healthy_RH[3],
         humidity1              : raw_H[0],
-        RHtemp1                : rawRHt[0],
         humidity2              : raw_H[1],
-        RHtemp2                : rawRHt[1],
         humidity3              : raw_H[2],
-        RHtemp3                : rawRHt[2],
         humidity4              : raw_H[3],
+        RHtemp1                : rawRHt[0],
+        RHtemp2                : rawRHt[1],
+        RHtemp3                : rawRHt[2],
         RHtemp4                : rawRHt[3]
     };
     copter.DataFlash.WriteBlock(&pkt_RH, sizeof(pkt_RH));
