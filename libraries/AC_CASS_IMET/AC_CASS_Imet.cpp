@@ -20,6 +20,7 @@ bool AC_CASS_Imet::init(uint8_t busId, uint8_t i2cAddr)
     flag = false;
     adc_thermistor = 0;
     adc_source = 0;
+    runs = 0;
     sem = hal.util->new_semaphore();
 
     for(uint8_t i=0; i<3; i++){
@@ -48,7 +49,7 @@ bool AC_CASS_Imet::init(uint8_t busId, uint8_t i2cAddr)
 
     _dev->set_retries(10);
 
-    if (!_config_read_source()) {
+    if (!_config_read_thermistor()) {
         printf("IMET read failed");
         _dev->get_semaphore()->give();
         return false;
@@ -56,15 +57,16 @@ bool AC_CASS_Imet::init(uint8_t busId, uint8_t i2cAddr)
 
     hal.scheduler->delay(5);
 
-    if (!_config_read_thermistor()) {
+    if (!_config_read_source()) {
         printf("IMET read failed");
         _dev->get_semaphore()->give();
         return false;
     }
 
-    hal.scheduler->delay(20);
+    hal.scheduler->delay(200);
 
-    _read_adc();
+    _read_adc(adc_source);
+    _config_read_thermistor();
 
     // lower retries for run
     _dev->set_retries(3);
@@ -124,46 +126,60 @@ bool AC_CASS_Imet::_config_read_source()
         return true;
 }
 
-float AC_CASS_Imet::_read_adc()
+bool AC_CASS_Imet::_read_adc(float &value)
 {
     uint8_t status[2];
     uint8_t data[2];
 
-        if (!_dev->read_registers(0x01, status, sizeof(status))) {
-            return 0;
-        }
+    if (!_dev->read_registers(0x01, status, sizeof(status))) {
+        return false;
+    }
 
-        /* check rdy bit */
-        if ((status[1] & 0x80) != 0x80 ) {
-            return 0;
-        }
+    /* check rdy bit */
+    if ((status[1] & 0x80) != 0x80 ) {
+        return false;
+    }
 
-        // An easier way of reading registers
-        if (!_dev->read_registers(0x00, data, sizeof(data))) {
-            return 0;
-        }
-        return (float)((data[0] << 8) | data[1]);
+    // An easier way of reading registers
+    if (!_dev->read_registers(0x00, data, sizeof(data))) {
+        return false;
+    }
+
+    value = (float)((data[0] << 8) | data[1]);
+    return true;
 }
 
 void AC_CASS_Imet::_timer(void)
 {
+    float temp;
+    // Retreive data from sensor by I2C
     if(sem->take(HAL_SEMAPHORE_BLOCK_FOREVER)){
         if(flag == false){
-            adc_thermistor = _read_adc();
-            _healthy = _config_read_source();
+            _healthy = _read_adc(adc_thermistor);
+            runs += 1;
         }
         else{
-            adc_source = _read_adc();
-            _healthy = _config_read_thermistor();
-        }
-
-        if (_healthy) {
-            _calculate(adc_source, adc_thermistor);
-        }
-        
+            _healthy = _read_adc(temp);
+            adc_source = (adc_source + temp)/2;
+        }   
         sem->give();
     }
-    flag = !flag;
+
+    // If data was collected, then calculate temperature and resistance
+    if (_healthy) {
+        _calculate(adc_source, adc_thermistor);
+    }
+
+    // After 20 samples, re-measure voltage source and update it.
+    if(runs == 20) {
+        _config_read_source();
+        flag = true;
+        runs = 0;
+    }
+    else{
+        _config_read_thermistor();
+        flag = false; 
+    }
 }
 
 void AC_CASS_Imet::_calculate(float source, float thermistor)

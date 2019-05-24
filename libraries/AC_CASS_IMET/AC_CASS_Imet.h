@@ -109,10 +109,11 @@ private:
     float _temperature; // degrees K
     float _resist; //pseudo-resistance read by the ADC
     bool _healthy; // we have a valid temperature reading to report
-    uint16_t config;
+    uint16_t config; // Configuration to be sent to the ADC registers
+    uint8_t runs; // Number of samples taken before getting an updated measurment of the source
     bool _config_read_thermistor(void); // configure ADC to read thermistor
     bool _config_read_source(void); // configure ADC to read source
-    float _read_adc(void);
+    bool _read_adc(float &value);
     void _timer(void); // update the temperature, called at 20Hz
     void _calculate(float source, float thermistor); // calculate temperature using adc readings and coefficients
 };
