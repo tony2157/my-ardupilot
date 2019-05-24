@@ -9,7 +9,7 @@ extern const AP_HAL::HAL &hal;
 AC_CASS_Imet::AC_CASS_Imet() :
     _dev(nullptr),
     _temperature(0),
-    _volt(0),
+    _resist(0),
     _healthy(false)
 {
 }
@@ -18,8 +18,8 @@ bool AC_CASS_Imet::init(uint8_t busId, uint8_t i2cAddr)
 {
 
     flag = false;
-    adc_curr = 0;
-    adc_volt = 0;
+    adc_thermistor = 0;
+    adc_source = 0;
     sem = hal.util->new_semaphore();
 
     for(uint8_t i=0; i<3; i++){
@@ -48,7 +48,7 @@ bool AC_CASS_Imet::init(uint8_t busId, uint8_t i2cAddr)
 
     _dev->set_retries(10);
 
-    if (!_config_read_volt()) {
+    if (!_config_read_source()) {
         printf("IMET read failed");
         _dev->get_semaphore()->give();
         return false;
@@ -56,7 +56,7 @@ bool AC_CASS_Imet::init(uint8_t busId, uint8_t i2cAddr)
 
     hal.scheduler->delay(5);
 
-    if (!_config_read_curr()) {
+    if (!_config_read_thermistor()) {
         printf("IMET read failed");
         _dev->get_semaphore()->give();
         return false;
@@ -90,7 +90,7 @@ void AC_CASS_Imet::set_sensor_coeff(float *k){
     }
 }
 
-bool AC_CASS_Imet::_config_read_curr()
+bool AC_CASS_Imet::_config_read_thermistor()
 {
     struct PACKED {
             uint8_t reg;
@@ -107,7 +107,7 @@ bool AC_CASS_Imet::_config_read_curr()
         return true;
 }
 
-bool AC_CASS_Imet::_config_read_volt()
+bool AC_CASS_Imet::_config_read_source()
 {
     struct PACKED {
             uint8_t reg;
@@ -149,28 +149,27 @@ void AC_CASS_Imet::_timer(void)
 {
     if(sem->take(HAL_SEMAPHORE_BLOCK_FOREVER)){
         if(flag == false){
-            adc_curr = _read_adc();
-            _healthy = _config_read_volt();
+            adc_thermistor = _read_adc();
+            _healthy = _config_read_source();
         }
         else{
-            adc_volt = _read_adc();
-            _healthy = _config_read_curr();
+            adc_source = _read_adc();
+            _healthy = _config_read_thermistor();
         }
 
         if (_healthy) {
-            _calculate(adc_volt, adc_curr);
-        } else {
-            _temperature = 0;
+            _calculate(adc_source, adc_thermistor);
         }
+        
         sem->give();
     }
     flag = !flag;
 }
 
-void AC_CASS_Imet::_calculate(float volt, float curr)
+void AC_CASS_Imet::_calculate(float source, float thermistor)
 {
-    float resist = 64900.0f * (volt / curr - 1.0f);
-    _volt = curr * 0.1875f; //to store the voltage and send it
+    _resist = 64900.0f * (source / thermistor - 1.0f);
+    //_volt = thermistor * 0.1875f; //store the true thermistor voltage
     //converts to temperature (kelvin)
-    _temperature = 1.0f / (coeff[0] + coeff[1] * logf(resist) + coeff[2] * powf(logf(resist), 3));
+    _temperature = 1.0f / (coeff[0] + coeff[1] * logf(_resist) + coeff[2] * powf(logf(_resist), 3));
 }
