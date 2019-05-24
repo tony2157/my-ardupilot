@@ -535,9 +535,9 @@ const struct LogStructure Copter::log_structure[] = {
 
     //CASS Data Logging format for the SD card, 
     { LOG_IMET_MSG, sizeof(log_IMET),
-      "IMET", "QffffffffB","Time,Temp1,Volt1,Temp2,Volt2,Temp3,Volt3,Temp4,Volt4,Fan","s---------","F000000000"},
+      "IMET", "QBBBBBffffffff","Time,Fan,Hth1,Hth2,Hth3,Hth4,T1,T2,T3,T4,R1,R2,R3,R4","s-------------","F0000000000000"},
     { LOG_RH_MSG, sizeof(log_RH),
-      "RHUM", "Qffffffff","Time,Humi1,Temp1,Humi2,Temp2,Humi3,Temp3,Humi4,Temp4","s--------","F00000000"},
+      "RHUM", "QBBBBffffffff","Time,Hth1,Hth2,Hth3,Hth4,H1,H2,H3,H4,T1,T2,T3,T4","s------------","F000000000000"},
     { LOG_WIND_MSG, sizeof(log_WIND),
       "WIND", "Qfffffff","Time,wdir,wspeed,dvar,gvar,avgR,avgP,yaw","s-------","F0000000"},
 };
