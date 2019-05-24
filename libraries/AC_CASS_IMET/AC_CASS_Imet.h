@@ -93,10 +93,9 @@ class AC_CASS_Imet {
 public:
     AC_CASS_Imet(void);
     ~AC_CASS_Imet(void){}
-
     bool init(uint8_t busId, uint8_t i2cAddr);
     float temperature(void) { return _temperature; } // temperature in kelvin
-    float voltage(void) { return _volt; }   // voltage read by the ADCS
+    float resistance(void) { return _resist; }   // voltage read by the ADCS
     bool healthy(void) { return _healthy; } // do we have a valid temperature reading?
     void set_i2c_addr(uint8_t addr);
     void set_sensor_coeff(float *k);
@@ -106,14 +105,14 @@ private:
     AP_HAL::Semaphore *sem;
     bool flag;  //toggles between voltage and current measurements
     float coeff[3]; //sensor coefficients
-    float adc_curr, adc_volt;   //voltage and current measurements
+    float adc_thermistor, adc_source;   //voltage source and thermistor form ADC
     float _temperature; // degrees K
-    float _volt; //voltage read by the ADC
+    float _resist; //pseudo-resistance read by the ADC
     bool _healthy; // we have a valid temperature reading to report
     uint16_t config;
-    bool _config_read_curr(void); // reset device
-    bool _config_read_volt(void); // read (relevant) internal calibration registers into _k
+    bool _config_read_thermistor(void); // configure ADC to read thermistor
+    bool _config_read_source(void); // configure ADC to read source
     float _read_adc(void);
     void _timer(void); // update the temperature, called at 20Hz
-    void _calculate(float volt, float curr); // calculate temperature using adc reading and internal calibration
+    void _calculate(float source, float thermistor); // calculate temperature using adc readings and coefficients
 };
