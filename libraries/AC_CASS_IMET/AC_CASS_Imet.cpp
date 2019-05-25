@@ -151,7 +151,7 @@ bool AC_CASS_Imet::_read_adc(float &value)
 
 void AC_CASS_Imet::_timer(void)
 {
-    float temp;
+    float temp = adc_source;
     // Retreive data from sensor by I2C
     if(sem->take(HAL_SEMAPHORE_BLOCK_FOREVER)){
         if(flag == false){
