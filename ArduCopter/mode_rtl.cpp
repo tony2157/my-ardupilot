@@ -143,7 +143,7 @@ void Copter::ModeRTL::climb_return_run()
         // get pilot's desired yaw rate
         target_yaw_rate = get_pilot_desired_yaw_rate(channel_yaw->get_control_in());
         //CASS modification: Avoid pilot yaw input while in wind estimator mode
-        if (!is_zero(target_yaw_rate) && (auto_yaw.default_mode(true) != AUTO_YAW_INTO_WIND || auto_yaw.default_mode(true) != AUTO_YAW_WIND_CT2)) {
+        if (!is_zero(target_yaw_rate) && auto_yaw.default_mode(true) != AUTO_YAW_INTO_WIND && auto_yaw.default_mode(true) != AUTO_YAW_WIND_CT2) {
             auto_yaw.set_mode(AUTO_YAW_HOLD);
         }
     }
@@ -210,7 +210,7 @@ void Copter::ModeRTL::loiterathome_run()
         // get pilot's desired yaw rate
         target_yaw_rate = get_pilot_desired_yaw_rate(channel_yaw->get_control_in());
         //CASS modification: Avoid pilot yaw input while in wind estimator mode
-        if (!is_zero(target_yaw_rate) && (auto_yaw.default_mode(true) != AUTO_YAW_INTO_WIND || auto_yaw.default_mode(true) != AUTO_YAW_WIND_CT2)) {
+        if (!is_zero(target_yaw_rate) && auto_yaw.default_mode(true) != AUTO_YAW_INTO_WIND && auto_yaw.default_mode(true) != AUTO_YAW_WIND_CT2) {
             auto_yaw.set_mode(AUTO_YAW_HOLD);
         }
     }
