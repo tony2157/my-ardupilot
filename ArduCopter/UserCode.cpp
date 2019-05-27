@@ -232,7 +232,7 @@ void Copter::userhook_SuperSlowLoop()
                     // Roll and Pitch accumulation
                     _roll_sum = _roll_sum + _roll;
                     _pitch_sum = _pitch_sum + _pitch;
-                    aux = atan2f(sinf(_roll), -sinf(_pitch));
+                    aux = atan2f(sinf(_roll)*cosf(_pitch), -sinf(_pitch));
                     var_temp_dir = var_temp_dir + aux*aux;
                     var_temp_gamma = var_temp_gamma + _pitch*_pitch;
                     k = k + 1;
@@ -241,7 +241,7 @@ void Copter::userhook_SuperSlowLoop()
                     // 1st order Estimator, Mean and variance calculation
                     avgP = _pitch_sum/N;
                     avgR = _roll_sum/N;
-                    body_wind_dir = atan2f(sinf(avgR), -sinf(avgP));
+                    body_wind_dir = atan2f(sinf(avgR)*cosf(avgP), -sinf(avgP));
                     var_gamma = var_temp_gamma/N - avgP*avgP;
                     var_wind_dir = var_temp_dir/N - body_wind_dir*body_wind_dir;
                     if (var_wind_dir < 1e-6f){
