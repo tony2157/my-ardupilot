@@ -69,15 +69,17 @@ bool AC_CASS_HYT271::_collect(float &hum, float &temp)
 {
     uint8_t data[4];
     int16_t raw;
-    //Read sensors
+    // Read sensors
     if (!_dev->transfer(nullptr, 0, data, sizeof(data))) {
         return false;
     }
 
+    // Verify data with the checksum
     if ((data[0] & 0x40) == 0x40){
         return false;
     }
 
+    // Bit shift and convert to floating point number
     raw = (data[0] << 8) | data[1];
     raw = raw & 0x3FFF;
 
@@ -93,12 +95,8 @@ bool AC_CASS_HYT271::_collect(float &hum, float &temp)
 void AC_CASS_HYT271::_timer(void)
 {
     if(sem->take(HAL_SEMAPHORE_BLOCK_FOREVER)){
-        if (_healthy) {
-            _collect(_humidity, _temperature);
-        } 
-        
-        _healthy = _measure();
-        
-        sem->give();
+        _healthy = _collect(_humidity, _temperature);   // Retreive data from the sensor
+        _measure();                                     // Request a new measurement to the sensor
+        sem->give();                                    // End I2C communication
     }
 }
