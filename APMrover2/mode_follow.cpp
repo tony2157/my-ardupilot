@@ -11,10 +11,6 @@ bool ModeFollow::_enter()
     // initialise waypoint speed
     set_desired_speed_to_default();
 
-    // initialise heading to current heading
-    _desired_yaw_cd = ahrs.yaw_sensor;
-    _yaw_error_cd = 0.0f;
-
     return true;
 }
 
@@ -65,9 +61,21 @@ void ModeFollow::update()
     }
 
     // calculate vehicle heading
-    _desired_yaw_cd = wrap_180_cd(atan2f(desired_velocity_ne.y, desired_velocity_ne.x) * DEGX100);
+    const float desired_yaw_cd = wrap_180_cd(atan2f(desired_velocity_ne.y, desired_velocity_ne.x) * DEGX100);
 
     // run steering and throttle controllers
-    calc_steering_to_heading(_desired_yaw_cd);
-    calc_throttle(calc_reduced_speed_for_turn_or_distance(desired_speed), false, true);
+    calc_steering_to_heading(desired_yaw_cd);
+    calc_throttle(desired_speed, true);
+}
+
+// return desired heading (in degrees) for reporting to ground station (NAV_CONTROLLER_OUTPUT message)
+float ModeFollow::wp_bearing() const
+{
+    return g2.follow.get_bearing_to_target();
+}
+
+// return distance (in meters) to destination
+float ModeFollow::get_distance_to_destination() const
+{
+    return g2.follow.get_distance_to_target();
 }

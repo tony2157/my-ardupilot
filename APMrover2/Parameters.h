@@ -36,7 +36,7 @@ public:
         k_param_scheduler,
         k_param_relay,
         k_param_BoardConfig,
-        k_param_pivot_turn_angle,
+        k_param_pivot_turn_angle_old,   // unused
         k_param_rc_13_old,  // unused
         k_param_rc_14_old,  // unused
 
@@ -58,7 +58,8 @@ public:
 
         // 97: RSSI
         k_param_rssi = 97,
-
+        k_param_rpm_sensor,     // rpm sensor 98
+        
         // 100: Arming parameters
         k_param_arming = 100,
 
@@ -83,7 +84,7 @@ public:
         //
         // 130: Sensor parameters
         //
-        k_param_compass_enabled = 130,
+        k_param_compass_enabled_deprecated = 130,
         k_param_steering_learn,     // unused
         k_param_NavEKF,             // deprecated - remove
         k_param_mission,            // mission library
@@ -108,7 +109,7 @@ public:
         k_param_speed_cruise,
         k_param_speed_turn_gain,    // unused
         k_param_speed_turn_dist,    // unused
-        k_param_ch7_option,
+        k_param_ch7_option,         // unused
         k_param_auto_trigger_pin,
         k_param_auto_kickstart,
         k_param_turn_circle,  // unused
@@ -142,6 +143,8 @@ public:
         k_param_fs_throttle_value,
         k_param_fs_gcs_enabled,
         k_param_fs_crash_check,
+        k_param_fs_ekf_action,
+        k_param_fs_ekf_thresh,  // 187
 
         // obstacle control
         k_param_sonar_enabled = 190,  // deprecated, can be removed
@@ -170,18 +173,18 @@ public:
         //
         k_param_command_total = 220,    // unused
         k_param_command_index,          // unused
-        k_param_waypoint_radius,
-        k_param_waypoint_overshoot,
+        k_param_waypoint_radius_old,    // unused
+        k_param_waypoint_overshoot_old, // unused
 
         //
-        // 230: camera control
+        // camera control
         //
         k_param_camera,
         k_param_camera_mount,
         k_param_camera_mount2,          // unused
 
         //
-        // 240: PID Controllers
+        // 230: PID Controllers
         k_param_pidNavSteer = 230,
         k_param_pidServoSteer,  // unused
         k_param_pidSpeedThrottle_old,   // unused
@@ -205,7 +208,7 @@ public:
         k_param_button,
         k_param_osd,
 
-        k_param_DataFlash = 253,  // Logging Group
+        k_param_logger = 253,  // Logging Group
 
         // 254,255: reserved
         };
@@ -224,9 +227,6 @@ public:
     AP_Int16    sysid_my_gcs;
     AP_Int8     telem_delay;
 
-    // sensor parameters
-    AP_Int8     compass_enabled;
-
     // navigation parameters
     //
     AP_Float    speed_cruise;
@@ -234,7 +234,6 @@ public:
     AP_Int8     auto_trigger_pin;
     AP_Float    auto_kickstart;
     AP_Float    turn_max_g;
-    AP_Int16    pivot_turn_angle;
     AP_Int16    gcs_pid_mask;
 
     // Throttle
@@ -249,6 +248,8 @@ public:
     AP_Int16    fs_throttle_value;
     AP_Int8     fs_gcs_enabled;
     AP_Int8     fs_crash_check;
+    AP_Int8     fs_ekf_action;
+    AP_Float    fs_ekf_thresh;
 
     // obstacle avoidance control
     AP_Int16    rangefinder_trigger_cm;
@@ -266,11 +267,6 @@ public:
     AP_Int8     mode4;
     AP_Int8     mode5;
     AP_Int8     mode6;
-
-    // Waypoints
-    //
-    AP_Float    waypoint_radius;
-    AP_Float    waypoint_overshoot;
 
     Parameters() {}
 };
@@ -328,8 +324,7 @@ public:
     // Safe RTL library
     AP_SmartRTL smart_rtl;
 
-    // default speeds for auto, rtl
-    AP_Float wp_speed;
+    // default speed for rtl
     AP_Float rtl_speed;
 
     // frame class for vehicle
@@ -343,9 +338,6 @@ public:
 
     // avoidance library
     AC_Avoid avoid;
-
-    // pivot turn rate
-    AP_Int16 pivot_turn_rate;
 
     // pitch angle at 100% throttle
     AP_Float bal_pitch_max;
@@ -366,24 +358,40 @@ public:
     // Sprayer
     AC_Sprayer sprayer;
 
+#if GRIPPER_ENABLED
+    AP_Gripper gripper;
+#endif
+
     // Rally point library
     AP_Rally_Rover rally;
 
     // Simple mode types
     AP_Int8 simple_type;
 
-    // sailboat parameters
-    AP_Float sail_angle_min;
-    AP_Float sail_angle_max;
-    AP_Float sail_angle_ideal;
-    AP_Float sail_heel_angle_max;
-    AP_Float sail_no_go;
-
     // windvane
     AP_WindVane windvane;
 
     // Airspeed
     AP_Airspeed airspeed;
+
+    // mission behave
+    AP_Int8 mis_done_behave;
+
+    // balance both pitch trim
+    AP_Float bal_pitch_trim;
+
+    // stick mixing for auto modes
+    AP_Int8     stick_mixing;
+
+#ifdef ENABLE_SCRIPTING
+    AP_Scripting scripting;
+#endif // ENABLE_SCRIPTING
+
+    // waypoint navigation
+    AR_WPNav wp_nav;
+
+    // Sailboat functions
+    Sailboat sailboat;
 };
 
 extern const AP_Param::Info var_info[];

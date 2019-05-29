@@ -9,7 +9,6 @@ namespace ChibiOS {
     class I2CDevice;
     class I2CDeviceManager;
     class OpticalFlow;
-    class PrivateMember;
     class RCInput;
     class RCOutput;
     class Scheduler;
@@ -27,4 +26,5 @@ namespace ChibiOS {
     class SoftSigReader;
     class SoftSigReaderInt;
     class CANManager;
+    class Flash;
 }

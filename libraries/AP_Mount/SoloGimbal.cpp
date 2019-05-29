@@ -51,6 +51,8 @@ void SoloGimbal::receive_feedback(mavlink_channel_t chan, const mavlink_message_
 
     if (report_msg.target_system != 1) {
         _state = GIMBAL_STATE_NOT_PRESENT;
+    } else {
+        GCS_MAVLINK::set_channel_private(chan);
     }
 
     switch(_state) {
@@ -111,8 +113,10 @@ void SoloGimbal::send_controls(mavlink_channel_t chan)
                 if (_ang_vel_dem_radsLen > radians(400)) {
                     _ang_vel_dem_rads *= radians(400)/_ang_vel_dem_radsLen;
                 }
-                mavlink_msg_gimbal_control_send(chan, mavlink_system.sysid, _compid,
-                                                _ang_vel_dem_rads.x, _ang_vel_dem_rads.y, _ang_vel_dem_rads.z);
+                if (HAVE_PAYLOAD_SPACE(chan, GIMBAL_CONTROL)) {
+                    mavlink_msg_gimbal_control_send(chan, mavlink_system.sysid, _compid,
+                                                    _ang_vel_dem_rads.x, _ang_vel_dem_rads.y, _ang_vel_dem_rads.z);
+                }
                 break;
             }
             case GIMBAL_MODE_STABILIZE: {
@@ -124,8 +128,10 @@ void SoloGimbal::send_controls(mavlink_channel_t chan)
                 if (ang_vel_dem_norm > radians(400)) {
                     _ang_vel_dem_rads *= radians(400)/ang_vel_dem_norm;
                 }
-                mavlink_msg_gimbal_control_send(chan, mavlink_system.sysid, _compid,
-                                                _ang_vel_dem_rads.x, _ang_vel_dem_rads.y, _ang_vel_dem_rads.z);
+                if (HAVE_PAYLOAD_SPACE(chan, GIMBAL_CONTROL)) {
+                    mavlink_msg_gimbal_control_send(chan, mavlink_system.sysid, _compid,
+                                                    _ang_vel_dem_rads.x, _ang_vel_dem_rads.y, _ang_vel_dem_rads.z);
+                }
                 break;
             }
             default:
@@ -367,7 +373,7 @@ Vector3f SoloGimbal::get_ang_vel_dem_body_lock()
     return gimbalRateDemVecBodyLock;
 }
 
-void SoloGimbal::update_target(Vector3f newTarget)
+void SoloGimbal::update_target(const Vector3f &newTarget)
 {
     // Low-pass filter
     _att_target_euler_rad.y = _att_target_euler_rad.y + 0.02f*(newTarget.y - _att_target_euler_rad.y);
@@ -377,8 +383,8 @@ void SoloGimbal::update_target(Vector3f newTarget)
 
 void SoloGimbal::write_logs()
 {
-    DataFlash_Class *dataflash = DataFlash_Class::instance();
-    if (dataflash == nullptr) {
+    AP_Logger *logger = AP_Logger::get_singleton();
+    if (logger == nullptr) {
         return;
     }
 
@@ -403,7 +409,7 @@ void SoloGimbal::write_logs()
         joint_angles_y  : _measurement.joint_angles.y,
         joint_angles_z  : _measurement.joint_angles.z
     };
-    dataflash->WriteBlock(&pkt1, sizeof(pkt1));
+    logger->WriteBlock(&pkt1, sizeof(pkt1));
 
     struct log_Gimbal2 pkt2 = {
         LOG_PACKET_HEADER_INIT(LOG_GIMBAL2_MSG),
@@ -419,7 +425,7 @@ void SoloGimbal::write_logs()
         target_y: _att_target_euler_rad.y,
         target_z: _att_target_euler_rad.z
     };
-    dataflash->WriteBlock(&pkt2, sizeof(pkt2));
+    logger->WriteBlock(&pkt2, sizeof(pkt2));
 
     _log_dt = 0;
     _log_del_ang.zero();
