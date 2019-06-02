@@ -115,6 +115,11 @@ extern AP_IOMCU iomcu;
 
 AP_Arming::AP_Arming()
 {
+    if (_singleton) {
+        AP_HAL::panic("Too many AP_Arming instances");
+    }
+    _singleton = this;
+
     AP_Param::setup_object_defaults(this, var_info);
 }
 
@@ -784,25 +789,12 @@ bool AP_Arming::arm_checks(AP_Arming::Method method)
 //returns true if arming occurred successfully
 bool AP_Arming::arm(AP_Arming::Method method, const bool do_arming_checks)
 {
-#if APM_BUILD_TYPE(APM_BUILD_ArduCopter)
-    // Copter should never use this function
-    return false;
-#else
     if (armed) { //already armed
         return false;
     }
 
-    //are arming checks disabled?
-    if (!do_arming_checks || checks_to_perform == ARMING_CHECK_NONE) {
+    if (!do_arming_checks || (pre_arm_checks(true) && arm_checks(method))) {
         armed = true;
-        gcs().send_text(MAV_SEVERITY_INFO, "Throttle armed");
-        return true;
-    }
-
-    if (pre_arm_checks(true) && arm_checks(method)) {
-        armed = true;
-
-        gcs().send_text(MAV_SEVERITY_INFO, "Throttle armed");
 
         //TODO: Log motor arming
         //Can't do this from this class until there is a unified logging library
@@ -812,22 +804,15 @@ bool AP_Arming::arm(AP_Arming::Method method, const bool do_arming_checks)
     }
 
     return armed;
-#endif
 }
 
 //returns true if disarming occurred successfully
 bool AP_Arming::disarm() 
 {
-#if APM_BUILD_TYPE(APM_BUILD_ArduCopter)
-    // Copter should never use this function
-    return false;
-#else
     if (!armed) { // already disarmed
         return false;
     }
     armed = false;
-
-    gcs().send_text(MAV_SEVERITY_INFO, "Throttle disarmed");
 
 #if HAL_HAVE_SAFETY_SWITCH
     AP_BoardConfig *board_cfg = AP_BoardConfig::get_singleton();
@@ -841,7 +826,6 @@ bool AP_Arming::disarm()
     //Can't do this from this class until there is a unified logging library.
 
     return true;
-#endif
 }
 
 AP_Arming::Required AP_Arming::arming_required() 
@@ -894,3 +878,33 @@ bool AP_Arming::rc_checks_copter_sub(const bool display_failure, const RC_Channe
     }
     return ret;
 }
+
+void AP_Arming::Log_Write_Arm_Disarm()
+{
+    struct log_Arm_Disarm pkt = {
+        LOG_PACKET_HEADER_INIT(LOG_ARM_DISARM_MSG),
+        time_us                 : AP_HAL::micros64(),
+        arm_state               : is_armed(),
+        arm_checks              : get_enabled_checks()
+    };
+    AP::logger().WriteCriticalBlock(&pkt, sizeof(pkt));
+}
+
+AP_Arming *AP_Arming::_singleton = nullptr;
+
+/*
+ * Get the AP_InertialSensor singleton
+ */
+AP_Arming *AP_Arming::get_singleton()
+{
+    return AP_Arming::_singleton;
+}
+
+namespace AP {
+
+AP_Arming &arming()
+{
+    return *AP_Arming::get_singleton();
+}
+
+};
