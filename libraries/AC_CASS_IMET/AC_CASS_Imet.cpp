@@ -171,7 +171,7 @@ void AC_CASS_Imet::_timer(void)
     }
 
     // After 20 samples, re-measure voltage source and update it.
-    if(runs == 20) {
+    if(runs == 100) {
         _config_read_source();
         flag = true;
         runs = 0;
