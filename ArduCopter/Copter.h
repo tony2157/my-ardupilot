@@ -79,6 +79,10 @@
 #include <AC_AutoTune/AC_AutoTune.h>
 #include <AP_Common/AP_FWVersion.h>
 
+// CASS libraries declaration
+#include <AC_CASS_IMET/AC_CASS_Imet.h>
+#include <AC_CASS_HYT271/AC_CASS_HYT271.h>
+
 // Configuration
 #include "defines.h"
 #include "config.h"
@@ -236,6 +240,11 @@ private:
     AP_Baro barometer;
     Compass compass;
     AP_InertialSensor ins;
+
+    // Imet Temperature sensors class declaration
+    AC_CASS_Imet CASS_Imet[4]; 
+    // HYT271 humidity sensors class declaration
+    AC_CASS_HYT271 CASS_HYT271[4];
 
     RangeFinder rangefinder{serial_manager};
     struct {
@@ -842,6 +851,14 @@ private:
     void userhook_auxSwitch1(uint8_t ch_flag);
     void userhook_auxSwitch2(uint8_t ch_flag);
     void userhook_auxSwitch3(uint8_t ch_flag);
+
+    // CASS Mavlink message
+    void send_cass_imet(mavlink_channel_t chan);
+    void send_cass_hyt271(mavlink_channel_t chan);
+
+    // CASS Libraries sensor code initilizer
+    void init_CASS_imet(void);
+    void init_CASS_hyt271(void);  
 
 #if OSD_ENABLED == ENABLED
     void publish_osd_info();
