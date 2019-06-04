@@ -280,6 +280,8 @@ struct PACKED log_Heli {
     uint64_t time_us;
     float    desired_rotor_speed;
     float    main_rotor_speed;
+    float    governor_output;
+    float    control_output;
 };
 
 #if FRAME_CONFIG == HELI_FRAME
@@ -291,6 +293,8 @@ void Copter::Log_Write_Heli()
         time_us                 : AP_HAL::micros64(),
         desired_rotor_speed     : motors->get_desired_rotor_speed(),
         main_rotor_speed        : motors->get_main_rotor_speed(),
+        governor_output         : motors->get_governor_output(),
+        control_output          : motors->get_control_output(),
     };
     logger.WriteBlock(&pkt_heli, sizeof(pkt_heli));
 }
@@ -403,7 +407,7 @@ const struct LogStructure Copter::log_structure[] = {
       "DFLT",  "QBf",         "TimeUS,Id,Value", "s--", "F--" },
 #if FRAME_CONFIG == HELI_FRAME
     { LOG_HELI_MSG, sizeof(log_Heli),
-      "HELI",  "Qff",         "TimeUS,DRRPM,ERRPM", "s--", "F--" },
+      "HELI",  "Qffff",        "TimeUS,DRRPM,ERRPM,Gov,Throt", "s----", "F----" },
 #endif
 #if PRECISION_LANDING == ENABLED
     { LOG_PRECLAND_MSG, sizeof(log_Precland),
@@ -411,6 +415,14 @@ const struct LogStructure Copter::log_structure[] = {
 #endif
     { LOG_GUIDEDTARGET_MSG, sizeof(log_GuidedTarget),
       "GUID",  "QBffffff",    "TimeUS,Type,pX,pY,pZ,vX,vY,vZ", "s-mmmnnn", "F-000000" },
+
+    //CASS Data Logging format for the SD card, 
+    { LOG_IMET_MSG, sizeof(log_IMET),
+      "IMET", "QBBBBBffffffff","Time,Fan,Hth1,Hth2,Hth3,Hth4,T1,T2,T3,T4,R1,R2,R3,R4","s-------------","F0000000000000"},
+    { LOG_RH_MSG, sizeof(log_RH),
+      "RHUM", "QBBBBffffffff","Time,Hth1,Hth2,Hth3,Hth4,H1,H2,H3,H4,T1,T2,T3,T4","s------------","F000000000000"},
+    { LOG_WIND_MSG, sizeof(log_WIND),
+      "WIND", "Qfffffff","Time,wdir,wspeed,dvar,gvar,avgR,avgP,yaw","s-------","F0000000"},
 };
 
 void Copter::Log_Write_Vehicle_Startup_Messages()

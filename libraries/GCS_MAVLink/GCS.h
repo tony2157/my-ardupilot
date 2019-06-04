@@ -97,6 +97,8 @@ enum ap_message : uint8_t {
     MSG_HOME,
     MSG_NAMED_FLOAT,
     MSG_EXTENDED_SYS_STATE,
+    MSG_CASS_IMET, //CASS message ID
+    MSG_CASS_HYT271,
     MSG_LAST // MSG_LAST must be the last entry in this enum
 };
 
@@ -642,6 +644,8 @@ protected:
 
     static constexpr const float magic_force_arm_value = 2989.0f;
     static constexpr const float magic_force_disarm_value = 21196.0f;
+
+    virtual bool allow_disarm() const { return true; }
 
     void manual_override(RC_Channel *c, int16_t value_in, uint16_t offset, float scaler, const uint32_t tnow, bool reversed = false);
 

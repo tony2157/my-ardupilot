@@ -182,6 +182,102 @@ int16_t GCS_MAVLINK_Copter::vfr_hud_throttle() const
     return (int16_t)(copter.motors->get_throttle() * 100);
 }
 
+void NOINLINE Copter::send_cass_imet(mavlink_channel_t chan) {
+    //mavlink_cass_sensor_raw_t packet;
+    float raw_sensor[5];
+    uint8_t size = 5;
+    memset(raw_sensor, 0, size * sizeof(float));
+
+    // Send IMET temperature
+    for(uint8_t i=0; i<4; i++){
+        raw_sensor[i] = copter.CASS_Imet[i].temperature();
+    }
+    #if CONFIG_HAL_BOARD == HAL_BOARD_SITL
+    // Variables simulation for IMET sensors
+        uint32_t m = AP_HAL::millis();
+        raw_sensor[0] = 298.15 + sinf(m) * 25;
+        raw_sensor[1] = 1 + raw_sensor[0];
+        raw_sensor[2] = 1 + raw_sensor[1];
+        raw_sensor[3] = 1 + raw_sensor[2];
+        //printf("Imet temp: %5.2f \n",raw_sensor[0]);
+    #endif 
+    // Call Mavlink function and send CASS data
+    mavlink_msg_cass_sensor_raw_send(
+        chan,
+        AP_HAL::millis(),
+        0,
+        size,
+        raw_sensor);
+
+    //packet.time_boot_ms = AP_HAL::millis();
+    //packet.app_datatype = (uint8_t)0;
+    //packet.app_datalength = size;
+    //mav_array_memcpy(packet.values, raw_sensor, size * sizeof(float));
+    //mavlink_msg_cass_sensor_raw_send_struct(chan, &packet);
+}
+
+void Copter::send_cass_hyt271(mavlink_channel_t chan) {
+    //mavlink_cass_sensor_raw_t packet;
+    float raw_sensor[5];
+    uint8_t size = 5;
+    memset(raw_sensor, 0, size * sizeof(float));
+
+    // Send HYT271 humidity
+    for(uint8_t i=0; i<4; i++){
+        raw_sensor[i] = copter.CASS_HYT271[i].relative_humidity();
+    }
+    #if CONFIG_HAL_BOARD == HAL_BOARD_SITL
+    // Variables simulation for HYT271 humidity sensors
+        uint32_t m = AP_HAL::millis();
+        raw_sensor[0] = 50 + sinf(m/100.0) * 25;
+        raw_sensor[1] = 1 + raw_sensor[0];
+        raw_sensor[2] = 1 + raw_sensor[1];
+        raw_sensor[3] = 1 + raw_sensor[2];
+        //printf("HYT271 Humidity: %5.2f \n",raw_sensor[0]);     
+    #endif
+    // Call Mavlink function and send CASS data
+    mavlink_msg_cass_sensor_raw_send(
+        chan,
+        AP_HAL::millis(),
+        1,
+        size,
+        raw_sensor);
+
+    //packet.time_boot_ms = AP_HAL::millis();
+    //packet.app_datatype = (uint8_t)1;
+    //packet.app_datalength = size;
+    //mav_array_memcpy(packet.values, raw_sensor, size * sizeof(float));
+    //mavlink_msg_cass_sensor_raw_send_struct(chan, &packet);
+
+    // Send extra temperature measurements packet from the HYT271 sensor if there is still space
+    if(!HAVE_PAYLOAD_SPACE(chan, CASS_SENSOR_RAW)){
+        return;
+    }
+    for(uint8_t i=0; i<4; i++){
+        raw_sensor[i] = copter.CASS_HYT271[i].temperature();
+    }
+    #if CONFIG_HAL_BOARD == HAL_BOARD_SITL
+    // Variables simulation for HYT271 temperature sensors
+        raw_sensor[0] = 298.15 + sinf(m/200.0) * 15;
+        raw_sensor[1] = 1 + raw_sensor[0];
+        raw_sensor[2] = 1 + raw_sensor[1];
+        raw_sensor[3] = 1 + raw_sensor[2];   
+        //printf("HYT271 temp: %5.2f \n",raw_sensor[0]);  
+    #endif
+    // Call Mavlink function and send CASS data
+    mavlink_msg_cass_sensor_raw_send(
+        chan,
+        AP_HAL::millis(),
+        2,
+        size,
+        raw_sensor);
+
+    //packet.time_boot_ms = AP_HAL::millis();
+    //packet.app_datatype = (uint8_t)2;
+    //mav_array_memcpy(packet.values, raw_sensor, size * sizeof(float));
+    //mavlink_msg_cass_sensor_raw_send_struct(chan, &packet);
+}
+
 /*
   send PID tuning message
  */
@@ -292,6 +388,16 @@ bool GCS_MAVLINK_Copter::try_send_message(enum ap_message id)
         CHECK_PAYLOAD_SIZE(ADSB_VEHICLE);
         copter.adsb.send_adsb_vehicle(chan);
 #endif
+        break;
+
+    case MSG_CASS_IMET:
+        CHECK_PAYLOAD_SIZE(CASS_SENSOR_RAW);
+        copter.send_cass_imet(chan);
+        break;
+    
+    case MSG_CASS_HYT271:
+        CHECK_PAYLOAD_SIZE(CASS_SENSOR_RAW);
+        copter.send_cass_hyt271(chan);
         break;
 
     default:
@@ -443,6 +549,7 @@ static const ap_message STREAM_EXTRA3_msgs[] = {
 #if AP_TERRAIN_AVAILABLE && AC_TERRAIN
     MSG_TERRAIN,
 #endif
+    MSG_CASS_IMET,
     MSG_BATTERY2,
     MSG_BATTERY_STATUS,
     MSG_MOUNT_STATUS,
@@ -454,6 +561,7 @@ static const ap_message STREAM_EXTRA3_msgs[] = {
     MSG_VIBRATION,
     MSG_RPM,
     MSG_ESC_TELEMETRY,
+    MSG_CASS_HYT271
 };
 static const ap_message STREAM_PARAMS_msgs[] = {
     MSG_NEXT_PARAM
@@ -606,6 +714,11 @@ MAV_RESULT GCS_MAVLINK_Copter::handle_command_mount(const mavlink_command_long_t
     return GCS_MAVLINK::handle_command_mount(packet);
 }
 
+bool GCS_MAVLINK_Copter::allow_disarm() const
+{
+    return copter.ap.land_complete;
+}
+
 MAV_RESULT GCS_MAVLINK_Copter::handle_command_long_packet(const mavlink_command_long_t &packet)
 {
     switch(packet.command) {
@@ -698,26 +811,6 @@ MAV_RESULT GCS_MAVLINK_Copter::handle_command_long_packet(const mavlink_command_
         }
         return MAV_RESULT_FAILED;
 #endif
-
-    case MAV_CMD_COMPONENT_ARM_DISARM:
-        if (is_equal(packet.param1,1.0f)) {
-            // attempt to arm and return success or failure
-            const bool do_arming_checks = !is_equal(packet.param2,magic_force_arm_value);
-            if (copter.init_arm_motors(AP_Arming::Method::MAVLINK, do_arming_checks)) {
-                return MAV_RESULT_ACCEPTED;
-            }
-        } else if (is_zero(packet.param1))  {
-            if (copter.ap.land_complete || is_equal(packet.param2,magic_force_disarm_value)) {
-                // force disarming by setting param2 = 21196 is deprecated
-                copter.init_disarm_motors();
-                return MAV_RESULT_ACCEPTED;
-            } else {
-                return MAV_RESULT_FAILED;
-            }
-        } else {
-            return MAV_RESULT_UNSUPPORTED;
-        }
-        return MAV_RESULT_FAILED;
 
 #if PARACHUTE == ENABLED
     case MAV_CMD_DO_PARACHUTE:
@@ -819,7 +912,7 @@ MAV_RESULT GCS_MAVLINK_Copter::handle_command_long_packet(const mavlink_command_
 
         if (!copter.motors->armed()) {
             // if disarmed, arm motors
-            copter.init_arm_motors(AP_Arming::Method::MAVLINK);
+            copter.arming.arm(AP_Arming::Method::MAVLINK);
         } else if (copter.ap.land_complete) {
             // if armed and landed, takeoff
             if (copter.set_mode(LOITER, MODE_REASON_GCS_COMMAND)) {
@@ -841,7 +934,7 @@ MAV_RESULT GCS_MAVLINK_Copter::handle_command_long_packet(const mavlink_command_
         if (copter.motors->armed()) {
             if (copter.ap.land_complete) {
                 // if landed, disarm motors
-                copter.init_disarm_motors();
+                copter.arming.disarm();
             } else {
                 // assume that shots modes are all done in guided.
                 // NOTE: this may need to change if we add a non-guided shot mode
@@ -1309,7 +1402,7 @@ MAV_RESULT GCS_MAVLINK_Copter::handle_flight_termination(const mavlink_command_l
     if (GCS_MAVLINK::handle_flight_termination(packet) != MAV_RESULT_ACCEPTED) {
 #endif
         if (packet.param1 > 0.5f) {
-            copter.init_disarm_motors();
+            copter.arming.disarm();
             result = MAV_RESULT_ACCEPTED;
         }
 #if ADVANCED_FAILSAFE == ENABLED

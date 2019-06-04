@@ -1,69 +1,30 @@
 #pragma once
 
-/*
-  unfortunately these need to be macros because of a limitation of
-  named member structure initialisation in g++
- */
-#define LOG_PACKET_HEADER	       uint8_t head1, head2, msgid;
-#define LOG_PACKET_HEADER_INIT(id) head1 : HEAD_BYTE1, head2 : HEAD_BYTE2, msgid : id
-#define LOG_PACKET_HEADER_LEN 3 // bytes required for LOG_PACKET_HEADER
-
-// once the logging code is all converted we will remove these from
-// this header
-#define HEAD_BYTE1  0xA3    // Decimal 163
-#define HEAD_BYTE2  0x95    // Decimal 149
-
-// structure used to define logging format
-struct LogStructure {
-    uint8_t msg_type;
-    uint8_t msg_len;
-    const char *name;
-    const char *format;
-    const char *labels;
-    const char *units;
-    const char *multipliers;
-};
-
-// maximum lengths of fields in LogStructure, including trailing nulls
-static const uint8_t LS_NAME_SIZE = 5;
-static const uint8_t LS_FORMAT_SIZE = 17;
-static const uint8_t LS_LABELS_SIZE = 65;
-static const uint8_t LS_UNITS_SIZE = 17;
-static const uint8_t LS_MULTIPLIERS_SIZE = 17;
+// if you add any new types, units or multipliers, please update README.md
 
 /*
-  log structures common to all vehicle types
+Format characters in the format string for binary log messages
+  a   : int16_t[32]
+  b   : int8_t
+  B   : uint8_t
+  h   : int16_t
+  H   : uint16_t
+  i   : int32_t
+  I   : uint32_t
+  f   : float
+  d   : double
+  n   : char[4]
+  N   : char[16]
+  Z   : char[64]
+  c   : int16_t * 100
+  C   : uint16_t * 100
+  e   : int32_t * 100
+  E   : uint32_t * 100
+  L   : int32_t latitude/longitude
+  M   : uint8_t flight mode
+  q   : int64_t
+  Q   : uint64_t
  */
-struct PACKED log_Format {
-    LOG_PACKET_HEADER;
-    uint8_t type;
-    uint8_t length;
-    char name[4];
-    char format[16];
-    char labels[64];
-};
-
-struct PACKED log_Unit {
-    LOG_PACKET_HEADER;
-    uint64_t time_us;
-    char type;
-    char unit[64]; // you know, this might be overkill...
-};
-
-struct PACKED log_Format_Multiplier {
-    LOG_PACKET_HEADER;
-    uint64_t time_us;
-    char type;
-    double multiplier;
-};
-
-struct PACKED log_Format_Units {
-    LOG_PACKET_HEADER;
-    uint64_t time_us;
-    uint8_t format_type;
-    char units[16];
-    char multipliers[16];
-};
 
 struct UnitStructure {
     const char ID;
@@ -138,6 +99,71 @@ const struct MultiplierStructure log_Multipliers[] = {
 // <leave a gap here, just in case....>
     { '!', 3.6 }, // (ampere*second => milliampere*hour) and (km/h => m/s)
     { '/', 3600 }, // (ampere*second => ampere*hour)
+};
+
+/*
+  unfortunately these need to be macros because of a limitation of
+  named member structure initialisation in g++
+ */
+#define LOG_PACKET_HEADER	       uint8_t head1, head2, msgid;
+#define LOG_PACKET_HEADER_INIT(id) head1 : HEAD_BYTE1, head2 : HEAD_BYTE2, msgid : id
+#define LOG_PACKET_HEADER_LEN 3 // bytes required for LOG_PACKET_HEADER
+
+// once the logging code is all converted we will remove these from
+// this header
+#define HEAD_BYTE1  0xA3    // Decimal 163
+#define HEAD_BYTE2  0x95    // Decimal 149
+
+// structure used to define logging format
+struct LogStructure {
+    uint8_t msg_type;
+    uint8_t msg_len;
+    const char *name;
+    const char *format;
+    const char *labels;
+    const char *units;
+    const char *multipliers;
+};
+
+// maximum lengths of fields in LogStructure, including trailing nulls
+static const uint8_t LS_NAME_SIZE = 5;
+static const uint8_t LS_FORMAT_SIZE = 17;
+static const uint8_t LS_LABELS_SIZE = 65;
+static const uint8_t LS_UNITS_SIZE = 17;
+static const uint8_t LS_MULTIPLIERS_SIZE = 17;
+
+/*
+  log structures common to all vehicle types
+ */
+struct PACKED log_Format {
+    LOG_PACKET_HEADER;
+    uint8_t type;
+    uint8_t length;
+    char name[4];
+    char format[16];
+    char labels[64];
+};
+
+struct PACKED log_Unit {
+    LOG_PACKET_HEADER;
+    uint64_t time_us;
+    char type;
+    char unit[64]; // you know, this might be overkill...
+};
+
+struct PACKED log_Format_Multiplier {
+    LOG_PACKET_HEADER;
+    uint64_t time_us;
+    char type;
+    double multiplier;
+};
+
+struct PACKED log_Format_Units {
+    LOG_PACKET_HEADER;
+    uint64_t time_us;
+    uint8_t format_type;
+    char units[16];
+    char multipliers[16];
 };
 
 struct PACKED log_Parameter {
@@ -775,12 +801,10 @@ struct PACKED log_Mode {
 struct PACKED log_RFND {
     LOG_PACKET_HEADER;
     uint64_t time_us;
-    uint16_t dist1;
-    uint8_t status1;
-    uint8_t orient1;
-    uint16_t dist2;
-    uint8_t status2;
-    uint8_t orient2;
+    uint8_t instance;
+    uint16_t dist;
+    uint8_t status;
+    uint8_t orient;
 };
 
 /*
@@ -974,8 +998,6 @@ struct PACKED log_Rate {
     float   accel_out;
 };
 
-// #if SBP_HW_LOGGING
-
 struct PACKED log_SbpLLH {
     LOG_PACKET_HEADER;
     uint64_t time_us;
@@ -1121,7 +1143,12 @@ struct PACKED log_DSTL {
     float D;
 };
 
-// #endif // SBP_HW_LOGGING
+struct PACKED log_Arm_Disarm {
+    LOG_PACKET_HEADER;
+    uint64_t time_us;
+    uint8_t  arm_state;
+    uint16_t arm_checks;
+};
 
 // FMT messages define all message formats other than FMT
 // UNIT messages define units which can be referenced by FMTU messages
@@ -1208,30 +1235,6 @@ struct PACKED log_DSTL {
 #define ARSP_FMT "QffcffBBfB"
 #define ARSP_UNITS "snPOPP----"
 #define ARSP_MULTS "F00B00----"
-
-/*
-Format characters in the format string for binary log messages
-  a   : int16_t[32]
-  b   : int8_t
-  B   : uint8_t
-  h   : int16_t
-  H   : uint16_t
-  i   : int32_t
-  I   : uint32_t
-  f   : float
-  d   : double
-  n   : char[4]
-  N   : char[16]
-  Z   : char[64]
-  c   : int16_t * 100
-  C   : uint16_t * 100
-  e   : int32_t * 100
-  E   : uint32_t * 100
-  L   : int32_t latitude/longitude
-  M   : uint8_t flight mode
-  q   : int64_t
-  Q   : uint64_t
- */
 
 // messages for all boards
 #define LOG_BASE_STRUCTURES \
@@ -1324,7 +1327,7 @@ Format characters in the format string for binary log messages
     { LOG_MODE_MSG, sizeof(log_Mode), \
       "MODE", "QMBB",         "TimeUS,Mode,ModeNum,Rsn", "s---", "F---" }, \
     { LOG_RFND_MSG, sizeof(log_RFND), \
-      "RFND", "QCBBCBB", "TimeUS,Dist1,Stat1,Orient1,Dist2,Stat2,Orient2", "sm--m--", "FB--B--" }, \
+      "RFND", "QBCBB", "TimeUS,Instance,Dist,Stat,Orient", "s#m--", "F-B--" }, \
     { LOG_MAV_STATS, sizeof(log_MAV_Stats), \
       "DMS", "IIIIIBBBBBBBBB",         "TimeMS,N,Dp,RT,RS,Fa,Fmn,Fmx,Pa,Pmn,Pmx,Sa,Smn,Smx", "s-------------", "C-------------" }, \
     { LOG_BEACON_MSG, sizeof(log_Beacon), \
@@ -1504,7 +1507,6 @@ Format characters in the format string for binary log messages
       "ADSB",  "QIiiiHHhH", "TimeUS,ICAO_address,Lat,Lng,Alt,Heading,Hor_vel,Ver_vel,Squark", "s-DUmhnn-", "F-GGCBCC-" }
 
 
-// #if SBP_HW_LOGGING
 #define LOG_SBP_STRUCTURES \
     { LOG_MSG_SBPHEALTH, sizeof(log_SbpHealth), \
       "SBPH", "QIII", "TimeUS,CrcError,LastInject,IARhyp", "s---", "F---" }, \
@@ -1516,10 +1518,10 @@ Format characters in the format string for binary log messages
       "EV",   "QB",           "TimeUS,Id", "s-", "F-" }, \
     { LOG_MSG_SBPEVENT, sizeof(log_SbpEvent), \
       "SBRE", "QHIiBB", "TimeUS,GWk,GMS,ns_residual,level,quality", "s?????", "F?????" }, \
+    { LOG_ARM_DISARM_MSG, sizeof(log_Arm_Disarm), \
+      "ARM", "QBH", "TimeUS,ArmState,ArmChecks", "s--", "F--" }, \
     { LOG_ERROR_MSG, sizeof(log_Error), \
       "ERR",   "QBB",         "TimeUS,Subsys,ECode", "s--", "F--" }
-
-// #endif
 
 #define LOG_COMMON_STRUCTURES LOG_BASE_STRUCTURES, LOG_EXTRA_STRUCTURES, LOG_SBP_STRUCTURES
 
@@ -1678,6 +1680,7 @@ enum LogMessages : uint8_t {
     LOG_MAV_MSG,
     LOG_ERROR_MSG,
     LOG_ADSB_MSG,
+    LOG_ARM_DISARM_MSG,
 
     _LOG_LAST_MSG_
 };
