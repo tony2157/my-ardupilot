@@ -182,6 +182,102 @@ int16_t GCS_MAVLINK_Copter::vfr_hud_throttle() const
     return (int16_t)(copter.motors->get_throttle() * 100);
 }
 
+void NOINLINE Copter::send_cass_imet(mavlink_channel_t chan) {
+    //mavlink_cass_sensor_raw_t packet;
+    float raw_sensor[5];
+    uint8_t size = 5;
+    memset(raw_sensor, 0, size * sizeof(float));
+
+    // Send IMET temperature
+    for(uint8_t i=0; i<4; i++){
+        raw_sensor[i] = copter.CASS_Imet[i].temperature();
+    }
+    #if CONFIG_HAL_BOARD == HAL_BOARD_SITL
+    // Variables simulation for IMET sensors
+        uint32_t m = AP_HAL::millis();
+        raw_sensor[0] = 298.15 + sinf(m) * 25;
+        raw_sensor[1] = 1 + raw_sensor[0];
+        raw_sensor[2] = 1 + raw_sensor[1];
+        raw_sensor[3] = 1 + raw_sensor[2];
+        //printf("Imet temp: %5.2f \n",raw_sensor[0]);
+    #endif 
+    // Call Mavlink function and send CASS data
+    mavlink_msg_cass_sensor_raw_send(
+        chan,
+        AP_HAL::millis(),
+        0,
+        size,
+        raw_sensor);
+
+    //packet.time_boot_ms = AP_HAL::millis();
+    //packet.app_datatype = (uint8_t)0;
+    //packet.app_datalength = size;
+    //mav_array_memcpy(packet.values, raw_sensor, size * sizeof(float));
+    //mavlink_msg_cass_sensor_raw_send_struct(chan, &packet);
+}
+
+void Copter::send_cass_hyt271(mavlink_channel_t chan) {
+    //mavlink_cass_sensor_raw_t packet;
+    float raw_sensor[5];
+    uint8_t size = 5;
+    memset(raw_sensor, 0, size * sizeof(float));
+
+    // Send HYT271 humidity
+    for(uint8_t i=0; i<4; i++){
+        raw_sensor[i] = copter.CASS_HYT271[i].relative_humidity();
+    }
+    #if CONFIG_HAL_BOARD == HAL_BOARD_SITL
+    // Variables simulation for HYT271 humidity sensors
+        uint32_t m = AP_HAL::millis();
+        raw_sensor[0] = 50 + sinf(m/100.0) * 25;
+        raw_sensor[1] = 1 + raw_sensor[0];
+        raw_sensor[2] = 1 + raw_sensor[1];
+        raw_sensor[3] = 1 + raw_sensor[2];
+        //printf("HYT271 Humidity: %5.2f \n",raw_sensor[0]);     
+    #endif
+    // Call Mavlink function and send CASS data
+    mavlink_msg_cass_sensor_raw_send(
+        chan,
+        AP_HAL::millis(),
+        1,
+        size,
+        raw_sensor);
+
+    //packet.time_boot_ms = AP_HAL::millis();
+    //packet.app_datatype = (uint8_t)1;
+    //packet.app_datalength = size;
+    //mav_array_memcpy(packet.values, raw_sensor, size * sizeof(float));
+    //mavlink_msg_cass_sensor_raw_send_struct(chan, &packet);
+
+    // Send extra temperature measurements packet from the HYT271 sensor if there is still space
+    if(!HAVE_PAYLOAD_SPACE(chan, CASS_SENSOR_RAW)){
+        return;
+    }
+    for(uint8_t i=0; i<4; i++){
+        raw_sensor[i] = copter.CASS_HYT271[i].temperature();
+    }
+    #if CONFIG_HAL_BOARD == HAL_BOARD_SITL
+    // Variables simulation for HYT271 temperature sensors
+        raw_sensor[0] = 298.15 + sinf(m/200.0) * 15;
+        raw_sensor[1] = 1 + raw_sensor[0];
+        raw_sensor[2] = 1 + raw_sensor[1];
+        raw_sensor[3] = 1 + raw_sensor[2];   
+        //printf("HYT271 temp: %5.2f \n",raw_sensor[0]);  
+    #endif
+    // Call Mavlink function and send CASS data
+    mavlink_msg_cass_sensor_raw_send(
+        chan,
+        AP_HAL::millis(),
+        2,
+        size,
+        raw_sensor);
+
+    //packet.time_boot_ms = AP_HAL::millis();
+    //packet.app_datatype = (uint8_t)2;
+    //mav_array_memcpy(packet.values, raw_sensor, size * sizeof(float));
+    //mavlink_msg_cass_sensor_raw_send_struct(chan, &packet);
+}
+
 /*
   send PID tuning message
  */
@@ -292,6 +388,16 @@ bool GCS_MAVLINK_Copter::try_send_message(enum ap_message id)
         CHECK_PAYLOAD_SIZE(ADSB_VEHICLE);
         copter.adsb.send_adsb_vehicle(chan);
 #endif
+        break;
+
+    case MSG_CASS_IMET:
+        CHECK_PAYLOAD_SIZE(CASS_SENSOR_RAW);
+        copter.send_cass_imet(chan);
+        break;
+    
+    case MSG_CASS_HYT271:
+        CHECK_PAYLOAD_SIZE(CASS_SENSOR_RAW);
+        copter.send_cass_hyt271(chan);
         break;
 
     default:
@@ -443,6 +549,7 @@ static const ap_message STREAM_EXTRA3_msgs[] = {
 #if AP_TERRAIN_AVAILABLE && AC_TERRAIN
     MSG_TERRAIN,
 #endif
+    MSG_CASS_IMET,
     MSG_BATTERY2,
     MSG_BATTERY_STATUS,
     MSG_MOUNT_STATUS,
@@ -454,6 +561,7 @@ static const ap_message STREAM_EXTRA3_msgs[] = {
     MSG_VIBRATION,
     MSG_RPM,
     MSG_ESC_TELEMETRY,
+    MSG_CASS_HYT271
 };
 static const ap_message STREAM_PARAMS_msgs[] = {
     MSG_NEXT_PARAM
