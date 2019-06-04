@@ -21,7 +21,7 @@ bool AC_CASS_Imet::init(uint8_t busId, uint8_t i2cAddr)
     adc_thermistor = 0;
     adc_source = 0;
     runs = 0;
-    sem = hal.util->new_semaphore();
+    sem = _dev->get_semaphore();
 
     for(uint8_t i=0; i<3; i++){
         memset(coeff,1.0,sizeof(coeff));
