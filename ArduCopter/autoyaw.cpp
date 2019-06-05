@@ -25,6 +25,43 @@ float Copter::Mode::AutoYaw::look_ahead_yaw()
     return _look_ahead_yaw;
 }
 
+// CASS wind function that sends latest wind estimation to the autopilot
+// It will only track the wind if its horizontally stationary 
+float Copter::Mode::AutoYaw::turn_into_wind()
+{
+    float speed = copter.inertial_nav.get_speed_xy(); // cm/s
+    float dist_to_wp = copter.wp_nav->get_wp_distance_to_destination(); // cm (horizontally)
+    if(copter.position_ok()){
+        if(speed < 110.0f && dist_to_wp < 300){
+            _wind_yaw = copter.cass_wind_direction;
+        } else {
+            _wind_yaw = copter.wp_nav->get_yaw();
+        }
+    }
+    return _wind_yaw;
+}
+
+float Copter::Mode::AutoYaw::turn_into_wind_CT2()
+{
+    float _wind_dir = copter.cass_wind_direction;      // Estimated wind direction in centi-degrees
+    float _wind_spd = copter.cass_wind_speed;           // Estimated wind speed in m/s
+    float _xy_speed = copter.wp_nav->get_default_speed_xy();    // Copters target speed in cm/s
+    float _wp_bearing = copter.wp_nav->get_yaw();       // Bearing for the next waypoint in centi-degrees
+    float w_x, w_y, s_x, s_y;
+    if(copter.position_ok()){
+        if (copter.wp_nav->reached_wp_destination() || fabs(copter.inertial_nav.get_velocity_z()) > 80){
+            _wind_CT2_yaw = _wind_dir;
+        } else {
+            s_x = _xy_speed*sinf(_wp_bearing*1.745e-4f);
+            s_y = _xy_speed*cosf(_wp_bearing*1.745e-4f);
+            w_x = 100*_wind_spd*sinf(_wind_dir*1.745e-4f);
+            w_y = 100*_wind_spd*cosf(_wind_dir*1.745e-4f);
+            _wind_CT2_yaw = wrap_360_cd(atan2f((s_x + w_x),(s_y + w_y))*5729.6f);
+        }
+    }
+    return _wind_CT2_yaw;
+}
+
 void Copter::Mode::AutoYaw::set_mode_to_default(bool rtl)
 {
     set_mode(default_mode(rtl));
@@ -48,6 +85,14 @@ autopilot_yaw_mode Copter::Mode::AutoYaw::default_mode(bool rtl) const
 
     case WP_YAW_BEHAVIOR_LOOK_AHEAD:
         return AUTO_YAW_LOOK_AHEAD;
+
+    //CASS implementation of wind tracker for vertical profiles
+    case WP_YAW_BEHAVIOR_INTO_WIND:
+        return AUTO_YAW_INTO_WIND;
+
+    //CASS implementation of wind tracker for CT2 profiles
+    case WP_YAW_BEHAVIOR_WIND_CT2:
+        return AUTO_YAW_WIND_CT2;
 
     case WP_YAW_BEHAVIOR_LOOK_AT_NEXT_WP:
     default:
@@ -93,6 +138,15 @@ void Copter::Mode::AutoYaw::set_mode(autopilot_yaw_mode yaw_mode)
     case AUTO_YAW_RATE:
         // initialise target yaw rate to zero
         _rate_cds = 0.0f;
+        break;
+
+    case AUTO_YAW_INTO_WIND:
+        // CASS: initialise target _wind_yaw on boot-up
+        _wind_yaw = copter.ahrs.yaw_sensor;
+        break;
+    case AUTO_YAW_WIND_CT2:
+        // CASS: initialise target _wind_CT2_yaw on boot-up
+        _wind_CT2_yaw = copter.ahrs.yaw_sensor;
         break;
     }
 }
@@ -196,6 +250,14 @@ float Copter::Mode::AutoYaw::yaw()
     case AUTO_YAW_RESETTOARMEDYAW:
         // changes yaw to be same as when quad was armed
         return copter.initial_armed_bearing;
+
+    case AUTO_YAW_INTO_WIND:
+        // CASS implementation of wind tracker, send estimated wind dir = yaw command to autopilot
+        return turn_into_wind();
+    
+    case AUTO_YAW_WIND_CT2:
+        // CASS implementation of wind CT2 tracker, send optimal heading = yaw command to autopilot
+        return turn_into_wind_CT2();
 
     case AUTO_YAW_LOOK_AT_NEXT_WP:
     default:
