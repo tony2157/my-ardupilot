@@ -123,7 +123,7 @@ void Copter::userhook_MediumLoop()
             resist4                : copter.CASS_Imet[3].resistance()
         };
     #endif
-    copter.logger.WriteBlock(&pkt_temp, sizeof(pkt_temp));   //Send package to SD card
+    logger.WriteBlock(&pkt_temp, sizeof(pkt_temp));   //Send package to SD card
 }
 #endif
 
@@ -168,7 +168,7 @@ void Copter::userhook_SlowLoop()
             RHtemp4                : 298.15f + sinf(0.0006f*m) * 2.0f
         };
     #endif
-    copter.logger.WriteBlock(&pkt_RH, sizeof(pkt_RH));   //Send package to SD card
+    logger.WriteBlock(&pkt_RH, sizeof(pkt_RH));   //Send package to SD card
 }
 #endif
 
@@ -333,7 +333,7 @@ void Copter::userhook_SuperSlowLoop()
         _pitch_sum             : avgP,
         _yaw                   : _yaw
     };
-    copter.logger.WriteBlock(&pkt_wind_est, sizeof(pkt_wind_est));
+    logger.WriteBlock(&pkt_wind_est, sizeof(pkt_wind_est));
 
     // float data[5] = {0};
     // data[0] = _wind_dir/100.0f;
