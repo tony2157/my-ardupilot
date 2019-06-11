@@ -16,26 +16,6 @@ AC_CASS_Imet::AC_CASS_Imet() :
 
 bool AC_CASS_Imet::init(uint8_t busId, uint8_t i2cAddr)
 {
-
-    flag = false;
-    adc_thermistor = 0;
-    adc_source = 0;
-    runs = 0;
-    sem = _dev->get_semaphore();
-
-    for(uint8_t i=0; i<3; i++){
-        memset(coeff,1.0,sizeof(coeff));
-    }
-    
-    config = ADS1015_REG_CONFIG_CQUE_NONE    | // Disable the comparator (default val)
-             ADS1015_REG_CONFIG_CLAT_NONLAT  | // Non-latching (default val)
-             ADS1015_REG_CONFIG_CPOL_ACTVLOW | // Alert/Rdy active low   (default val)
-             ADS1015_REG_CONFIG_CMODE_TRAD   | // Traditional comparator (default val)
-             ADS1015_REG_CONFIG_DR_1600SPS   | // 1600 samples per second (default)
-             ADS1015_REG_CONFIG_MODE_SINGLE  | // Single-shot mode (default)
-             ADS1015_REG_CONFIG_PGA_6_144V   | // Set PGA/voltage range
-             ADS1015_REG_CONFIG_OS_SINGLE;     // Set start single-conversion bit
-
     // Bus 0 is for Pixhawk 2.1 I2C and Bus 1 is for Pixhawk 1 and PixRacer I2C
     _dev = std::move(hal.i2c_mgr->get_device(busId, i2cAddr));
     if (!_dev) {
@@ -65,13 +45,33 @@ bool AC_CASS_Imet::init(uint8_t busId, uint8_t i2cAddr)
 
     hal.scheduler->delay(200);
 
+    WITH_SEMAPHORE(_dev->get_semaphore());
+
+    flag = false;
+    adc_thermistor = 0;
+    adc_source = 0;
+    runs = 0;
+
+    for(uint8_t i=0; i<3; i++){
+        memset(coeff,1.0,sizeof(coeff));
+    }
+    
+    config = ADS1015_REG_CONFIG_CQUE_NONE    | // Disable the comparator (default val)
+             ADS1015_REG_CONFIG_CLAT_NONLAT  | // Non-latching (default val)
+             ADS1015_REG_CONFIG_CPOL_ACTVLOW | // Alert/Rdy active low   (default val)
+             ADS1015_REG_CONFIG_CMODE_TRAD   | // Traditional comparator (default val)
+             ADS1015_REG_CONFIG_DR_1600SPS   | // 1600 samples per second (default)
+             ADS1015_REG_CONFIG_MODE_SINGLE  | // Single-shot mode (default)
+             ADS1015_REG_CONFIG_PGA_6_144V   | // Set PGA/voltage range
+             ADS1015_REG_CONFIG_OS_SINGLE;     // Set start single-conversion bit
+
     _read_adc(adc_source);
     _config_read_thermistor();
 
     // lower retries for run
     _dev->set_retries(3);
 
-    _dev->get_semaphore()->give();
+    //_dev->get_semaphore()->give();
 
     /* Request 25Hz update */
     // Max conversion time is 12 ms
@@ -151,19 +151,17 @@ bool AC_CASS_Imet::_read_adc(float &value)
 
 void AC_CASS_Imet::_timer(void)
 {
-    float temp = adc_source;
     // Retreive data from sensor by I2C
-    if(sem->take(HAL_SEMAPHORE_BLOCK_FOREVER)){
-        if(flag == false){
-            _healthy = _read_adc(adc_thermistor);
-            runs += 1;
-        }
-        else{
-            _healthy = _read_adc(temp);
-            adc_source = (adc_source + temp)/2;
-        }   
-        sem->give();
+    WITH_SEMAPHORE(_sem);       // semaphore for access to shared frontend data
+    float temp = adc_source;
+    if(flag == false){
+        _healthy = _read_adc(adc_thermistor);
+        runs += 1;
     }
+    else{
+        _healthy = _read_adc(temp);
+        adc_source = (adc_source + temp)/2;
+    }   
 
     // If data was collected, then calculate temperature and resistance
     if (_healthy) {
