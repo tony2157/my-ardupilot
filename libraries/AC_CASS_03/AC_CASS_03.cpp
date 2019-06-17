@@ -16,6 +16,7 @@ AC_CASS_03::AC_CASS_03() :
 bool AC_CASS_03::init(uint8_t busId, uint8_t i2cAddr)
 {
     // Bus 0 is for Pixhawk 2.1 I2C and Bus 1 is for Pixhawk 1 and PixRacer I2C
+    hal.scheduler->delay(200);
     _dev = std::move(hal.i2c_mgr->get_device(busId, i2cAddr));
     
     WITH_SEMAPHORE(_dev->get_semaphore());
@@ -50,7 +51,7 @@ bool AC_CASS_03::init(uint8_t busId, uint8_t i2cAddr)
     //_dev->get_semaphore()->give();
 
     /* Request 1Hz update */
-    _dev->register_periodic_callback(1000000,
+    _dev->register_periodic_callback(80000,
                                      FUNCTOR_BIND_MEMBER(&AC_CASS_03::_timer, void));
     return true;
 }
