@@ -23,15 +23,10 @@ bool AC_CASS_HYT271::init(uint8_t busId, uint8_t i2cAddr)
         return false;
     }
 
-    if (!_dev->get_semaphore()->take(0)) {
-        AP_HAL::panic("PANIC: HYT271: failed to take serial semaphore for init");
-    }
-
     _dev->set_retries(10);
 
     if (!_measure()) {
         printf("HYT271 read failed");
-        _dev->get_semaphore()->give();
         return false;
     }
 

@@ -118,8 +118,9 @@ void Copter::init_ardupilot()
     init_rc_out();
 
     // initialize CASS_Imet sensors
-    init_CASS_imet();
+    //init_CASS_imet();
     init_CASS_hyt271();
+    init_CASS_O3();
 
     // motors initialised so parameters can be sent
     ap.initialised_params = true;

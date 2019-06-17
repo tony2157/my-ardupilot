@@ -99,6 +99,7 @@ enum ap_message : uint8_t {
     MSG_EXTENDED_SYS_STATE,
     MSG_CASS_IMET, //CASS message ID
     MSG_CASS_HYT271,
+    MSG_CASS_O3,
     MSG_LAST // MSG_LAST must be the last entry in this enum
 };
 
