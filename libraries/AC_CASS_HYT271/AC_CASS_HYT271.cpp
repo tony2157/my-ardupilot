@@ -18,20 +18,17 @@ bool AC_CASS_HYT271::init(uint8_t busId, uint8_t i2cAddr)
 {
     // Bus 0 is for Pixhawk 2.1 I2C and Bus 1 is for Pixhawk 1 and PixRacer I2C
     _dev = std::move(hal.i2c_mgr->get_device(busId, i2cAddr));
+
+    WITH_SEMAPHORE(_dev->get_semaphore());
     if (!_dev) {
         printf("HYT271 device is null!");
         return false;
-    }
-
-    if (!_dev->get_semaphore()->take(0)) {
-        AP_HAL::panic("PANIC: HYT271: failed to take serial semaphore for init");
     }
 
     _dev->set_retries(10);
 
     if (!_measure()) {
         printf("HYT271 read failed");
-        _dev->get_semaphore()->give();
         return false;
     }
 
