@@ -8,7 +8,7 @@ extern const AP_HAL::HAL &hal;
 
 AC_CASS_03::AC_CASS_03() :
     _dev(nullptr),
-    _ppm_ozone(0),
+    _ppb_ozone(0),
     _healthy(false)
 {
 }
@@ -119,5 +119,5 @@ void AC_CASS_03::_calculate(float adc)
 {
     float _volt = adc * 0.1875f; //store the true voltage
     //converts to ppm concentration
-    _ppm_ozone = _volt*0.03f;
+    _ppb_ozone = _volt*0.03f;
 }
