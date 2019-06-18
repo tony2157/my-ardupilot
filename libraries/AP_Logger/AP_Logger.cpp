@@ -368,7 +368,7 @@ bool AP_Logger::validate_structure(const struct LogStructure *logstructure, cons
     }
 
     // ensure any float has a multiplier of zero
-    if (passed) {
+    if (false && passed) {
         for (uint8_t j=0; j<strlen(logstructure->multipliers); j++) {
             const char fmt = logstructure->format[j];
             if (fmt != 'f') {
@@ -395,6 +395,11 @@ void AP_Logger::validate_structures(const struct LogStructure *logstructures, co
 {
     Debug("Validating structures");
     bool passed = true;
+
+    for (uint16_t i=0; i<num_types; i++) {
+        const struct LogStructure *logstructure = &logstructures[i];
+        passed = validate_structure(logstructure, i) && passed;
+    }
 
     // ensure units are unique:
     for (uint16_t i=0; i<ARRAY_SIZE(log_Units); i++) {
