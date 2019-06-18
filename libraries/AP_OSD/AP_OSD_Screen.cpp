@@ -30,6 +30,8 @@
 #include <AP_Notify/AP_Notify.h>
 #include <AP_Stats/AP_Stats.h>
 #include <AP_Common/Location.h>
+#include <AP_BattMonitor/AP_BattMonitor.h>
+#include <AP_GPS/AP_GPS.h>
 
 #include <ctype.h>
 #include <GCS_MAVLink/GCS.h>
