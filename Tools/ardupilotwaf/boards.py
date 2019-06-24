@@ -43,6 +43,29 @@ class Board:
         env = waflib.ConfigSet.ConfigSet()
         self.configure_env(cfg, env)
 
+        # Setup scripting, had to defer this to allow checking board size
+        if (not cfg.options.disable_scripting) and ((cfg.env.BOARD_FLASH_SIZE is None) or (cfg.env.BOARD_FLASH_SIZE == []) or (cfg.env.BOARD_FLASH_SIZE > 1024)):
+            env.DEFINES.update(
+                ENABLE_SCRIPTING = 1,
+                ENABLE_HEAP = 1,
+                LUA_32BITS = 1,
+                )
+
+            env.ROMFS_FILES += [
+                ('sandbox.lua', 'libraries/AP_Scripting/scripts/sandbox.lua'),
+                ]
+
+            env.AP_LIBRARIES += [
+                'AP_Scripting',
+                'AP_Scripting/lua/src',
+                ]
+
+            env.CXXFLAGS += [
+                '-DHAL_HAVE_AP_ROMFS_EMBEDDED_H'
+                ]
+        else:
+            cfg.options.disable_scripting = True;
+
         d = env.get_merged_dict()
         # Always prepend so that arguments passed in the command line get
         # the priority.
@@ -97,26 +120,6 @@ class Board:
             '-Werror=format-extra-args',
         ]
 
-        if cfg.options.enable_scripting:
-            env.DEFINES.update(
-                ENABLE_SCRIPTING = 1,
-                ENABLE_HEAP = 1,
-                LUA_32BITS = 1,
-                )
-
-            env.ROMFS_FILES += [
-                ('sandbox.lua', 'libraries/AP_Scripting/scripts/sandbox.lua'),
-                ]
-
-            env.AP_LIBRARIES += [
-                'AP_Scripting',
-                'AP_Scripting/lua/src',
-                ]
-
-            env.CXXFLAGS += [
-                '-DHAL_HAVE_AP_ROMFS_EMBEDDED_H'
-                ]
-
         if cfg.options.scripting_checks:
             env.DEFINES.update(
                 AP_SCRIPTING_CHECKS = 1,
@@ -137,6 +140,10 @@ class Board:
                 '-g',
                 '-O0',
             ]
+
+        if cfg.options.bootloader:
+            # don't let bootloaders try and pull scripting in
+            cfg.options.disable_scripting = True
 
         if cfg.options.enable_math_check_indexes:
             env.CXXFLAGS += ['-DMATH_CHECK_INDEXES']
@@ -246,6 +253,9 @@ class Board:
                 cfg.srcnode.find_dir('modules/uavcan/libuavcan/include').abspath()
             ]
 
+        if cfg.env.build_dates:
+            env.build_dates = True
+
         # We always want to use PRI format macros
         cfg.define('__STDC_FORMAT_MACROS', 1)
 
@@ -259,9 +269,10 @@ class Board:
         bld.ap_version_append_str('GIT_VERSION', bld.git_head_hash(short=True))
         import time
         ltime = time.localtime()
-        bld.ap_version_append_int('BUILD_DATE_YEAR', ltime.tm_year)
-        bld.ap_version_append_int('BUILD_DATE_MONTH', ltime.tm_mon)
-        bld.ap_version_append_int('BUILD_DATE_DAY', ltime.tm_mday)
+        if bld.env.build_dates:
+            bld.ap_version_append_int('BUILD_DATE_YEAR', ltime.tm_year)
+            bld.ap_version_append_int('BUILD_DATE_MONTH', ltime.tm_mon)
+            bld.ap_version_append_int('BUILD_DATE_DAY', ltime.tm_mday)
 
     def embed_ROMFS_files(self, ctx):
         '''embed some files using AP_ROMFS'''
