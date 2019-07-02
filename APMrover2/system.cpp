@@ -138,9 +138,6 @@ void Rover::init_ardupilot()
      */
     hal.scheduler->register_timer_failsafe(failsafe_check_static, 1000);
 
-    // give AHRS the range beacon sensor
-    ahrs.set_beacon(&g2.beacon);
-
     // initialize SmartRTL
     g2.smart_rtl.init();
 
@@ -268,6 +265,7 @@ bool Rover::set_mode(Mode &new_mode, mode_reason_t reason)
 
     control_mode_reason = reason;
     logger.Write_Mode(control_mode->mode_number(), control_mode_reason);
+    gcs().send_message(MSG_HEARTBEAT);
 
     notify_mode(control_mode);
     return true;

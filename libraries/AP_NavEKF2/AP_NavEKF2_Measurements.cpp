@@ -7,6 +7,7 @@
 #include <GCS_MAVLink/GCS.h>
 #include <AP_RangeFinder/RangeFinder_Backend.h>
 #include <AP_GPS/AP_GPS.h>
+#include <AP_Baro/AP_Baro.h>
 
 #include <stdio.h>
 
@@ -699,7 +700,7 @@ void NavEKF2_core::readAirSpdData()
 void NavEKF2_core::readRngBcnData()
 {
     // get the location of the beacon data
-    const AP_Beacon *beacon = _ahrs->get_beacon();
+    const AP_Beacon *beacon = AP::beacon();
 
     // exit immediately if no beacon object
     if (beacon == nullptr) {

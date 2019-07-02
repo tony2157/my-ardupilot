@@ -27,6 +27,7 @@
 #include <AC_Fence/AC_Fence.h>
 #include <AP_InternalError/AP_InternalError.h>
 #include <AP_GPS/AP_GPS.h>
+#include <AP_Baro/AP_Baro.h>
 
 #if HAL_WITH_UAVCAN
   #include <AP_BoardConfig/AP_BoardConfig_CAN.h>
@@ -106,7 +107,6 @@ const AP_Param::GroupInfo AP_Arming::var_info[] = {
     // @User: Advanced
     AP_GROUPINFO("MIS_ITEMS",    7,     AP_Arming, _required_mission_items, 0),
 
-    // index 4 was VOLT_MIN, moved to AP_BattMonitor
     AP_GROUPEND
 };
 
