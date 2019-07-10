@@ -293,7 +293,7 @@ class AutoTest(ABC):
         self.mavproxy.send("param fetch\n")
         self.mavproxy.expect("Received [0-9]+ parameters")
 
-    def reboot_sitl_mav(self):
+    def reboot_sitl_mav(self, required_bootcount=None):
         """Reboot SITL instance using mavlink and wait for it to reconnect."""
         old_bootcount = self.get_parameter('STAT_BOOTCNT')
         # ardupilot SITL may actually NAK the reboot; replace with
@@ -309,26 +309,30 @@ class AutoTest(ABC):
                                        0,
                                        0,
                                        0)
-        self.detect_and_handle_reboot(old_bootcount)
+        self.detect_and_handle_reboot(old_bootcount, required_bootcount=required_bootcount)
 
-    def reboot_sitl(self):
+    def reboot_sitl(self, required_bootcount=None):
         """Reboot SITL instance and wait for it to reconnect."""
-        self.reboot_sitl_mav()
+        self.reboot_sitl_mav(required_bootcount=required_bootcount)
         self.assert_simstate_location_is_at_startup_location()
 
-    def reboot_sitl_mavproxy(self):
+    def reboot_sitl_mavproxy(self, required_bootcount=None):
         """Reboot SITL instance using MAVProxy and wait for it to reconnect."""
         old_bootcount = self.get_parameter('STAT_BOOTCNT')
         self.mavproxy.send("reboot\n")
-        self.detect_and_handle_reboot(old_bootcount)
+        self.detect_and_handle_reboot(old_bootcount, required_bootcount=required_bootcount)
 
-    def detect_and_handle_reboot(self, old_bootcount):
+    def detect_and_handle_reboot(self, old_bootcount, required_bootcount=None):
         tstart = time.time()
+        if required_bootcount is None:
+            required_bootcount = old_bootcount + 1
         while True:
             if time.time() - tstart > 10:
                 raise AutoTestTimeoutException("Did not detect reboot")
             try:
-                if self.get_parameter('STAT_BOOTCNT', timeout=1) != old_bootcount:
+                current_bootcount = self.get_parameter('STAT_BOOTCNT', timeout=1)
+                print("current=%s required=%u" % (str(current_bootcount), required_bootcount))
+                if current_bootcount == required_bootcount:
                     break
             except NotAchievedException:
                 pass
@@ -507,23 +511,23 @@ class AutoTest(ABC):
                                 0,
                                 math.degrees(m.yaw))
 
-    def save_wp(self):
-        """Trigger RC 7 to save waypoint."""
-        self.set_rc(7, 1000)
+    def save_wp(self, ch=7):
+        """Trigger RC Aux to save waypoint."""
+        self.set_rc(ch, 1000)
         self.wait_seconds(1)
-        self.set_rc(7, 2000)
+        self.set_rc(ch, 2000)
         self.wait_seconds(1)
-        self.set_rc(7, 1000)
+        self.set_rc(ch, 1000)
         self.wait_seconds(1)
 
-    def clear_wp(self):
-        """Trigger RC 8 to clear waypoint."""
+    def clear_wp(self, ch=8):
+        """Trigger RC Aux to clear waypoint."""
         self.progress("Clearing waypoints")
-        self.set_rc(8, 1000)
+        self.set_rc(ch, 1000)
         self.wait_seconds(0.5)
-        self.set_rc(8, 2000)
+        self.set_rc(ch, 2000)
         self.wait_seconds(0.5)
-        self.set_rc(8, 1000)
+        self.set_rc(ch, 1000)
         self.mavproxy.send('wp list\n')
         self.mavproxy.expect('Requesting 0 waypoints')
 
@@ -585,13 +589,13 @@ class AutoTest(ABC):
             if l1 == l2:
                 # e.g. the first "QGC WPL 110" line
                 continue
-            if re.match("0\s", l1):
+            if re.match(r"0\s", l1):
                 # home changes...
                 continue
             l1 = l1.rstrip()
             l2 = l2.rstrip()
-            fields1 = re.split("\s+", l1)
-            fields2 = re.split("\s+", l2)
+            fields1 = re.split(r"\s+", l1)
+            fields2 = re.split(r"\s+", l2)
             # line = int(fields1[0])
             t = int(fields1[3]) # mission item type
             for (count, (i1, i2)) in enumerate(zip(fields1, fields2)):
@@ -1055,7 +1059,12 @@ class AutoTest(ABC):
             self.mavproxy.send("param fetch %s\n" % name)
             try:
                 self.mavproxy.expect("%s = ([-0-9.]*)\r\n" % (name,), timeout=timeout/retry)
-                return float(self.mavproxy.match.group(1))
+                try:
+                    # sometimes race conditions garble the MAVProxy output
+                    ret = float(self.mavproxy.match.group(1))
+                except ValueError as e:
+                    continue
+                return ret
             except pexpect.TIMEOUT:
                 pass
         raise NotAchievedException("Failed to retrieve parameter (%s)" % name)
@@ -1850,10 +1859,10 @@ class AutoTest(ABC):
         for desc in self.test_timings.keys():
             if len(desc) > longest:
                 longest = len(desc)
-        for desc, time in sorted(self.test_timings.iteritems(),
+        for desc, test_time in sorted(self.test_timings.iteritems(),
                                  key=self.show_test_timings_key_sorter):
             fmt = "%" + str(longest) + "s: %.2fs"
-            self.progress(fmt % (desc, time))
+            self.progress(fmt % (desc, test_time))
 
     def send_statustext(self, text):
         if sys.version_info.major >= 3 and not isinstance(text, bytes):
@@ -2599,6 +2608,36 @@ class AutoTest(ABC):
         if num_wp != 0:
             raise NotAchievedException("Failed to clear mission")
 
+    def test_sensor_config_error_loop(self):
+        '''test the sensor config error loop works and that parameter sets are persistent'''
+        parameter_name = "SERVO8_MIN"
+        old_parameter_value = self.get_parameter(parameter_name)
+        old_sim_baro_count = self.get_parameter("SIM_BARO_COUNT")
+        new_parameter_value = old_parameter_value + 5
+        ex = None
+        try:
+            self.set_parameter("STAT_BOOTCNT", 0)
+            self.set_parameter("SIM_BARO_COUNT", 0)
+            self.reboot_sitl(required_bootcount=1);
+            self.progress("Waiting for 'Check BRD_TYPE'")
+            self.mavproxy.expect("Check BRD_TYPE");
+            self.progress("Setting %s to %f" % (parameter_name, new_parameter_value))
+            self.set_parameter(parameter_name, new_parameter_value)
+        except Exception as e:
+            ex = e
+
+        self.progress("Resetting SIM_BARO_COUNT")
+        self.set_parameter("SIM_BARO_COUNT", old_sim_baro_count)
+
+        self.progress("Calling reboot-sitl ")
+        self.reboot_sitl(required_bootcount=2);
+
+        if ex is not None:
+            raise ex
+
+        if self.get_parameter(parameter_name) != new_parameter_value:
+            raise NotAchievedException("Parameter value did not stick")
+
     def test_gripper(self):
         self.context_push()
         self.set_parameter("GRIP_ENABLE", 1)
@@ -2862,6 +2901,10 @@ switch value'''
             ("SetHome",
             "Test Set Home",
              self.fly_test_set_home),
+
+            ("SensorConfigErrorLoop",
+             "Test Sensor Config Error Loop",
+             self.test_sensor_config_error_loop),
         ]
 
     def post_tests_announcements(self):

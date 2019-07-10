@@ -491,11 +491,11 @@ private:
     AP_Relay relay;
 
     // handle repeated servo and relay events
-    AP_ServoRelayEvents ServoRelayEvents{relay};
+    AP_ServoRelayEvents ServoRelayEvents;
 
     // Camera
 #if CAMERA == ENABLED
-    AP_Camera camera{&relay, MASK_LOG_CAMERA, current_loc, ahrs};
+    AP_Camera camera{MASK_LOG_CAMERA, current_loc};
 #endif
 
     // Camera/Antenna mount tracking and stabilisation stuff
@@ -848,12 +848,11 @@ private:
     // system.cpp
     void init_ardupilot();
     void startup_INS_ground();
-    bool position_ok();
-    bool ekf_position_ok();
-    bool optflow_position_ok();
+    bool position_ok() const;
+    bool ekf_position_ok() const;
+    bool optflow_position_ok() const;
     void update_auto_armed();
     bool should_log(uint32_t mask);
-    void set_default_frame_class();
     MAV_TYPE get_frame_mav_type();
     const char* get_frame_string();
     void allocate_motors(void);
