@@ -49,6 +49,7 @@ struct PACKED log_O3 {
     uint64_t time_stamp;
     uint8_t healthy;
     float ozone;
+    float voltage;
 };
 
 struct PACKED log_WIND {

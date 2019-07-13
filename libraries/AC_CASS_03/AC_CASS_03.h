@@ -94,20 +94,21 @@ public:
     AC_CASS_03(void);
     ~AC_CASS_03(void){}
     bool init(uint8_t busId, uint8_t i2cAddr);
-    float get_ozone(void) { return _ppb_ozone; } // temperature in kelvin
-    bool healthy(void) { return _healthy; } // do we have a valid temperature reading?
+    float get_ozone(void) { return _ppb_ozone; } // Ozone in ppb
+    float get_adc_volt(void) {return adc_ozone; } // voltage measured by the ADC
+    bool healthy(void) { return _healthy; } // do we have a valid ozone reading?
     void set_i2c_addr(uint8_t addr);
 
 private:
     AP_HAL::OwnPtr<AP_HAL::I2CDevice> _dev;
     HAL_Semaphore _sem; // semaphore for access to shared frontend data
-    bool flag;  //toggles between voltage and current measurements
-    float adc_ozone;   //voltage source and thermistor form ADC
+    //bool flag;  //toggles between voltage and current measurements
+    float adc_ozone;   //voltage form ADC
     float _ppb_ozone; // ozone in ppb
-    bool _healthy; // we have a valid temperature reading to report
+    bool _healthy; // we have a valid ozone reading to report
     uint16_t config; // Configuration to be sent to the ADC registers
-    bool _config_read_ozone(void); // configure ADC to read thermistor
+    bool _config_read_ozone(void); // configure ADC to read ozone sensor
     bool _read_adc(float &value);
-    void _timer(void); // update the temperature, called at 20Hz
-    void _calculate(float adc); // calculate temperature using adc readings and coefficients
+    void _timer(void); // update the ozone, called at 20Hz
+    void _calculate(float adc); // calculate ozone using adc readings
 };

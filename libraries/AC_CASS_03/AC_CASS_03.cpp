@@ -118,6 +118,6 @@ void AC_CASS_03::_timer(void)
 void AC_CASS_03::_calculate(float adc)
 {
     float _volt = adc * 0.1875f; //store the true voltage
-    //converts to ppm concentration
+    //converts to ppb concentration
     _ppb_ozone = _volt*0.03f;
 }

@@ -424,7 +424,7 @@ const struct LogStructure Copter::log_structure[] = {
     { LOG_WIND_MSG, sizeof(log_WIND),
       "WIND", "Qfffffff","Time,wdir,wspeed,dvar,gvar,avgR,avgP,yaw","s-------","F0000000"},
     { LOG_O3_MSG, sizeof(log_O3),
-      "O3", "QBf","Time,Hth,O3","s--","F00"},
+      "O3", "QBff","Time,Hth,O3,Volt","s---","F000"},
 };
 
 void Copter::Log_Write_Vehicle_Startup_Messages()
