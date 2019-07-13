@@ -67,7 +67,7 @@ void Copter::userhook_50Hz()
         time_stamp             : AP_HAL::micros64(),           //Store time in microseconds
         healthy                : copter.CASS_O3.healthy(),     //Store sensor health
         ozone                  : copter.CASS_O3.get_ozone(),   //Store ozone in ppm
-        voltage                : copter.CASS_O3.get_adc_volt();//Stpre voltage in milivolts
+        voltage                : copter.CASS_O3.get_adc_volt()//Stpre voltage in milivolts
     }; 
     logger.WriteBlock(&pkt_temp, sizeof(pkt_temp));   //Send package to SD card
 }
