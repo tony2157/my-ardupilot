@@ -283,8 +283,9 @@ public:
 
     // This structure provides information on the internal member data of a PID for logging purposes
     struct PID_Info {
-        float desired;
+        float target;
         float actual;
+        float error;
         float P;
         float I;
         float D;
@@ -303,7 +304,7 @@ public:
     void flush(void);
 #endif
 
-    void handle_mavlink_msg(class GCS_MAVLINK &, mavlink_message_t* msg);
+    void handle_mavlink_msg(class GCS_MAVLINK &, const mavlink_message_t &msg);
 
     void periodic_tasks(); // may want to split this into GCS/non-GCS duties
 
@@ -501,12 +502,12 @@ private:
     uint32_t _last_arming_failure_ms;
 
     bool should_handle_log_message();
-    void handle_log_message(class GCS_MAVLINK &, mavlink_message_t *msg);
+    void handle_log_message(class GCS_MAVLINK &, const mavlink_message_t &msg);
 
-    void handle_log_request_list(class GCS_MAVLINK &, mavlink_message_t *msg);
-    void handle_log_request_data(class GCS_MAVLINK &, mavlink_message_t *msg);
-    void handle_log_request_erase(class GCS_MAVLINK &, mavlink_message_t *msg);
-    void handle_log_request_end(class GCS_MAVLINK &, mavlink_message_t *msg);
+    void handle_log_request_list(class GCS_MAVLINK &, const mavlink_message_t &msg);
+    void handle_log_request_data(class GCS_MAVLINK &, const mavlink_message_t &msg);
+    void handle_log_request_erase(class GCS_MAVLINK &, const mavlink_message_t &msg);
+    void handle_log_request_end(class GCS_MAVLINK &, const mavlink_message_t &msg);
     void handle_log_send_listing(); // handle LISTING state
     void handle_log_sending(); // handle SENDING state
     bool handle_log_send_data(); // send data chunk to client

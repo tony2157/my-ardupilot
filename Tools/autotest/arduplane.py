@@ -25,6 +25,25 @@ WIND = "0,180,0.2"  # speed,direction,variance
 
 
 class AutoTestPlane(AutoTest):
+    @staticmethod
+    def get_not_armable_mode_list():
+        return []
+
+    @staticmethod
+    def get_not_disarmed_settable_modes_list():
+        return ["FOLLOW"]
+
+    @staticmethod
+    def get_no_position_not_settable_modes_list():
+        return []
+
+    @staticmethod
+    def get_position_armable_modes_list():
+        return ["GUIDED", "AUTO"]
+
+    @staticmethod
+    def get_normal_armable_modes_list():
+        return ["MANUAL", "STABILIZE", "ACRO"]
 
     def log_name(self):
         return "ArduPlane"
@@ -57,6 +76,9 @@ class AutoTestPlane(AutoTest):
 
     def set_autodisarm_delay(self, delay):
         self.set_parameter("LAND_DISARMDELAY", delay)
+
+    def arming_test_mission(self):
+        return os.path.join(testdir, "ArduPlane-Missions", "test_arming.txt")
 
     def takeoff(self, alt=150, alt_max=None, relative=True):
         """Takeoff to altitude."""
@@ -1209,11 +1231,7 @@ class AutoTestPlane(AutoTest):
             raise NotAchievedException("Received unexpected RANGEFINDER msg")
 
         try:
-            self.set_parameter("RNGFND1_TYPE", 1)
-            self.set_parameter("RNGFND1_MIN_CM", 0)
-            self.set_parameter("RNGFND1_MAX_CM", 4000)
-            self.set_parameter("RNGFND1_PIN", 0)
-            self.set_parameter("RNGFND1_SCALING", 12.12)
+            self.set_analog_rangefinder_parameters()
 
             self.reboot_sitl()
 
@@ -1224,7 +1242,7 @@ class AutoTestPlane(AutoTest):
             self.wait_ready_to_arm()
             self.arm_vehicle()
             home = self.poll_home_position()
-            self.wait_altitude(10, 1000, timeout=30, relative=True)
+            self.wait_waypoint(5, 5, max_dist=100)
             rf = self.mav.recv_match(type="RANGEFINDER", timeout=1, blocking=True)
             if rf is None:
                 raise NotAchievedException("Did not receive rangefinder message")
@@ -1293,6 +1311,34 @@ class AutoTestPlane(AutoTest):
         self.wait_mode("CIRCLE")
         self.set_rc(9, 1000)
 
+    def test_adsb(self):
+        self.wait_ready_to_arm()
+        here = self.mav.location()
+        # message ADSB_VEHICLE 37 -353632614 1491652305 0 584070 0 0 0 "bob" 3 1 255 17
+        self.set_parameter("ADSB_ENABLE", 1)
+        self.set_parameter("AVD_ENABLE", 1)
+        self.delay_sim_time(1) # TODO: work out why this is required...
+        self.mav.mav.adsb_vehicle_send(37, # ICAO address
+                                       here.lat * 1e7,
+                                       here.lng * 1e7,
+                                       mavutil.mavlink.ADSB_ALTITUDE_TYPE_PRESSURE_QNH,
+                                       here.alt*1000 + 10000, # 10m up
+                                       0, # heading in cdeg
+                                       0, # horizontal velocity cm/s
+                                       0, # vertical velocity cm/s
+                                       "bob", # callsign
+                                       mavutil.mavlink.ADSB_EMITTER_TYPE_LIGHT,
+                                       1, # time since last communication
+                                       65535, # flags
+                                       17 # squawk
+        )
+        self.progress("Waiting for collision message")
+        m = self.mav.recv_match(type='COLLISION', blocking=True, timeout=2)
+        if m is None:
+            raise NotAchievedException("Did not get collision message")
+        if m.threat_level != 2:
+            raise NotAchievedException("Expected some threat at least")
+
     def tests(self):
         '''return list of all tests'''
         ret = super(AutoTestPlane, self).tests()
@@ -1345,6 +1391,10 @@ class AutoTestPlane(AutoTest):
             ("FenceRTLRally",
              "Test Fence RTL Rally",
              self.test_fence_rtl_rally),
+
+            ("ADSB",
+             "Test ADSB",
+             self.test_adsb),
 
             ("LogDownLoad",
              "Log download",

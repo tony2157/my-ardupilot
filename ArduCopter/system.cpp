@@ -111,12 +111,18 @@ void Copter::init_ardupilot()
     // allocate the motors class
     allocate_motors();
 
+    // initialise rc channels including setting mode
+    rc().init();
+
     // sets up motors and output to escs
     init_rc_out();
 
     // initialize CASS_Imet sensors
     init_CASS_imet();
     init_CASS_hyt271();
+
+    // check if we should enter esc calibration mode
+    esc_calibration_startup_check();
 
     // motors initialised so parameters can be sent
     ap.initialised_params = true;
@@ -218,9 +224,6 @@ void Copter::init_ardupilot()
 
     // initialise AP_Logger library
     logger.setVehicle_Startup_Writer(FUNCTOR_BIND(&copter, &Copter::Log_Write_Vehicle_Startup_Messages, void));
-
-    // initialise rc channels including setting mode
-    rc().init();
 
     startup_INS_ground();
 
@@ -581,7 +584,7 @@ void Copter::allocate_motors(void)
         attitude_control->get_rate_yaw_pid().kI().set_default(0.015);
         break;
     case AP_Motors::MOTOR_FRAME_TRI:
-        attitude_control->get_rate_yaw_pid().filt_hz().set_default(100);
+        attitude_control->get_rate_yaw_pid().filt_D_hz().set_default(100);
         break;
     default:
         break;

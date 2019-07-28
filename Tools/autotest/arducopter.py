@@ -33,6 +33,25 @@ SITL_START_LOCATION_AVC = mavutil.location(40.072842, -105.230575, 1586, 0)
 
 
 class AutoTestCopter(AutoTest):
+    @staticmethod
+    def get_not_armable_mode_list():
+        return ["AUTO", "AUTOTUNE", "BRAKE", "CIRCLE", "FLIP", "LAND", "RTL", "SMART_RTL", "AVOID_ADSB", "FOLLOW"]
+
+    @staticmethod
+    def get_not_disarmed_settable_modes_list():
+        return ["FLIP", "AUTOTUNE"]
+
+    @staticmethod
+    def get_no_position_not_settable_modes_list():
+        return []
+
+    @staticmethod
+    def get_position_armable_modes_list():
+        return ["DRIFT", "GUIDED", "LOITER", "POSHOLD", "THROW"]
+
+    @staticmethod
+    def get_normal_armable_modes_list():
+        return ["ACRO", "ALT_HOLD", "SPORT", "STABILIZE", "GUIDED_NOGPS"]
 
     def log_name(self):
         return "ArduCopter"
@@ -365,11 +384,7 @@ class AutoTestCopter(AutoTest):
             self.fetch_parameters()
             self.set_parameter("PLND_TYPE", 4)
 
-            self.set_parameter("RNGFND1_TYPE", 1)
-            self.set_parameter("RNGFND1_MIN_CM", 0)
-            self.set_parameter("RNGFND1_MAX_CM", 4000)
-            self.set_parameter("RNGFND1_PIN", 0)
-            self.set_parameter("RNGFND1_SCALING", 12.12)
+            self.set_analog_rangefinder_parameters()
 
             self.reboot_sitl()
 
@@ -1195,11 +1210,7 @@ class AutoTestCopter(AutoTest):
             self.set_parameter("SIM_FLOW_ENABLE", 1)
             self.set_parameter("FLOW_TYPE", 10)
 
-            self.set_parameter("RNGFND1_TYPE", 1)
-            self.set_parameter("RNGFND1_MIN_CM", 0)
-            self.set_parameter("RNGFND1_MAX_CM", 4000)
-            self.set_parameter("RNGFND1_PIN", 0)
-            self.set_parameter("RNGFND1_SCALING", 12.12, epsilon=0.01)
+            self.set_analog_rangefinder_parameters()
 
             self.set_parameter("SIM_GPS_DISABLE", 1)
             self.set_parameter("SIM_TERRAIN", 0)
@@ -1601,11 +1612,7 @@ class AutoTestCopter(AutoTest):
             raise NotAchievedException("Found unexpected RFND message")
 
         try:
-            self.set_parameter("RNGFND1_TYPE", 1)
-            self.set_parameter("RNGFND1_MIN_CM", 0)
-            self.set_parameter("RNGFND1_MAX_CM", 4000)
-            self.set_parameter("RNGFND1_PIN", 0)
-            self.set_parameter("RNGFND1_SCALING", 12.12)
+            self.set_analog_rangefinder_parameters()
             self.set_parameter("RC9_OPTION", 10) # rangefinder
             self.set_rc(9, 2000)
 
@@ -1675,11 +1682,7 @@ class AutoTestCopter(AutoTest):
         self.context_push()
 
         try:
-            self.set_parameter("RNGFND1_TYPE", 1)
-            self.set_parameter("RNGFND1_MIN_CM", 0)
-            self.set_parameter("RNGFND1_MAX_CM", 4000)
-            self.set_parameter("RNGFND1_PIN", 0)
-            self.set_parameter("RNGFND1_SCALING", 12.12)
+            self.set_analog_rangefinder_parameters()
             self.set_parameter("RC9_OPTION", 10) # rangefinder
             self.set_rc(9, 2000)
 
@@ -1813,11 +1816,7 @@ class AutoTestCopter(AutoTest):
             self.fetch_parameters()
             self.set_parameter("PLND_TYPE", 4)
 
-            self.set_parameter("RNGFND1_TYPE", 1)
-            self.set_parameter("RNGFND1_MIN_CM", 0)
-            self.set_parameter("RNGFND1_MAX_CM", 4000)
-            self.set_parameter("RNGFND1_PIN", 0)
-            self.set_parameter("RNGFND1_SCALING", 12)
+            self.set_analog_rangefinder_parameters()
             self.set_parameter("SIM_SONAR_SCALE", 12)
 
             start = self.mav.location()
@@ -2512,11 +2511,7 @@ class AutoTestCopter(AutoTest):
 
         ex = None
         try:
-            self.set_parameter("RNGFND1_TYPE", 1)
-            self.set_parameter("RNGFND1_MIN_CM", 0)
-            self.set_parameter("RNGFND1_MAX_CM", 4000)
-            self.set_parameter("RNGFND1_PIN", 0)
-            self.set_parameter("RNGFND1_SCALING", 12.12)
+            self.set_analog_rangefinder_parameters()
             self.set_parameter("GRIP_ENABLE", 1)
             self.set_parameter("GRIP_TYPE", 1)
             self.set_parameter("SIM_GRPS_ENABLE", 1)
@@ -3085,11 +3080,7 @@ class AutoTestCopter(AutoTest):
             # enable companion backend:
             self.set_parameter("PLND_TYPE", 1)
 
-            self.set_parameter("RNGFND1_TYPE", 1)
-            self.set_parameter("RNGFND1_MIN_CM", 0)
-            self.set_parameter("RNGFND1_MAX_CM", 4000)
-            self.set_parameter("RNGFND1_PIN", 0)
-            self.set_parameter("RNGFND1_SCALING", 12.12)
+            self.set_analog_rangefinder_parameters()
 
             # set up a channel switch to enable precision loiter:
             self.set_parameter("RC7_OPTION", 39)

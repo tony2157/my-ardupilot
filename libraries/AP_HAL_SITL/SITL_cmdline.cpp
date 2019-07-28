@@ -29,6 +29,7 @@
 #include <SITL/SIM_Submarine.h>
 #include <SITL/SIM_SilentWings.h>
 #include <SITL/SIM_Morse.h>
+#include <SITL/SIM_AirSim.h>
 
 #include <signal.h>
 #include <stdio.h>
@@ -80,6 +81,7 @@ void SITL_State::_usage(void)
            "\t--uartE device           set device string for UARTE\n"
            "\t--uartF device           set device string for UARTF\n"
            "\t--uartG device           set device string for UARTG\n"
+           "\t--uartH device           set device string for UARTH\n"
            "\t--rtscts                 enable rtscts on serial ports (default false)\n"
            "\t--base-port PORT         set port num for base port(default 5670) must be before -I option\n"
            "\t--rc-in-port PORT        set port num for rc in\n"
@@ -129,6 +131,7 @@ static const struct {
     { "vectored",           Submarine::create },
     { "silentwings",        SilentWings::create },
     { "morse",              Morse::create },
+    { "airsim",             AirSim::create},
 };
 
 void SITL_State::_set_signal_handlers(void) const
@@ -190,10 +193,11 @@ void SITL_State::_parse_command_line(int argc, char * const argv[])
         CMDLINE_UARTE,
         CMDLINE_UARTF,
         CMDLINE_UARTG,
+        CMDLINE_UARTH,
         CMDLINE_RTSCTS,
         CMDLINE_BASE_PORT,
         CMDLINE_RCIN_PORT,
-        CMDLINE_SIM_ADDRESS = 15,
+        CMDLINE_SIM_ADDRESS,
         CMDLINE_SIM_PORT_IN,
         CMDLINE_SIM_PORT_OUT,
         CMDLINE_IRLOCK_PORT,
@@ -223,6 +227,7 @@ void SITL_State::_parse_command_line(int argc, char * const argv[])
         {"uartE",           true,   0, CMDLINE_UARTE},
         {"uartF",           true,   0, CMDLINE_UARTF},
         {"uartG",           true,   0, CMDLINE_UARTG},
+        {"uartH",           true,   0, CMDLINE_UARTH},
         {"rtscts",          false,  0, CMDLINE_RTSCTS},
         {"base-port",       true,   0, CMDLINE_BASE_PORT},
         {"rc-in-port",      true,   0, CMDLINE_RCIN_PORT},
@@ -321,6 +326,7 @@ void SITL_State::_parse_command_line(int argc, char * const argv[])
         case CMDLINE_UARTE:
         case CMDLINE_UARTF:
         case CMDLINE_UARTG:
+        case CMDLINE_UARTH:
             _uart_path[opt - CMDLINE_UARTA] = gopt.optarg;
             break;
         case CMDLINE_RTSCTS:
