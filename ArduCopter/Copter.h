@@ -281,12 +281,14 @@ private:
     Compass compass;
     AP_InertialSensor ins;
 
+
     // Imet Temperature sensors class declaration
     AC_CASS_Imet CASS_Imet[4]; 
     // HYT271 humidity sensors class declaration
     AC_CASS_HYT271 CASS_HYT271[4];
 
-    RangeFinder rangefinder{serial_manager};
+    RangeFinder rangefinder;
+    
     struct {
         bool enabled:1;
         bool alt_healthy:1; // true if we can trust the altitude from the rangefinder
@@ -491,11 +493,11 @@ private:
     AP_Relay relay;
 
     // handle repeated servo and relay events
-    AP_ServoRelayEvents ServoRelayEvents{relay};
+    AP_ServoRelayEvents ServoRelayEvents;
 
     // Camera
 #if CAMERA == ENABLED
-    AP_Camera camera{&relay, MASK_LOG_CAMERA, current_loc, ahrs};
+    AP_Camera camera{MASK_LOG_CAMERA, current_loc};
 #endif
 
     // Camera/Antenna mount tracking and stabilisation stuff
@@ -554,7 +556,7 @@ private:
     AP_ADSB adsb;
 
     // avoidance of adsb enabled vehicles (normally manned vehicles)
-    AP_Avoidance_Copter avoidance_adsb{ahrs, adsb};
+    AP_Avoidance_Copter avoidance_adsb{adsb};
 #endif
 
     // last valid RC input time
@@ -679,7 +681,7 @@ private:
     bool far_from_EKF_origin(const Location& loc);
 
     // compassmot.cpp
-    MAV_RESULT mavlink_compassmot(mavlink_channel_t chan);
+    MAV_RESULT mavlink_compassmot(const GCS_MAVLINK &gcs_chan);
 
     // crash_check.cpp
     void crash_check();
@@ -780,8 +782,8 @@ private:
 
     // motor_test.cpp
     void motor_test_output();
-    bool mavlink_motor_test_check(mavlink_channel_t chan, bool check_rc);
-    MAV_RESULT mavlink_motor_test_start(mavlink_channel_t chan, uint8_t motor_seq, uint8_t throttle_type, uint16_t throttle_value, float timeout_sec, uint8_t motor_count);
+    bool mavlink_motor_test_check(const GCS_MAVLINK &gcs_chan, bool check_rc);
+    MAV_RESULT mavlink_motor_test_start(const GCS_MAVLINK &gcs_chan, uint8_t motor_seq, uint8_t throttle_type, uint16_t throttle_value, float timeout_sec, uint8_t motor_count);
     void motor_test_stop();
 
     // motors.cpp
@@ -848,12 +850,11 @@ private:
     // system.cpp
     void init_ardupilot();
     void startup_INS_ground();
-    bool position_ok();
-    bool ekf_position_ok();
-    bool optflow_position_ok();
+    bool position_ok() const;
+    bool ekf_position_ok() const;
+    bool optflow_position_ok() const;
     void update_auto_armed();
     bool should_log(uint32_t mask);
-    void set_default_frame_class();
     MAV_TYPE get_frame_mav_type();
     const char* get_frame_string();
     void allocate_motors(void);

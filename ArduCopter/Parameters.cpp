@@ -28,6 +28,13 @@
 #define GOBJECTVARPTR(v, name, var_info_ptr) { AP_PARAM_GROUP, name, Parameters::k_param_ ## v, (const void *)&copter.v, {group_info_ptr : var_info_ptr}, AP_PARAM_FLAG_POINTER | AP_PARAM_FLAG_INFO_POINTER }
 #define GOBJECTN(v, pname, name, class) { AP_PARAM_GROUP, name, Parameters::k_param_ ## pname, (const void *)&copter.v, {group_info : class::var_info} }
 
+#if FRAME_CONFIG == HELI_FRAME
+// 6 here is AP_Motors::MOTOR_FRAME_HELI
+#define DEFAULT_FRAME_CLASS 6
+#else
+#define DEFAULT_FRAME_CLASS 0
+#endif
+
 const AP_Param::Info Copter::var_info[] = {
     // @Param: SYSID_SW_MREV
     // @DisplayName: Eeprom format version number
@@ -819,7 +826,7 @@ const AP_Param::GroupInfo ParametersG2::var_info[] = {
     // @Values: 0:Undefined, 1:Quad, 2:Hexa, 3:Octa, 4:OctaQuad, 5:Y6, 6:Heli, 7:Tri, 8:SingleCopter, 9:CoaxCopter, 10:BiCopter, 11:Heli_Dual, 12:DodecaHexa, 13:HeliQuad
     // @User: Standard
     // @RebootRequired: True
-    AP_GROUPINFO("FRAME_CLASS", 15, ParametersG2, frame_class, 0),
+    AP_GROUPINFO("FRAME_CLASS", 15, ParametersG2, frame_class, DEFAULT_FRAME_CLASS),
 
     // @Group: SERVO
     // @Path: ../libraries/SRV_Channel/SRV_Channels.cpp
@@ -1201,6 +1208,28 @@ void Copter::convert_pid_parameters(void)
     };
     AP_Param::set_defaults_from_table(heli_defaults_table, ARRAY_SIZE(heli_defaults_table));
 #endif
+
+    // attitude control filter parameter changes (from _FILT to FLTE or FLTD) for Copter-3.7
+    const AP_Param::ConversionInfo ff_and_filt_conversion_info[] = {
+#if FRAME_CONFIG == HELI_FRAME
+        // tradheli moves ATC_RAT_RLL/PIT_FILT to FLTE, ATC_RAT_YAW_FILT to FLTE
+        { Parameters::k_param_attitude_control, 386, AP_PARAM_FLOAT, "ATC_RAT_RLL_FLTE" },
+        { Parameters::k_param_attitude_control, 387, AP_PARAM_FLOAT, "ATC_RAT_PIT_FLTE" },
+        { Parameters::k_param_attitude_control, 388, AP_PARAM_FLOAT, "ATC_RAT_YAW_FLTE" },
+#else
+        // multicopters move ATC_RAT_RLL/PIT_FILT to FLTD, ATC_RAT_YAW_FILT to FLTE
+        { Parameters::k_param_attitude_control, 385, AP_PARAM_FLOAT, "ATC_RAT_RLL_FLTD" },
+        { Parameters::k_param_attitude_control, 386, AP_PARAM_FLOAT, "ATC_RAT_PIT_FLTD" },
+        { Parameters::k_param_attitude_control, 387, AP_PARAM_FLOAT, "ATC_RAT_YAW_FLTE" },
+        { Parameters::k_param_attitude_control, 449, AP_PARAM_FLOAT, "ATC_RAT_RLL_FF" },
+        { Parameters::k_param_attitude_control, 450, AP_PARAM_FLOAT, "ATC_RAT_PIT_FF" },
+        { Parameters::k_param_attitude_control, 451, AP_PARAM_FLOAT, "ATC_RAT_YAW_FF" },
+#endif
+    };
+    uint8_t filt_table_size = ARRAY_SIZE(ff_and_filt_conversion_info);
+    for (uint8_t i=0; i<filt_table_size; i++) {
+        AP_Param::convert_old_parameters(&ff_and_filt_conversion_info[i], 1.0f);
+    }
 
     const uint8_t old_rc_keys[14] = { Parameters::k_param_rc_1_old,  Parameters::k_param_rc_2_old,
                                       Parameters::k_param_rc_3_old,  Parameters::k_param_rc_4_old,

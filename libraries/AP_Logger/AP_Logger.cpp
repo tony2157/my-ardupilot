@@ -206,7 +206,7 @@ void AP_Logger::Init(const struct LogStructure *structures, uint8_t num_types)
 #define DEBUG_LOG_STRUCTURES 0
 
 extern const AP_HAL::HAL& hal;
-#define Debug(fmt, args ...)  do {hal.console->printf("%s:%d: " fmt "\n", __FUNCTION__, __LINE__, ## args); hal.scheduler->delay(1); } while(0)
+#define Debug(fmt, args ...)  do {::fprintf(stderr, "%s:%d: " fmt "\n", __FUNCTION__, __LINE__, ## args); } while(0)
 
 /// return the number of commas present in string
 static uint8_t count_commas(const char *string)
@@ -651,9 +651,9 @@ bool AP_Logger::logging_started(void) {
     return false;
 }
 
-void AP_Logger::handle_mavlink_msg(GCS_MAVLINK &link, mavlink_message_t* msg)
+void AP_Logger::handle_mavlink_msg(GCS_MAVLINK &link, const mavlink_message_t &msg)
 {
-    switch (msg->msgid) {
+    switch (msg.msgid) {
     case MAVLINK_MSG_ID_REMOTE_LOG_BLOCK_STATUS:
         FOR_EACH_BACKEND(remote_log_block_status_msg(link.get_chan(), msg));
         break;

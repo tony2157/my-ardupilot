@@ -70,6 +70,7 @@ const struct UnitStructure log_Units[] = {
     { 'v', "V" },             // Volt
     { 'P', "Pa" },            // Pascal
     { 'w', "Ohm" },           // Ohm
+//    { 'W', "Watt" },        // Watt
     { 'Y', "us" },            // pulse width modulation in microseconds
     { 'z', "Hz" },            // Hertz
     { '#', "instance" }       // (e.g.)Sensor instance number
@@ -211,6 +212,7 @@ struct PACKED log_GPS {
     float    ground_speed;
     float    ground_course;
     float    vel_z;
+    float    yaw;
     uint8_t  used;
 };
 
@@ -722,8 +724,9 @@ struct PACKED log_Attitude {
 struct PACKED log_PID {
     LOG_PACKET_HEADER;
     uint64_t time_us;
-    float   desired;
+    float   target;
     float   actual;
+    float   error;
     float   P;
     float   I;
     float   D;
@@ -1187,10 +1190,10 @@ struct PACKED log_Arm_Disarm {
 #define GPA_MULTS "FBBBB-CF"
 
 // see "struct GPS_State" and "Write_GPS":
-#define GPS_LABELS "TimeUS,Status,GMS,GWk,NSats,HDop,Lat,Lng,Alt,Spd,GCrs,VZ,U"
-#define GPS_FMT   "QBIHBcLLefffB"
-#define GPS_UNITS "s---SmDUmnhn-"
-#define GPS_MULTS "F---0BGGB000-"
+#define GPS_LABELS "TimeUS,Status,GMS,GWk,NSats,HDop,Lat,Lng,Alt,Spd,GCrs,VZ,Yaw,U"
+#define GPS_FMT   "QBIHBcLLeffffB"
+#define GPS_UNITS "s---SmDUmnhnh-"
+#define GPS_MULTS "F---0BGGB000--"
 
 #define GYR_LABELS "TimeUS,SampleUS,GyrX,GyrY,GyrZ"
 #define GYR_FMT    "QQfff"
@@ -1222,10 +1225,10 @@ struct PACKED log_Arm_Disarm {
 #define MAG_UNITS "sGGGGGGGGG-s"
 #define MAG_MULTS "FCCCCCCCCC-F"
 
-#define PID_LABELS "TimeUS,Des,Act,P,I,D,FF"
-#define PID_FMT    "Qffffff"
-#define PID_UNITS  "s------"
-#define PID_MULTS  "F------"
+#define PID_LABELS "TimeUS,Tar,Act,Err,P,I,D,FF"
+#define PID_FMT    "Qfffffff"
+#define PID_UNITS  "s-------"
+#define PID_MULTS  "F-------"
 
 #define QUAT_LABELS "TimeUS,Q1,Q2,Q3,Q4"
 #define QUAT_FMT    "Qffff"
@@ -1344,7 +1347,7 @@ struct PACKED log_Arm_Disarm {
     { LOG_BEACON_MSG, sizeof(log_Beacon), \
       "BCN", "QBBfffffff",  "TimeUS,Health,Cnt,D0,D1,D2,D3,PosX,PosY,PosZ", "s--mmmmmmm", "F--BBBBBBB" }, \
     { LOG_PROXIMITY_MSG, sizeof(log_Proximity), \
-      "PRX", "QBfffffffffff", "TimeUS,Health,D0,D45,D90,D135,D180,D225,D270,D315,DUp,CAn,CDis", "s-mmmmmmmmmhm", "F-BBBBBBBBB00" }, \
+      "PRX", "QBfffffffffff", "TimeUS,Health,D0,D45,D90,D135,D180,D225,D270,D315,DUp,CAn,CDis", "s-mmmmmmmmmhm", "F-00000000000" }, \
     { LOG_PERFORMANCE_MSG, sizeof(log_Performance),                     \
       "PM",  "QHHIIHIIII", "TimeUS,NLon,NLoop,MaxT,Mem,Load,IntErr,IntErrCnt,SPICnt,I2CCnt", "s---b%----", "F---0A----" }, \
     { LOG_SRTL_MSG, sizeof(log_SRTL), \
@@ -1384,8 +1387,17 @@ struct PACKED log_Arm_Disarm {
       "NKF9","QcccccfbbHBHHb","TimeUS,SV,SP,SH,SM,SVT,errRP,OFN,OFE,FS,TS,SS,GPS,PI", "s-----???-----", "F-----???-----" }, \
     { LOG_NKF10_MSG, sizeof(log_RngBcnDebug), \
       "NKF0","QBccCCcccccccc","TimeUS,ID,rng,innov,SIV,TR,BPN,BPE,BPD,OFH,OFL,OFN,OFE,OFD", "s-m---mmmmmmmm", "F-B---BBBBBBBB" }, \
+    { LOG_NKF11_MSG, sizeof(log_EKF1), \
+      "NK11","QccCfffffffccce","TimeUS,Roll,Pitch,Yaw,VN,VE,VD,dPD,PN,PE,PD,GX,GY,GZ,OH", "sddhnnn-mmmkkkm", "FBBB000-000BBBB" }, \
+    { LOG_NKF12_MSG, sizeof(log_NKF2), \
+      "NK12","QbccccchhhhhhB","TimeUS,AZbias,GSX,GSY,GSZ,VWN,VWE,MN,ME,MD,MX,MY,MZ,MI", "s----nnGGGGGG-", "F----BBCCCCCC-" }, \
+    { LOG_NKF13_MSG, sizeof(log_NKF3), \
+      "NK13","Qcccccchhhcc","TimeUS,IVN,IVE,IVD,IPN,IPE,IPD,IMX,IMY,IMZ,IYAW,IVT", "snnnmmmGGGd?", "FBBBBBBCCCBB" }, \
+    { LOG_NKF14_MSG, sizeof(log_NKF4), \
+      "NK14","QcccccfbbHBHHb","TimeUS,SV,SP,SH,SM,SVT,errRP,OFN,OFE,FS,TS,SS,GPS,PI", "s-----???-----", "F-----???-----" }, \
     { LOG_NKQ1_MSG, sizeof(log_Quaternion), "NKQ1", QUAT_FMT, QUAT_LABELS, QUAT_UNITS, QUAT_MULTS }, \
     { LOG_NKQ2_MSG, sizeof(log_Quaternion), "NKQ2", QUAT_FMT, QUAT_LABELS, QUAT_UNITS, QUAT_MULTS }, \
+    { LOG_NKQ3_MSG, sizeof(log_Quaternion), "NKQ3", QUAT_FMT, QUAT_LABELS, QUAT_UNITS, QUAT_MULTS }, \
     { LOG_XKF1_MSG, sizeof(log_EKF1), \
       "XKF1","QccCfffffffccce","TimeUS,Roll,Pitch,Yaw,VN,VE,VD,dPD,PN,PE,PD,GX,GY,GZ,OH", "sddhnnnnmmmkkkm", "FBBB0000000BBBB" }, \
     { LOG_XKF2_MSG, sizeof(log_NKF2a), \
@@ -1406,8 +1418,17 @@ struct PACKED log_Arm_Disarm {
       "XKF9","QcccccfbbHBHHb","TimeUS,SV,SP,SH,SM,SVT,errRP,OFN,OFE,FS,TS,SS,GPS,PI", "s-----???-----", "F-----???-----" }, \
     { LOG_XKF10_MSG, sizeof(log_RngBcnDebug), \
       "XKF0","QBccCCcccccccc","TimeUS,ID,rng,innov,SIV,TR,BPN,BPE,BPD,OFH,OFL,OFN,OFE,OFD", "s-m---mmmmmmmm", "F-B---BBBBBBBB" }, \
+    { LOG_XKF11_MSG, sizeof(log_EKF1), \
+      "XK11","QccCfffffffccce","TimeUS,Roll,Pitch,Yaw,VN,VE,VD,dPD,PN,PE,PD,GX,GY,GZ,OH", "sddhnnn-mmmkkkm", "FBBB000-000BBBB" }, \
+    { LOG_XKF12_MSG, sizeof(log_NKF2a), \
+      "XK12","QccccchhhhhhB","TimeUS,AX,AY,AZ,VWN,VWE,MN,ME,MD,MX,MY,MZ,MI", "s---nnGGGGGG-", "F---BBCCCCCC-" }, \
+    { LOG_XKF13_MSG, sizeof(log_NKF3), \
+      "XK13","Qcccccchhhcc","TimeUS,IVN,IVE,IVD,IPN,IPE,IPD,IMX,IMY,IMZ,IYAW,IVT", "snnnmmmGGGd?", "FBBBBBBCCCBB" }, \
+    { LOG_XKF14_MSG, sizeof(log_NKF4), \
+      "XK14","QcccccfbbHBHHb","TimeUS,SV,SP,SH,SM,SVT,errRP,OFN,OFE,FS,TS,SS,GPS,PI", "s-----???-----", "F-----???-----" }, \
     { LOG_XKQ1_MSG, sizeof(log_Quaternion), "XKQ1", QUAT_FMT, QUAT_LABELS, QUAT_UNITS, QUAT_MULTS }, \
     { LOG_XKQ2_MSG, sizeof(log_Quaternion), "XKQ2", QUAT_FMT, QUAT_LABELS, QUAT_UNITS, QUAT_MULTS }, \
+    { LOG_XKQ3_MSG, sizeof(log_Quaternion), "XKQ3", QUAT_FMT, QUAT_LABELS, QUAT_UNITS, QUAT_MULTS }, \
     { LOG_XKFD_MSG, sizeof(log_ekfBodyOdomDebug), \
       "XKFD","Qffffff","TimeUS,IX,IY,IZ,IVX,IVY,IVZ", "s------", "F------" }, \
     { LOG_XKV1_MSG, sizeof(log_ekfStateVar), \
@@ -1552,8 +1573,13 @@ enum LogMessages : uint8_t {
     LOG_NKF8_MSG,
     LOG_NKF9_MSG,
     LOG_NKF10_MSG,
+    LOG_NKF11_MSG,
+    LOG_NKF12_MSG,
+    LOG_NKF13_MSG,
+    LOG_NKF14_MSG,
     LOG_NKQ1_MSG,
     LOG_NKQ2_MSG,
+    LOG_NKQ3_MSG,
     LOG_XKF1_MSG,
     LOG_XKF2_MSG,
     LOG_XKF3_MSG,
@@ -1564,8 +1590,13 @@ enum LogMessages : uint8_t {
     LOG_XKF8_MSG,
     LOG_XKF9_MSG,
     LOG_XKF10_MSG,
+    LOG_XKF11_MSG,
+    LOG_XKF12_MSG,
+    LOG_XKF13_MSG,
+    LOG_XKF14_MSG,
     LOG_XKQ1_MSG,
     LOG_XKQ2_MSG,
+    LOG_XKQ3_MSG,
     LOG_XKFD_MSG,
     LOG_XKV1_MSG,
     LOG_XKV2_MSG,

@@ -241,14 +241,14 @@ public:
     void Write_AHRS2(AP_AHRS &ahrs);
     void Write_POS(AP_AHRS &ahrs);
 #if AP_AHRS_NAVEKF_AVAILABLE
-    void Write_EKF(AP_AHRS_NavEKF &ahrs);
+    void Write_EKF_Timing(const char *name, uint64_t time_us, const struct ekf_timing &timing);
 #endif
     void Write_Radio(const mavlink_radio_t &packet);
     void Write_Message(const char *message);
     void Write_MessageF(const char *fmt, ...);
-    void Write_CameraInfo(enum LogMessages msg, const AP_AHRS &ahrs, const Location &current_loc, uint64_t timestamp_us=0);
-    void Write_Camera(const AP_AHRS &ahrs, const Location &current_loc, uint64_t timestamp_us=0);
-    void Write_Trigger(const AP_AHRS &ahrs, const Location &current_loc);
+    void Write_CameraInfo(enum LogMessages msg, const Location &current_loc, uint64_t timestamp_us=0);
+    void Write_Camera(const Location &current_loc, uint64_t timestamp_us=0);
+    void Write_Trigger(const Location &current_loc);
     void Write_ESC(uint8_t id, uint64_t time_us, int32_t rpm, uint16_t voltage, uint16_t current, int16_t temperature, uint16_t current_tot);
     void Write_Attitude(AP_AHRS &ahrs, const Vector3f &targets);
     void Write_AttitudeView(AP_AHRS_View &ahrs, const Vector3f &targets);
@@ -283,8 +283,9 @@ public:
 
     // This structure provides information on the internal member data of a PID for logging purposes
     struct PID_Info {
-        float desired;
+        float target;
         float actual;
+        float error;
         float P;
         float I;
         float D;
@@ -303,7 +304,7 @@ public:
     void flush(void);
 #endif
 
-    void handle_mavlink_msg(class GCS_MAVLINK &, mavlink_message_t* msg);
+    void handle_mavlink_msg(class GCS_MAVLINK &, const mavlink_message_t &msg);
 
     void periodic_tasks(); // may want to split this into GCS/non-GCS duties
 
@@ -421,11 +422,6 @@ private:
 
     bool _armed;
 
-#if AP_AHRS_NAVEKF_AVAILABLE
-    void Write_EKF2(AP_AHRS_NavEKF &ahrs);
-    void Write_EKF3(AP_AHRS_NavEKF &ahrs);
-#endif
-
     void Write_Baro_instance(uint64_t time_us, uint8_t baro_instance, enum LogMessages type);
     void Write_IMU_instance(uint64_t time_us,
                                 uint8_t imu_instance,
@@ -460,8 +456,6 @@ private:
     double multiplier_name(const uint8_t multiplier_id);
     bool seen_ids[256] = { };
 #endif
-
-    void Write_EKF_Timing(const char *name, uint64_t time_us, const struct ekf_timing &timing);
 
     // possibly expensive calls to start log system:
     void Prep();
@@ -508,12 +502,12 @@ private:
     uint32_t _last_arming_failure_ms;
 
     bool should_handle_log_message();
-    void handle_log_message(class GCS_MAVLINK &, mavlink_message_t *msg);
+    void handle_log_message(class GCS_MAVLINK &, const mavlink_message_t &msg);
 
-    void handle_log_request_list(class GCS_MAVLINK &, mavlink_message_t *msg);
-    void handle_log_request_data(class GCS_MAVLINK &, mavlink_message_t *msg);
-    void handle_log_request_erase(class GCS_MAVLINK &, mavlink_message_t *msg);
-    void handle_log_request_end(class GCS_MAVLINK &, mavlink_message_t *msg);
+    void handle_log_request_list(class GCS_MAVLINK &, const mavlink_message_t &msg);
+    void handle_log_request_data(class GCS_MAVLINK &, const mavlink_message_t &msg);
+    void handle_log_request_erase(class GCS_MAVLINK &, const mavlink_message_t &msg);
+    void handle_log_request_end(class GCS_MAVLINK &, const mavlink_message_t &msg);
     void handle_log_send_listing(); // handle LISTING state
     void handle_log_sending(); // handle SENDING state
     bool handle_log_send_data(); // send data chunk to client

@@ -91,11 +91,6 @@ def options(opt):
         default=False,
         help='enable OS level asserts.')
 
-    g.add_option('--use-nuttx-iofw',
-        action='store_true',
-        default=False,
-        help='use old NuttX IO firmware for IOMCU')
-
     g.add_option('--bootloader',
         action='store_true',
         default=False,
@@ -235,7 +230,10 @@ def	run_coverage_tests(bld):
 
     #tests = ['fly.ArduPlane']
     #tests = ['fly.ArduCopter','fly.ArduPlane']
-    tests = ['fly.ArduCopter','fly.ArduPlane', 'fly.QuadPlane', 'drive.APMrover2', 'dive.ArduSub']
+    #tests = ['fly.ArduCopter','fly.ArduPlane', 'fly.QuadPlane', 'drive.APMrover2', 'dive.ArduSub']
+    tests = ['build.examples','build.unit_tests','run.examples','run.unit_tests',
+             'fly.ArduCopter','fly.ArduPlane', 'fly.QuadPlane', 'drive.APMrover2', 'dive.ArduSub', 
+             'test.AntennaTracker', 'fly.CopterAVC' ]
 
     for test in tests:
         print("LCOV/GCOV -> "+test+" started.... this will take quite some time...")
@@ -359,7 +357,6 @@ def configure(cfg):
     cfg.env.DEBUG = cfg.options.debug
     cfg.env.ENABLE_ASSERTS = cfg.options.enable_asserts
     cfg.env.BOOTLOADER = cfg.options.bootloader
-    cfg.env.USE_NUTTX_IOFW = cfg.options.use_nuttx_iofw
 
     cfg.env.OPTIONS = cfg.options.__dict__
 

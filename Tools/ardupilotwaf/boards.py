@@ -44,7 +44,12 @@ class Board:
         self.configure_env(cfg, env)
 
         # Setup scripting, had to defer this to allow checking board size
-        if (not cfg.options.disable_scripting) and ((cfg.env.BOARD_FLASH_SIZE is None) or (cfg.env.BOARD_FLASH_SIZE == []) or (cfg.env.BOARD_FLASH_SIZE > 1024)):
+        if ((not cfg.options.disable_scripting) and
+            (not cfg.env.DISABLE_SCRIPTING) and
+            ((cfg.env.BOARD_FLASH_SIZE is None) or
+             (cfg.env.BOARD_FLASH_SIZE == []) or
+             (cfg.env.BOARD_FLASH_SIZE > 1024))):
+
             env.DEFINES.update(
                 ENABLE_SCRIPTING = 1,
                 ENABLE_HEAP = 1,
@@ -118,6 +123,7 @@ class Board:
             '-Werror=overflow',
             '-Werror=parentheses',
             '-Werror=format-extra-args',
+            '-Werror=delete-non-virtual-dtor',
         ]
 
         if cfg.options.scripting_checks:
@@ -277,14 +283,6 @@ class Board:
     def embed_ROMFS_files(self, ctx):
         '''embed some files using AP_ROMFS'''
         import embed
-        if ctx.env.USE_NUTTX_IOFW:
-            # use fmuv2_IO_NuttX.bin instead of fmuv2_IO.bin
-            for i in range(len(ctx.env.ROMFS_FILES)):
-                (name,filename) = ctx.env.ROMFS_FILES[i]
-                if name == 'io_firmware.bin':
-                    filename = 'Tools/IO_Firmware/fmuv2_IO_NuttX.bin'
-                    print("Using IO firmware %s" % filename)
-                    ctx.env.ROMFS_FILES[i] = (name,filename);
         header = ctx.bldnode.make_node('ap_romfs_embedded.h').abspath()
         if not embed.create_embedded_h(header, ctx.env.ROMFS_FILES):
             ctx.fatal("Failed to created ap_romfs_embedded.h")
