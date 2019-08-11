@@ -24,8 +24,8 @@
 extern const AP_HAL::HAL &hal;
 
 // parameter defaults
-const float OA_LOOKAHEAD_DEFAULT = 50;
-const float OA_MARGIN_MAX_DEFAULT = 10;
+const float OA_LOOKAHEAD_DEFAULT = 15;
+const float OA_MARGIN_MAX_DEFAULT = 5;
 
 const int16_t OA_TIMEOUT_MS = 2000;             // avoidance results over 2 seconds old are ignored
 
@@ -178,11 +178,6 @@ AP_OAPathPlanner::OA_RetState AP_OAPathPlanner::mission_avoidance(const Location
         // we have a result from the thread
         result_origin = avoidance_result.origin_new;
         result_destination = avoidance_result.destination_new;
-        // log result
-        if (avoidance_result.result_time_ms != _logged_time_ms) {
-            _logged_time_ms = avoidance_result.result_time_ms;
-            AP::logger().Write_OA(_type, destination, result_destination);
-        }
         return avoidance_result.ret_state;
     }
 
