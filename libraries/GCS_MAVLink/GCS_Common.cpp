@@ -797,6 +797,7 @@ ap_message GCS_MAVLINK::mavlink_id_to_ap_message_id(const uint32_t mavlink_id) c
         { MAVLINK_MSG_ID_AOA_SSA,               MSG_AOA_SSA},
         { MAVLINK_MSG_ID_DEEPSTALL,             MSG_LANDING},
         { MAVLINK_MSG_ID_EXTENDED_SYS_STATE,    MSG_EXTENDED_SYS_STATE},
+        { MAVLINK_MSG_ID_AUTOPILOT_VERSION,     MSG_AUTOPILOT_VERSION},
             };
 
     for (uint8_t i=0; i<ARRAY_SIZE(map); i++) {
@@ -1946,8 +1947,14 @@ void GCS_MAVLINK::handle_set_mode(const mavlink_message_t &msg)
 
     const MAV_RESULT result = _set_mode_common(_base_mode, _custom_mode);
 
-    // send ACK or NAK
-    mavlink_msg_command_ack_send(chan, MAVLINK_MSG_ID_SET_MODE, result);
+    // send ACK or NAK.  Note that this is extraodinarily improper -
+    // we are sending a command-ack for a message which is not a
+    // command.  The command we are acking (ID=11) doesn't actually
+    // exist, but if it did we'd probably be acking something
+    // completely unrelated to setting modes.
+    if (HAVE_PAYLOAD_SPACE(chan, MAVLINK_MSG_ID_COMMAND_ACK)) {
+        mavlink_msg_command_ack_send(chan, MAVLINK_MSG_ID_SET_MODE, result);
+    }
 }
 
 /*
@@ -3143,7 +3150,7 @@ void GCS_MAVLINK::handle_common_mission_message(const mavlink_message_t &msg)
 
 void GCS_MAVLINK::handle_send_autopilot_version(const mavlink_message_t &msg)
 {
-    send_autopilot_version();
+    send_message(MSG_AUTOPILOT_VERSION);
 }
 
 void GCS_MAVLINK::send_banner()
@@ -3362,7 +3369,7 @@ MAV_RESULT GCS_MAVLINK::handle_command_request_autopilot_capabilities(const mavl
         return MAV_RESULT_FAILED;
     }
 
-    send_autopilot_version();
+    send_message(MSG_AUTOPILOT_VERSION);
 
     return MAV_RESULT_ACCEPTED;
 }
@@ -4249,6 +4256,11 @@ bool GCS_MAVLINK::try_send_message(const enum ap_message id)
     case MSG_VIBRATION:
         CHECK_PAYLOAD_SIZE(VIBRATION);
         send_vibration();
+        break;
+
+    case MSG_AUTOPILOT_VERSION:
+        CHECK_PAYLOAD_SIZE(AUTOPILOT_VERSION);
+        send_autopilot_version();
         break;
 
     case MSG_ESC_TELEMETRY: {
