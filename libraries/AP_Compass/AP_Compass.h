@@ -150,8 +150,8 @@ public:
     */
     MAV_RESULT handle_mag_cal_command(const mavlink_command_long_t &packet);
 
-    void send_mag_cal_progress(mavlink_channel_t chan);
-    void send_mag_cal_report(mavlink_channel_t chan);
+    bool send_mag_cal_progress(const class GCS_MAVLINK& link);
+    bool send_mag_cal_report(const class GCS_MAVLINK& link);
 
     // check if the compasses are pointing in the same direction
     bool consistent() const;
@@ -173,13 +173,6 @@ public:
 
     const Vector3f &get_offdiagonals(uint8_t i) const { return _state[i].offdiagonals; }
     const Vector3f &get_offdiagonals(void) const { return get_offdiagonals(get_primary()); }
-    
-    /// Sets the initial location used to get declination
-    ///
-    /// @param  latitude             GPS Latitude.
-    /// @param  longitude            GPS Longitude.
-    ///
-    void set_initial_location(int32_t latitude, int32_t longitude);
 
     // learn offsets accessor
     bool learn_offsets_enabled() const { return _learn == LEARN_INFLIGHT; }
@@ -482,6 +475,14 @@ private:
 
     CompassLearn *learn;
     bool learn_allocated;
+
+    /// Sets the initial location used to get declination
+    ///
+    /// @param  latitude             GPS Latitude.
+    /// @param  longitude            GPS Longitude.
+    ///
+    void try_set_initial_location();
+    bool _initial_location_set;
 };
 
 namespace AP {

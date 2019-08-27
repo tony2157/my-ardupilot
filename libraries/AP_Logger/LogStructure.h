@@ -385,6 +385,7 @@ struct PACKED log_BARO {
     uint32_t sample_time_ms;
     float   drift_offset;
     float   ground_temp;
+    uint8_t healthy;
 };
 
 struct PACKED log_Optflow {
@@ -1129,10 +1130,25 @@ struct PACKED log_SRTL {
     float D;
 };
 
-struct PACKED log_OA {
+struct PACKED log_OABendyRuler {
     LOG_PACKET_HEADER;
     uint64_t time_us;
-    uint8_t algorithm;
+    uint8_t active;
+    uint16_t target_yaw;
+    uint16_t yaw;
+    float margin;
+    int32_t final_lat;
+    int32_t final_lng;
+    int32_t oa_lat;
+    int32_t oa_lng;
+};
+
+struct PACKED log_OADijkstra {
+    LOG_PACKET_HEADER;
+    uint64_t time_us;
+    uint8_t state;
+    uint8_t curr_point;
+    uint8_t tot_points;
     int32_t final_lat;
     int32_t final_lng;
     int32_t oa_lat;
@@ -1174,10 +1190,10 @@ struct PACKED log_Arm_Disarm {
 #define ACC_MULTS "FF000"
 
 // see "struct sensor" in AP_Baro.h and "Write_Baro":
-#define BARO_LABELS "TimeUS,Alt,Press,Temp,CRt,SMS,Offset,GndTemp"
-#define BARO_FMT   "QffcfIff"
-#define BARO_UNITS "smPOnsmO"
-#define BARO_MULTS "F00B0C?0"
+#define BARO_LABELS "TimeUS,Alt,Press,Temp,CRt,SMS,Offset,GndTemp,Health"
+#define BARO_FMT   "QffcfIffB"
+#define BARO_UNITS "smPOnsmO-"
+#define BARO_MULTS "F00B0C?0-"
 
 #define ESC_LABELS "TimeUS,RPM,Volt,Curr,Temp,CTot"
 #define ESC_FMT   "QeCCcH"
@@ -1352,8 +1368,10 @@ struct PACKED log_Arm_Disarm {
       "PM",  "QHHIIHIIII", "TimeUS,NLon,NLoop,MaxT,Mem,Load,IntErr,IntErrCnt,SPICnt,I2CCnt", "s---b%----", "F---0A----" }, \
     { LOG_SRTL_MSG, sizeof(log_SRTL), \
       "SRTL", "QBHHBfff", "TimeUS,Active,NumPts,MaxPts,Action,N,E,D", "s----mmm", "F----000" }, \
-    { LOG_OA_MSG, sizeof(log_OA), \
-      "OA","QBLLLL","TimeUS,Algo,DLat,DLng,OALat,OALng", "s-----", "F-GGGG" }
+    { LOG_OA_BENDYRULER_MSG, sizeof(log_OABendyRuler), \
+      "OABR","QBHHfLLLL","TimeUS,Active,DesYaw,Yaw,Mar,DLat,DLng,OALat,OALng", "sbddmDUDU", "F----GGGG" }, \
+    { LOG_OA_DIJKSTRA_MSG, sizeof(log_OADijkstra), \
+      "OADJ","QBBBLLLL","TimeUS,State,CurrPoint,TotPoints,DLat,DLng,OALat,OALng", "sbbbDUDU", "F---GGGG" }
 
 // messages for more advanced boards
 #define LOG_EXTRA_STRUCTURES \
@@ -1725,7 +1743,8 @@ enum LogMessages : uint8_t {
     LOG_ERROR_MSG,
     LOG_ADSB_MSG,
     LOG_ARM_DISARM_MSG,
-    LOG_OA_MSG,
+    LOG_OA_BENDYRULER_MSG,
+    LOG_OA_DIJKSTRA_MSG,
 
     _LOG_LAST_MSG_
 };

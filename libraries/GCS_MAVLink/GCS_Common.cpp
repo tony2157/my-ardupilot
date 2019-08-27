@@ -14,6 +14,8 @@
    You should have received a copy of the GNU General Public License
    along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
+#include "GCS.h"
+
 #include <AP_AHRS/AP_AHRS.h>
 #include <AP_HAL/AP_HAL.h>
 #include <AP_Arming/AP_Arming.h>
@@ -35,8 +37,6 @@
 #include <AP_VisualOdom/AP_VisualOdom.h>
 #include <AP_OpticalFlow/OpticalFlow.h>
 #include <AP_Baro/AP_Baro.h>
-
-#include "GCS.h"
 
 #include <stdio.h>
 
@@ -797,6 +797,7 @@ ap_message GCS_MAVLINK::mavlink_id_to_ap_message_id(const uint32_t mavlink_id) c
         { MAVLINK_MSG_ID_AOA_SSA,               MSG_AOA_SSA},
         { MAVLINK_MSG_ID_DEEPSTALL,             MSG_LANDING},
         { MAVLINK_MSG_ID_EXTENDED_SYS_STATE,    MSG_EXTENDED_SYS_STATE},
+        { MAVLINK_MSG_ID_AUTOPILOT_VERSION,     MSG_AUTOPILOT_VERSION},
             };
 
     for (uint8_t i=0; i<ARRAY_SIZE(map); i++) {
@@ -812,7 +813,7 @@ bool GCS_MAVLINK::set_mavlink_message_id_interval(const uint32_t mavlink_id,
 {
     const ap_message id = mavlink_id_to_ap_message_id(mavlink_id);
     if (id == MSG_LAST) {
-        gcs().send_text(MAV_SEVERITY_INFO, "No ap_message for mavlink id (%u)", mavlink_id);
+        gcs().send_text(MAV_SEVERITY_INFO, "No ap_message for mavlink id (%u)", (unsigned int)mavlink_id);
         return false;
     }
     return set_ap_message_interval(id, interval_ms);
@@ -1533,6 +1534,16 @@ void GCS_MAVLINK::send_rc_channels() const
         receiver_rssi);        
 }
 
+bool GCS_MAVLINK::sending_mavlink1() const
+{
+    const mavlink_status_t *status = mavlink_get_channel_status(chan);
+    if (status == nullptr) {
+        // should not happen
+        return true;
+    }
+    return ((status->flags & MAVLINK_STATUS_FLAG_OUT_MAVLINK1) != 0);
+}
+
 void GCS_MAVLINK::send_rc_channels_raw() const
 {
     mavlink_status_t *status = mavlink_get_channel_status(chan);
@@ -1936,8 +1947,14 @@ void GCS_MAVLINK::handle_set_mode(const mavlink_message_t &msg)
 
     const MAV_RESULT result = _set_mode_common(_base_mode, _custom_mode);
 
-    // send ACK or NAK
-    mavlink_msg_command_ack_send(chan, MAVLINK_MSG_ID_SET_MODE, result);
+    // send ACK or NAK.  Note that this is extraodinarily improper -
+    // we are sending a command-ack for a message which is not a
+    // command.  The command we are acking (ID=11) doesn't actually
+    // exist, but if it did we'd probably be acking something
+    // completely unrelated to setting modes.
+    if (HAVE_PAYLOAD_SPACE(chan, MAVLINK_MSG_ID_COMMAND_ACK)) {
+        mavlink_msg_command_ack_send(chan, MAVLINK_MSG_ID_SET_MODE, result);
+    }
 }
 
 /*
@@ -3133,7 +3150,7 @@ void GCS_MAVLINK::handle_common_mission_message(const mavlink_message_t &msg)
 
 void GCS_MAVLINK::handle_send_autopilot_version(const mavlink_message_t &msg)
 {
-    send_autopilot_version();
+    send_message(MSG_AUTOPILOT_VERSION);
 }
 
 void GCS_MAVLINK::send_banner()
@@ -3352,7 +3369,7 @@ MAV_RESULT GCS_MAVLINK::handle_command_request_autopilot_capabilities(const mavl
         return MAV_RESULT_FAILED;
     }
 
-    send_autopilot_version();
+    send_message(MSG_AUTOPILOT_VERSION);
 
     return MAV_RESULT_ACCEPTED;
 }
@@ -3674,7 +3691,7 @@ MAV_RESULT GCS_MAVLINK::handle_command_int_do_set_home(const mavlink_command_int
         return MAV_RESULT_FAILED;
     }
     Location::AltFrame frame;
-    if (!mavlink_coordinate_frame_to_location_alt_frame(packet.frame, frame)) {
+    if (!mavlink_coordinate_frame_to_location_alt_frame((MAV_FRAME)packet.frame, frame)) {
         // unknown coordinate frame
         return MAV_RESULT_UNSUPPORTED;
     }
@@ -3755,26 +3772,6 @@ void GCS_MAVLINK::handle_command_int(const mavlink_message_t &msg)
     mavlink_msg_command_ack_send(chan, packet.command, result);
 
     hal.util->persistent_data.last_mavlink_cmd = 0;
-}
-
-bool GCS_MAVLINK::try_send_compass_message(const enum ap_message id)
-{
-    Compass &compass = AP::compass();
-    bool ret = true;
-    switch (id) {
-    case MSG_MAG_CAL_PROGRESS:
-        compass.send_mag_cal_progress(chan);
-        ret = true;;
-        break;
-    case MSG_MAG_CAL_REPORT:
-        compass.send_mag_cal_report(chan);
-        ret = true;
-        break;
-    default:
-        ret = true;
-        break;
-    }
-    return ret;
 }
 
 void GCS::try_send_queued_message_for_type(MAV_MISSION_TYPE type) {
@@ -4053,8 +4050,10 @@ bool GCS_MAVLINK::try_send_message(const enum ap_message id)
         break;
 
     case MSG_MAG_CAL_PROGRESS:
+        ret = AP::compass().send_mag_cal_progress(*this);
+        break;
     case MSG_MAG_CAL_REPORT:
-        ret = try_send_compass_message(id);
+        ret = AP::compass().send_mag_cal_report(*this);
         break;
 
     case MSG_BATTERY_STATUS:
@@ -4257,6 +4256,11 @@ bool GCS_MAVLINK::try_send_message(const enum ap_message id)
     case MSG_VIBRATION:
         CHECK_PAYLOAD_SIZE(VIBRATION);
         send_vibration();
+        break;
+
+    case MSG_AUTOPILOT_VERSION:
+        CHECK_PAYLOAD_SIZE(AUTOPILOT_VERSION);
+        send_autopilot_version();
         break;
 
     case MSG_ESC_TELEMETRY: {
@@ -4520,7 +4524,7 @@ void GCS::passthru_timer(void)
     }
 }
 
-bool GCS_MAVLINK::mavlink_coordinate_frame_to_location_alt_frame(const uint8_t coordinate_frame, Location::AltFrame &frame)
+bool GCS_MAVLINK::mavlink_coordinate_frame_to_location_alt_frame(const MAV_FRAME coordinate_frame, Location::AltFrame &frame)
 {
     switch (coordinate_frame) {
     case MAV_FRAME_GLOBAL_RELATIVE_ALT: // solo shot manager incorrectly sends RELATIVE_ALT instead of RELATIVE_ALT_INT

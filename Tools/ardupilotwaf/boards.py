@@ -118,12 +118,14 @@ class Board:
             '-Werror=shadow',
             '-Werror=return-type',
             '-Werror=unused-result',
+            '-Werror=unused-variable',
             '-Werror=narrowing',
             '-Werror=attributes',
             '-Werror=overflow',
             '-Werror=parentheses',
             '-Werror=format-extra-args',
             '-Werror=delete-non-virtual-dtor',
+            '-Werror=ignored-qualifiers',
         ]
 
         if cfg.options.scripting_checks:
@@ -223,6 +225,11 @@ class Board:
             env.CXXFLAGS += [
                 '-Werror=unused-but-set-variable'
             ]
+            (major, minor, patchlevel) = cfg.env.CC_VERSION
+            if int(major) >= 5 and int(minor) > 1 and not self.with_uavcan:
+                env.CXXFLAGS += [
+                    '-Werror=suggest-override',
+                ]
 
         if cfg.env.DEBUG:
             env.CXXFLAGS += [
@@ -360,6 +367,7 @@ class sitl(Board):
         ]
 
         cfg.check_librt(env)
+        cfg.check_feenableexcept()
 
         env.LINKFLAGS += ['-pthread',]
         env.AP_LIBRARIES += [

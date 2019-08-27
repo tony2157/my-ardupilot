@@ -171,8 +171,10 @@ void Copter::read_rangefinder(void)
     // filter rangefinder for use by AC_WPNav
     uint32_t now = AP_HAL::millis();
 
+    const bool timed_out = now - rangefinder_state.last_healthy_ms > RANGEFINDER_TIMEOUT_MS;
+
     if (rangefinder_state.alt_healthy) {
-        if (now - rangefinder_state.last_healthy_ms > RANGEFINDER_TIMEOUT_MS) {
+        if (timed_out) {
             // reset filter if we haven't used it within the last second
             rangefinder_state.alt_cm_filt.reset(rangefinder_state.alt_cm);
         } else {
@@ -182,7 +184,9 @@ void Copter::read_rangefinder(void)
     }
 
     // send rangefinder altitude and health to waypoint navigation library
-    wp_nav->set_rangefinder_alt(rangefinder_state.enabled, rangefinder_state.alt_healthy, rangefinder_state.alt_cm_filt.get());
+    if (rangefinder_state.alt_healthy || timed_out) {
+        wp_nav->set_rangefinder_alt(rangefinder_state.enabled, rangefinder_state.alt_healthy, rangefinder_state.alt_cm_filt.get());
+    }
 
 #else
     rangefinder_state.enabled = false;
@@ -210,21 +214,6 @@ void Copter::rpm_update(void)
         }
     }
 #endif
-}
-
-/*
-  initialise compass's location used for declination
- */
-void Copter::init_compass_location()
-{
-    // update initial location used for declination
-    if (!ap.compass_init_location) {
-        Location loc;
-        if (ahrs.get_position(loc)) {
-            compass.set_initial_location(loc.lat, loc.lng);
-            ap.compass_init_location = true;
-        }
-    }
 }
 
 // initialise optical flow sensor

@@ -231,6 +231,7 @@ def kill_tasks():
             'MAVProxy.exe',
             'runsim.py',
             'AntennaTracker.elf',
+            'scrimmage'
         }
         for vehicle in vinfo.options:
             for frame in vinfo.options[vehicle]["frames"]:
@@ -731,7 +732,7 @@ vehicle_options_string = '|'.join(vinfo.options.keys())
 def generate_frame_help():
     ret = ""
     for vehicle in vinfo.options:
-        frame_options = vinfo.options[vehicle]["frames"].keys()
+        frame_options = sorted(vinfo.options[vehicle]["frames"].keys())
         frame_options_string = '|'.join(frame_options)
         ret += "%s: %s\n" % (vehicle, frame_options_string)
     return ret
