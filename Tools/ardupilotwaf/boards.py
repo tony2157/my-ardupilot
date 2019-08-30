@@ -175,6 +175,7 @@ class Board:
             '-Wno-reorder',
             '-Wno-redundant-decls',
             '-Wno-unknown-pragmas',
+            '-Wno-expansion-to-defined',
             '-Werror=attributes',
             '-Werror=format-security',
             '-Werror=enum-compare',
@@ -480,6 +481,9 @@ class chibios(Board):
         env.CXXFLAGS += env.CFLAGS + [
             '-fno-rtti',
             '-fno-threadsafe-statics',
+        ]
+        env.CFLAGS += [
+            '-std=c11'
         ]
 
         if Utils.unversioned_sys_platform() == 'cygwin':

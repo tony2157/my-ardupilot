@@ -18,16 +18,10 @@
 
 #include "SIM_Scrimmage.h"
 
-#include <fcntl.h>
 #include <stdio.h>
 #include <inttypes.h>
 #include <sys/stat.h>
 #include <sys/types.h>
-#include <cstdlib>
-#include <fstream>
-#include <sstream>
-#include <iostream>
-#include <algorithm>
 
 #include <AP_HAL/AP_HAL.h>
 
@@ -35,8 +29,8 @@ extern const AP_HAL::HAL& hal;
 
 namespace SITL {
 
-Scrimmage::Scrimmage(const char *home_str, const char *_frame_str) :
-    Aircraft(home_str, _frame_str),
+Scrimmage::Scrimmage(const char *_frame_str) :
+    Aircraft(_frame_str),
     prev_timestamp_us(0),
     recv_sock(true),
     send_sock(true),
@@ -128,7 +122,7 @@ void Scrimmage::start_scrimmage(void)
         int ret = system(full_exec_str);
 
         if (ret != 0) {
-            std::cerr << "scrimmage didn't open.\n";
+            ::fprintf(stderr, "scrimmage didn't open.\n");
             perror("scrimmage");
         }
 
