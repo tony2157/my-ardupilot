@@ -619,8 +619,6 @@ void NavEKF3_core::readGpsData()
                 gpsNotAvailable = false;
             }
 
-            frontend->logging.log_gps = true;
-
             // if the GPS has yaw data then input that as well
             float yaw_deg, yaw_accuracy_deg;
             if (AP::gps().gps_yaw_deg(yaw_deg, yaw_accuracy_deg)) {
@@ -630,6 +628,7 @@ void NavEKF3_core::readGpsData()
         } else {
             // report GPS fix status
             gpsCheckStatus.bad_fix = true;
+            hal.util->snprintf(prearm_fail_string, sizeof(prearm_fail_string), "Waiting for 3D fix");
         }
     }
 }

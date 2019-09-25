@@ -6,12 +6,12 @@ import os
 import random
 import re
 import shlex
+import signal
 import subprocess
 import sys
 import tempfile
 import time
 from math import acos, atan2, cos, pi, sqrt
-from subprocess import PIPE, Popen, call, check_call
 
 import pexpect
 
@@ -68,11 +68,11 @@ def run_cmd(cmd, directory=".", show=True, output=False, checkfail=True):
     if show:
         print("Running: (%s) in (%s)" % (cmd_as_shell(cmd), directory,))
     if output:
-        return Popen(cmd, shell=shell, stdout=PIPE, cwd=directory).communicate()[0]
+        return subprocess.Popen(cmd, shell=shell, stdout=subprocess.PIPE, cwd=directory).communicate()[0]
     elif checkfail:
-        return check_call(cmd, shell=shell, cwd=directory)
+        return subprocess.check_call(cmd, shell=shell, cwd=directory)
     else:
-        return call(cmd, shell=shell, cwd=directory)
+        return subprocess.call(cmd, shell=shell, cwd=directory)
 
 
 def rmfile(path):
@@ -166,6 +166,19 @@ def pexpect_close(p):
     """Close a pexpect child."""
     global close_list
 
+    ex = None
+    try:
+        p.kill(signal.SIGTERM)
+    except IOError as e:
+        print("Caught exception: %s" % str(e))
+        ex = e
+        pass
+    if ex is None:
+        # give the process some time to go away
+        for i in range(20):
+            if not p.isalive():
+                break
+            time.sleep(0.05)
     try:
         p.close()
     except Exception:
@@ -296,7 +309,7 @@ def start_SITL(binary,
         cmd.extend(["--uartF=sim:vicon:"])
 
     if gdb and not os.getenv('DISPLAY'):
-        p = subprocess.Popen(cmd)
+        subprocess.Popen(cmd)
         atexit.register(kill_screen_gdb)
         # we are expected to return a pexpect wrapped around the
         # stdout of the ArduPilot binary.  Not going to happen until
@@ -360,7 +373,6 @@ def expect_setup_callback(e, callback):
                 return ret
             except pexpect.TIMEOUT:
                 e.expect_user_callback(e)
-                pass
         print("Timed out looking for %s" % pattern)
         raise pexpect.TIMEOUT(timeout)
 

@@ -332,30 +332,34 @@ void GCS_MAVLINK::send_rangefinder() const
 void GCS_MAVLINK::send_proximity() const
 {
     AP_Proximity *proximity = AP_Proximity::get_singleton();
-    if (proximity == nullptr || proximity->get_status() == AP_Proximity::Proximity_NotConnected) {
+    if (proximity == nullptr) {
         return; // this is wrong, but pretend we sent data and don't requeue
     }
 
+    // get min/max distances
     const uint16_t dist_min = (uint16_t)(proximity->distance_min() * 100.0f); // minimum distance the sensor can measure in centimeters
     const uint16_t dist_max = (uint16_t)(proximity->distance_max() * 100.0f); // maximum distance the sensor can measure in centimeters
+
     // send horizontal distances
-    AP_Proximity::Proximity_Distance_Array dist_array;
-    if (proximity->get_horizontal_distances(dist_array)) {
-        for (uint8_t i = 0; i < PROXIMITY_MAX_DIRECTION; i++) {
-            if (!HAVE_PAYLOAD_SPACE(chan, DISTANCE_SENSOR)) {
-                return;
+    if (proximity->get_status() == AP_Proximity::Proximity_Good) {
+        AP_Proximity::Proximity_Distance_Array dist_array;
+        if (proximity->get_horizontal_distances(dist_array)) {
+            for (uint8_t i = 0; i < PROXIMITY_MAX_DIRECTION; i++) {
+                if (!HAVE_PAYLOAD_SPACE(chan, DISTANCE_SENSOR)) {
+                    return;
+                }
+                mavlink_msg_distance_sensor_send(
+                        chan,
+                        AP_HAL::millis(),                               // time since system boot
+                        dist_min,                                       // minimum distance the sensor can measure in centimeters
+                        dist_max,                                       // maximum distance the sensor can measure in centimeters
+                        (uint16_t)(dist_array.distance[i] * 100.0f),    // current distance reading
+                        MAV_DISTANCE_SENSOR_LASER,                      // type from MAV_DISTANCE_SENSOR enum
+                        PROXIMITY_SENSOR_ID_START + i,                  // onboard ID of the sensor
+                        dist_array.orientation[i],                      // direction the sensor faces from MAV_SENSOR_ORIENTATION enum
+                        0,                                              // Measurement covariance in centimeters, 0 for unknown / invalid readings
+                        0, 0, nullptr);
             }
-            mavlink_msg_distance_sensor_send(
-                    chan,
-                    AP_HAL::millis(),                               // time since system boot
-                    dist_min,                                       // minimum distance the sensor can measure in centimeters
-                    dist_max,                                       // maximum distance the sensor can measure in centimeters
-                    (uint16_t)(dist_array.distance[i] * 100.0f),    // current distance reading
-                    MAV_DISTANCE_SENSOR_LASER,                      // type from MAV_DISTANCE_SENSOR enum
-                    PROXIMITY_SENSOR_ID_START + i,                  // onboard ID of the sensor
-                    dist_array.orientation[i],                      // direction the sensor faces from MAV_SENSOR_ORIENTATION enum
-                    0,                                              // Measurement covariance in centimeters, 0 for unknown / invalid readings
-                    0, 0, nullptr);
         }
     }
 
@@ -587,18 +591,14 @@ void GCS_MAVLINK::handle_param_value(const mavlink_message_t &msg)
     mount->handle_param_value(msg);
 }
 
-void GCS_MAVLINK::send_textv(MAV_SEVERITY severity, const char *fmt, va_list arg_list) const
-{
-    char text[MAVLINK_MSG_STATUSTEXT_FIELD_TEXT_LEN+1];
-    hal.util->vsnprintf(text, sizeof(text), fmt, arg_list);
-    gcs().send_statustext(severity, (1<<chan), text);
-}
 void GCS_MAVLINK::send_text(MAV_SEVERITY severity, const char *fmt, ...) const
 {
+    char text[MAVLINK_MSG_STATUSTEXT_FIELD_TEXT_LEN+1];
     va_list arg_list;
     va_start(arg_list, fmt);
-    send_textv(severity, fmt, arg_list);
+    hal.util->vsnprintf(text, sizeof(text), fmt, arg_list);
     va_end(arg_list);
+    gcs().send_statustext(severity, (1<<chan), text);
 }
 
 void GCS_MAVLINK::handle_radio_status(const mavlink_message_t &msg, bool log_radio)
@@ -1297,6 +1297,11 @@ void GCS_MAVLINK::packetReceived(const mavlink_status_t &status,
 void
 GCS_MAVLINK::update_receive(uint32_t max_time_us)
 {
+    // do absolutely nothing if we are locked
+    if (locked()) {
+        return;
+    }
+
     // receive new packets
     mavlink_message_t msg;
     mavlink_status_t status;
@@ -1307,8 +1312,7 @@ GCS_MAVLINK::update_receive(uint32_t max_time_us)
 
     status.packet_rx_drop_count = 0;
 
-    // process received bytes
-    uint16_t nbytes = comm_get_available(chan);
+    const uint16_t nbytes = _port->available();
     for (uint16_t i=0; i<nbytes; i++)
     {
         const uint8_t c = (uint8_t)_port->read();
@@ -1541,14 +1545,9 @@ bool GCS_MAVLINK::sending_mavlink1() const
 
 void GCS_MAVLINK::send_rc_channels_raw() const
 {
-    mavlink_status_t *status = mavlink_get_channel_status(chan);
-    if (status == nullptr) {
-        // should not happen
-        return;
-    }
     // for mavlink1 send RC_CHANNELS_RAW, for compatibility with OSD
     // implementations
-    if (!(status->flags & MAVLINK_STATUS_FLAG_OUT_MAVLINK1)) {
+    if (!sending_mavlink1()) {
         return;
     }
     AP_RSSI *rssi = AP::rssi();
@@ -1949,7 +1948,9 @@ void GCS::setup_uarts()
         }
     }
 
+#if !HAL_MINIMIZE_FEATURES
     devo_telemetry.init();
+#endif
 }
 
 // report battery2 state
@@ -2475,7 +2476,6 @@ MAV_RESULT GCS_MAVLINK::handle_preflight_reboot(const mavlink_command_long_t &pa
     }
     // force safety on
     hal.rcout->force_safety_on();
-    hal.rcout->force_safety_no_wait();
 
     // flush pending parameter writes
     AP_Param::flush();
@@ -2494,7 +2494,7 @@ MAV_RESULT GCS_MAVLINK::handle_preflight_reboot(const mavlink_command_long_t &pa
  */
 MAV_RESULT GCS_MAVLINK::handle_flight_termination(const mavlink_command_long_t &packet)
 {
-    AP_AdvancedFailsafe *failsafe = get_advanced_failsafe();
+    AP_AdvancedFailsafe *failsafe = AP::advancedfailsafe();
     if (failsafe == nullptr) {
         return MAV_RESULT_UNSUPPORTED;
     }
@@ -2630,6 +2630,7 @@ void GCS_MAVLINK::handle_statustext(const mavlink_message_t &msg)
                                     "SRC=%u/%u:",
                                     msg.sysid,
                                     msg.compid);
+        offset = MIN(offset, max_prefix_len);
     }
 
     memcpy(&text[offset], packet.text, MAVLINK_MSG_STATUSTEXT_FIELD_TEXT_LEN);
@@ -4634,7 +4635,7 @@ uint64_t GCS_MAVLINK::capabilities() const
         ret |= MAV_PROTOCOL_CAPABILITY_MAVLINK2;
     }
 
-    AP_AdvancedFailsafe *failsafe = get_advanced_failsafe();
+    AP_AdvancedFailsafe *failsafe = AP::advancedfailsafe();
     if (failsafe != nullptr && failsafe->enabled()) {
         // Copter and Sub may also set this bit as they can always terminate
         ret |= MAV_PROTOCOL_CAPABILITY_FLIGHT_TERMINATION;

@@ -136,7 +136,7 @@ bool Plane::start_command(const AP_Mission::Mission_Command& cmd)
     case MAV_CMD_DO_FENCE_ENABLE:
 #if GEOFENCE_ENABLED == ENABLED
         if (cmd.p1 != 2) {
-            if (!geofence_set_enabled((bool) cmd.p1, AUTO_TOGGLED)) {
+            if (!geofence_set_enabled((bool) cmd.p1)) {
                 gcs().send_text(MAV_SEVERITY_WARNING, "Unable to set fence. Enabled state to %u", cmd.p1);
             } else {
                 gcs().send_text(MAV_SEVERITY_INFO, "Set fence enabled state to %u", cmd.p1);
@@ -230,7 +230,11 @@ bool Plane::verify_command(const AP_Mission::Mission_Command& cmd)        // Ret
 
         } else {
             // use rangefinder to correct if possible
-            const float height = height_above_target() - rangefinder_correction();
+            float height = height_above_target() - rangefinder_correction();
+            // for flare calculations we don't want to use the terrain
+            // correction as otherwise we will flare early on rising
+            // ground
+            height -= auto_state.terrain_correction;
             return landing.verify_land(prev_WP_loc, next_WP_loc, current_loc,
                 height, auto_state.sink_rate, auto_state.wp_proportion, auto_state.last_flying_ms, arming.is_armed(), is_flying(), rangefinder_state.in_range);
         }
@@ -385,7 +389,7 @@ void Plane::do_land(const AP_Mission::Mission_Command& cmd)
 
 #if GEOFENCE_ENABLED == ENABLED 
     if (g.fence_autoenable == 1) {
-        if (! geofence_set_enabled(false, AUTO_TOGGLED)) {
+        if (! geofence_set_enabled(false)) {
             gcs().send_text(MAV_SEVERITY_NOTICE, "Disable fence failed (autodisable)");
         } else {
             gcs().send_text(MAV_SEVERITY_NOTICE, "Fence disabled (autodisable)");
@@ -528,8 +532,8 @@ bool Plane::verify_takeoff()
             float takeoff_course = wrap_PI(radians(gps.ground_course_cd()*0.01f)) - steer_state.locked_course_err;
             takeoff_course = wrap_PI(takeoff_course);
             steer_state.hold_course_cd = wrap_360_cd(degrees(takeoff_course)*100);
-            gcs().send_text(MAV_SEVERITY_INFO, "Holding course %ld at %.1fm/s (%.1f)",
-                              steer_state.hold_course_cd,
+            gcs().send_text(MAV_SEVERITY_INFO, "Holding course %d at %.1fm/s (%.1f)",
+                              (int)steer_state.hold_course_cd,
                               (double)gps.ground_speed(),
                               (double)degrees(steer_state.locked_course_err));
         }
@@ -741,7 +745,7 @@ bool Plane::verify_loiter_to_alt(const AP_Mission::Mission_Command &cmd)
         if (labs(loiter.sum_cd) > 1 && (loiter.reached_target_alt || loiter.unable_to_acheive_target_alt)) {
             // primary goal completed, initialize secondary heading goal
             if (loiter.unable_to_acheive_target_alt) {
-                gcs().send_text(MAV_SEVERITY_INFO,"Loiter to alt was stuck at %d", current_loc.alt/100);
+                gcs().send_text(MAV_SEVERITY_INFO,"Loiter to alt was stuck at %d", int(current_loc.alt/100));
             }
 
             condition_value = 1;

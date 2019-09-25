@@ -438,6 +438,7 @@ void NavEKF2_core::FuseVelPosNED()
     Vector6 R_OBS; // Measurement variances used for fusion
     Vector6 R_OBS_DATA_CHECKS; // Measurement variances used for data checks only
     float SK;
+    Vector28 Kfusion;
 
     // perform sequential fusion of GPS measurements. This assumes that the
     // errors in the different velocity and position components are
@@ -829,7 +830,7 @@ void NavEKF2_core::selectHeightForFusion()
     if (extNavUsedForPos) {
         // always use external vision as the height source if using for position.
         activeHgtSource = HGT_SOURCE_EV;
-    } else if (((frontend->_useRngSwHgt > 0) || (frontend->_altSource == 1)) && (imuSampleTime_ms - rngValidMeaTime_ms < 500)) {
+    } else if (((frontend->_useRngSwHgt > 0) && (frontend->_altSource == 1)) && (imuSampleTime_ms - rngValidMeaTime_ms < 500)) {
         if (frontend->_altSource == 1) {
             // always use range finder
             activeHgtSource = HGT_SOURCE_RNG;

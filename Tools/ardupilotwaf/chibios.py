@@ -103,13 +103,16 @@ class generate_apj(Task.Task):
             "magic": "APJFWv1",
             "description": "Firmware for a %s board" % self.env.APJ_BOARD_TYPE,
             "image": base64.b64encode(zlib.compress(img,9)).decode('utf-8'),
-            "build_time": int(time.time()),
             "summary": self.env.BOARD,
             "version": "0.1",
             "image_size": len(img),
             "git_identity": self.generator.bld.git_head_hash(short=True),
             "board_revision": 0
         }
+        if self.env.build_dates:
+            # we omit build_time when we don't have build_dates so that apj
+            # file is idential for same git hash and compiler
+            d["build_time"] = int(time.time())
         apj_file = self.outputs[0].abspath()
         f = open(apj_file, "w")
         f.write(json.dumps(d, indent=4))
@@ -369,8 +372,9 @@ def build(bld):
     # implement anywhere (the FILE* functions). This allows us to get link
     # errors if we accidentially try to use one of those functions either
     # directly or via another libc call
-    wraplist = ['sscanf', 'snprintf',
-                'fopen', 'fread', 'fprintf', 'fflush', 'fwrite', 'fread', 'fputs', 'fgets',
+    wraplist = ['sscanf', 'fprintf', 'snprintf', 'vsnprintf','vasprintf','asprintf','vprintf','scanf',
+                'fiprintf','printf',
+                'fopen', 'fread', 'fflush', 'fwrite', 'fread', 'fputs', 'fgets',
                 'clearerr', 'fseek', 'ferror', 'fclose', 'tmpfile', 'getc', 'ungetc', 'feof',
                 'ftell', 'freopen', 'remove', 'vfprintf', 'fscanf' ]
     for w in wraplist:

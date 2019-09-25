@@ -210,7 +210,7 @@ int16_t Plane::get_takeoff_pitch_min_cd(void)
                 relative_alt_cm >= 1000 &&
                 sec_to_target <= g.takeoff_pitch_limit_reduction_sec) {
                 // make a note of that altitude to use it as a start height for scaling
-                gcs().send_text(MAV_SEVERITY_INFO, "Takeoff level-off starting at %dm", remaining_height_to_target_cm/100);
+                gcs().send_text(MAV_SEVERITY_INFO, "Takeoff level-off starting at %dm", int(remaining_height_to_target_cm/100));
                 auto_state.height_below_takeoff_to_level_off_cm = remaining_height_to_target_cm;
             }
         }
@@ -269,7 +269,7 @@ void Plane::complete_auto_takeoff(void)
 {
 #if GEOFENCE_ENABLED == ENABLED
     if (g.fence_autoenable > 0) {
-        if (! geofence_set_enabled(true, AUTO_TOGGLED)) {
+        if (! geofence_set_enabled(true)) {
             gcs().send_text(MAV_SEVERITY_NOTICE, "Enable fence failed (cannot autoenable");
         } else {
             gcs().send_text(MAV_SEVERITY_INFO, "Fence enabled (autoenabled)");

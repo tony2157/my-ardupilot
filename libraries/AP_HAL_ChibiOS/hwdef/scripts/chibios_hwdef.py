@@ -789,20 +789,28 @@ def parse_i2c_device(dev):
         error("Bad I2C device: %s" % dev)
     busaddr = int(a[2],base=0)
     if a[1] == 'ALL_EXTERNAL':
-        return ('FOREACH_I2C_EXTERNAL(b)', 'hal.i2c_mgr->get_device(b,0x%02x)' % (busaddr))
+        return ('FOREACH_I2C_EXTERNAL(b)', 'GET_I2C_DEVICE(b,0x%02x)' % (busaddr))
     elif a[1] == 'ALL_INTERNAL':
-        return ('FOREACH_I2C_INTERNAL(b)', 'hal.i2c_mgr->get_device(b,0x%02x)' % (busaddr))
+        return ('FOREACH_I2C_INTERNAL(b)', 'GET_I2C_DEVICE(b,0x%02x)' % (busaddr))
     elif a[1] == 'ALL':
-        return ('FOREACH_I2C(b)', 'hal.i2c_mgr->get_device(b,0x%02x)' % (busaddr))
+        return ('FOREACH_I2C(b)', 'GET_I2C_DEVICE(b,0x%02x)' % (busaddr))
     busnum = int(a[1])
-    return ('', 'hal.i2c_mgr->get_device(%u,0x%02x)' % (busnum, busaddr))
+    return ('', 'GET_I2C_DEVICE(%u,0x%02x)' % (busnum, busaddr))
+
+def seen_str(dev):
+    '''return string representation of device for checking for duplicates'''
+    return str(dev[:2])
 
 def write_IMU_config(f):
     '''write IMU config defines'''
     global imu_list
     devlist = []
     wrapper = ''
+    seen = set()
     for dev in imu_list:
+        if seen_str(dev) in seen:
+            error("Duplicate IMU: %s" % seen_str(dev))
+        seen.add(seen_str(dev))
         driver = dev[0]
         for i in range(1,len(dev)):
             if dev[i].startswith("SPI:"):
@@ -818,10 +826,14 @@ def write_IMU_config(f):
         f.write('#define HAL_INS_PROBE_LIST %s\n\n' % ';'.join(devlist))
 
 def write_MAG_config(f):
-    '''write IMU config defines'''
+    '''write MAG config defines'''
     global compass_list
     devlist = []
+    seen = set()
     for dev in compass_list:
+        if seen_str(dev) in seen:
+            error("Duplicate MAG: %s" % seen_str(dev))
+        seen.add(seen_str(dev))
         driver = dev[0]
         probe = 'probe'
         wrapper = ''
@@ -846,7 +858,11 @@ def write_BARO_config(f):
     '''write barometer config defines'''
     global baro_list
     devlist = []
+    seen = set()
     for dev in baro_list:
+        if seen_str(dev) in seen:
+            error("Duplicate BARO: %s" % seen_str(dev))
+        seen.add(seen_str(dev))
         driver = dev[0]
         probe = 'probe'
         wrapper = ''
@@ -1086,7 +1102,7 @@ def write_PWM_config(f):
                 if p.type not in pwm_timers:
                     pwm_timers.append(p.type)
 
-    if not pwm_out:
+    if not pwm_out and not alarm:
         print("No PWM output defined")
         f.write('''
 #ifndef HAL_USE_PWM
@@ -1623,7 +1639,7 @@ def process_line(line):
         bylabel.pop(a[1],'')
         #also remove all occurences of defines in previous lines if any
         for line in alllines[:]:
-            if line.startswith('define') and a[1] in line:
+            if line.startswith('define') and a[1] == line.split()[1]:
                 alllines.remove(line)
         newpins = []
         for pin in allpins:

@@ -67,7 +67,6 @@ public:
     bool        init(uint8_t instance);
     void        send_message(enum ap_message id);
     void        send_text(MAV_SEVERITY severity, const char *fmt, ...) const FMT_PRINTF(3, 4);
-    void        send_textv(MAV_SEVERITY severity, const char *fmt, va_list arg_list) const;
     void        queued_param_send();
     void        queued_mission_request_send();
 
@@ -215,6 +214,8 @@ public:
     void send_set_position_target_global_int(uint8_t target_system, uint8_t target_component, const Location& loc);
     void send_rpm() const;
 
+    bool locked() const;
+
     // return a bitmap of active channels. Used by libraries to loop
     // over active channels to send to all active channels    
     static uint8_t active_channel_mask(void) { return mavlink_active; }
@@ -281,7 +282,6 @@ protected:
     // overridable method to check for packet acceptance. Allows for
     // enforcement of GCS sysid
     bool accept_packet(const mavlink_status_t &status, const mavlink_message_t &msg);
-    virtual AP_AdvancedFailsafe *get_advanced_failsafe() const { return nullptr; };
     virtual bool set_mode(uint8_t mode) = 0;
     void set_ekf_origin(const Location& loc);
 
@@ -762,8 +762,10 @@ public:
     // frsky backend
     AP_Frsky_Telem *frsky;
 
+#if !HAL_MINIMIZE_FEATURES
     // Devo backend
     AP_DEVO_Telem devo_telemetry;
+#endif
 
     // install an alternative protocol handler
     bool install_alternative_protocol(mavlink_channel_t chan, GCS_MAVLINK::protocol_handler_fn_t handler);

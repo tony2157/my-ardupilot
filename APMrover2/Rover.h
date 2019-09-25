@@ -449,6 +449,10 @@ private:
     bool should_log(uint32_t mask);
     bool is_boat() const;
 
+#if OSD_ENABLED == ENABLED
+    void publish_osd_info();
+#endif
+
     enum Failsafe_Action {
         Failsafe_Action_None          = 0,
         Failsafe_Action_RTL           = 1,
@@ -486,9 +490,6 @@ public:
 
     // Simple mode
     float simple_sin_yaw;
-
-    // sailboat enabled
-    bool get_sailboat_enable() { return g2.sailboat.enabled(); }
 };
 
 extern const AP_HAL::HAL& hal;

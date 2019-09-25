@@ -4,6 +4,10 @@
 // returns desired yaw rate in centi-degrees per second
 float Copter::get_pilot_desired_yaw_rate(int16_t stick_angle)
 {
+    // throttle failsafe check
+    if (failsafe.radio || !ap.rc_receiver_present) {
+        return 0.0f;
+    }
     float yaw_request;
 
     // calculate yaw rate request
@@ -43,7 +47,7 @@ void Copter::update_throttle_hover()
     }
 
     // do not update in manual throttle modes or Drift
-    if (flightmode->has_manual_throttle() || (control_mode == DRIFT)) {
+    if (flightmode->has_manual_throttle() || (control_mode == Mode::Number::DRIFT)) {
         return;
     }
 
@@ -56,7 +60,8 @@ void Copter::update_throttle_hover()
     float throttle = motors->get_throttle();
 
     // calc average throttle if we are in a level hover
-    if (throttle > 0.0f && abs(inertial_nav.get_velocity_z()) < 60 && labs(ahrs.roll_sensor) < 500 && labs(ahrs.pitch_sensor) < 500) {
+    if (throttle > 0.0f && fabsf(inertial_nav.get_velocity_z()) < 60 &&
+        labs(ahrs.roll_sensor) < 500 && labs(ahrs.pitch_sensor) < 500) {
         // Can we set the time constant automatically
         motors->update_throttle_hover(0.01f);
     }
@@ -75,7 +80,7 @@ void Copter::set_throttle_takeoff()
 float Copter::get_pilot_desired_climb_rate(float throttle_control)
 {
     // throttle failsafe check
-    if (failsafe.radio) {
+    if (failsafe.radio || !ap.rc_receiver_present) {
         return 0.0f;
     }
 

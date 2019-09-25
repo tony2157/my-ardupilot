@@ -457,7 +457,6 @@ private:
     struct {
         bool enabled:1;
         bool log_compass:1;
-        bool log_gps:1;
         bool log_baro:1;
         bool log_imu:1;
     } logging;
@@ -492,6 +491,11 @@ private:
 
     // time of last lane switch
     uint32_t lastLaneSwitch_ms;
+
+    /*
+      common intermediate variables used by all cores
+    */
+    void *core_common;
 
     // update the yaw reset data to capture changes due to a lane switch
     // new_primary - index of the ekf instance that we are about to switch to as the primary
