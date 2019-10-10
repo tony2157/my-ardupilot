@@ -321,23 +321,6 @@ Vector3f rand_vec3f(void)
 }
 #endif
 
-bool is_valid_octal(uint16_t octal)
-{
-    // treat "octal" as decimal and test if any decimal digit is > 7
-    if (octal > 7777) {
-        return false;
-    } else if (octal % 10 > 7) {
-        return false;
-    } else if ((octal % 100)/10 > 7) {
-        return false;
-    } else if ((octal % 1000)/100 > 7) {
-        return false;
-    } else if ((octal % 10000)/1000 > 7) {
-        return false;
-    }
-    return true;
-}
-
 /*
   return true if two rotations are equivalent
   This copes with the fact that we have some duplicates, like ROLL_180_YAW_90 and PITCH_180_YAW_270
@@ -356,10 +339,12 @@ bool rotation_equal(enum Rotation r1, enum Rotation r2)
 }
 
 
+#if CONFIG_HAL_BOARD == HAL_BOARD_SITL
 // fill an array of float with NaN, used to invalidate memory in SITL
 void fill_nanf(float *f, uint16_t count)
 {
     while (count--) {
-        *f++ = nanf("fill");
+        *f++ = std::numeric_limits<float>::signaling_NaN();
     }
 }
+#endif

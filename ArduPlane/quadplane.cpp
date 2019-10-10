@@ -475,7 +475,6 @@ static const struct AP_Param::defaults_table_struct defaults_table[] = {
     { "Q_A_RAT_PIT_I",    0.25 },
     { "Q_A_RAT_PIT_FLTD", 10.0 },
     { "Q_M_SPOOL_TIME",   0.25 },
-    { "Q_M_HOVER_LEARN",     0 },
     { "Q_LOIT_ANG_MAX",   15.0 },
     { "Q_LOIT_ACC_MAX",   250.0 },
     { "Q_LOIT_BRK_ACCEL", 50.0 },
@@ -983,12 +982,16 @@ float QuadPlane::get_pilot_throttle()
     // normalize to [0,1]
     throttle_in /= plane.channel_throttle->get_range();
 
-    // get hover throttle level [0,1]
-    float thr_mid = motors->get_throttle_hover();
-    float thrust_curve_expo = constrain_float(throttle_expo, 0.0f, 1.0f);
+    if (is_positive(throttle_expo)) {
+        // get hover throttle level [0,1]
+        float thr_mid = motors->get_throttle_hover();
+        float thrust_curve_expo = constrain_float(throttle_expo, 0.0f, 1.0f);
 
-    // this puts mid stick at hover throttle
-    return throttle_curve(thr_mid, thrust_curve_expo, throttle_in);;
+        // this puts mid stick at hover throttle
+        return throttle_curve(thr_mid, thrust_curve_expo, throttle_in);;
+    } else {
+        return throttle_in;
+    }
 }
 
 /*
@@ -1825,12 +1828,20 @@ void QuadPlane::update_throttle_hover()
         return;
     }
 
+    // don't update if Z controller not running
+    const uint32_t now = AP_HAL::millis();
+    if (now - last_pidz_active_ms > 20) {
+        return;
+    }
+
     // get throttle output
     float throttle = motors->get_throttle();
 
-    // calc average throttle if we are in a level hover
+    float aspeed;
+    // calc average throttle if we are in a level hover and low airspeed
     if (throttle > 0.0f && fabsf(inertial_nav.get_velocity_z()) < 60 &&
-            labs(ahrs_view->roll_sensor) < 500 && labs(ahrs_view->pitch_sensor) < 500) {
+        labs(ahrs_view->roll_sensor) < 500 && labs(ahrs_view->pitch_sensor) < 500 &&
+        ahrs.airspeed_estimate(&aspeed) && aspeed < plane.aparm.airspeed_min*0.3) {
         // Can we set the time constant automatically
         motors->update_throttle_hover(0.01f);
     }
@@ -2376,7 +2387,7 @@ void QuadPlane::waypoint_controller(void)
 /*
   handle auto-mode when auto_state.vtol_mode is true
  */
-void QuadPlane::control_auto(const Location &loc)
+void QuadPlane::control_auto(void)
 {
     if (!setup()) {
         return;

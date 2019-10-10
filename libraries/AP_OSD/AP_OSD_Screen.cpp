@@ -33,6 +33,7 @@
 #include <AP_BattMonitor/AP_BattMonitor.h>
 #include <AP_GPS/AP_GPS.h>
 #include <AP_Baro/AP_Baro.h>
+#include <AP_RTC/AP_RTC.h>
 
 #include <ctype.h>
 #include <GCS_MAVLink/GCS.h>
@@ -688,6 +689,22 @@ const AP_Param::GroupInfo AP_OSD_Screen::var_info[] = {
     // @Range: 0 15
     AP_SUBGROUPINFO(aspd1, "ASPD1", 42, AP_OSD_Screen, AP_OSD_Setting),
 
+    // @Param: CLK_EN
+    // @DisplayName: CLK_EN
+    // @Description: Displays a clock panel based on AP_RTC local time
+    // @Values: 0:Disabled,1:Enabled
+
+    // @Param: CLK_X
+    // @DisplayName: CLK_X
+    // @Description: Horizontal position on screen
+    // @Range: 0 29
+
+    // @Param: CLK_Y
+    // @DisplayName: CLK_Y
+    // @Description: Vertical position on screen
+    // @Range: 0 15
+    AP_SUBGROUPINFO(clk, "CLK", 43, AP_OSD_Screen, AP_OSD_Setting),
+    
     AP_GROUPEND
 };
 
@@ -782,6 +799,7 @@ AP_OSD_Screen::AP_OSD_Screen()
 #define SYM_FLY       0x9C
 #define SYM_EFF       0xF2
 #define SYM_AH        0xF3
+#define SYM_CLK       0xBC
 
 void AP_OSD_Screen::set_backend(AP_OSD_Backend *_backend)
 {
@@ -935,13 +953,15 @@ void AP_OSD_Screen::draw_current(uint8_t x, uint8_t y)
     AP_BattMonitor &battery = AP::battery();
     float amps;
     if (!battery.current_amps(amps)) {
-        amps = 0;
+        osd->avg_current_a = 0;
     }
-    if (amps < 10.0) {
-        backend->write(x, y, false, "%2.2f%c", amps, SYM_AMP);
+    //filter current and display with autoranging for low values
+    osd->avg_current_a= osd->avg_current_a + (amps - osd->avg_current_a) * 0.33;
+    if (osd->avg_current_a < 10.0) {
+        backend->write(x, y, false, "%2.2f%c", osd->avg_current_a, SYM_AMP);
     }
     else {
-        backend->write(x, y, false, "%2.1f%c", amps, SYM_AMP);
+        backend->write(x, y, false, "%2.1f%c", osd->avg_current_a, SYM_AMP);
     }
 }
 
@@ -1125,6 +1145,8 @@ void AP_OSD_Screen::draw_distance(uint8_t x, uint8_t y, float distance)
         } else {
             fmt = "%4.0f%c";
         }
+    } else if (distance_scaled < 10.0f) {
+        fmt = "% 3.1f%c";
     }
     backend->write(x, y, false, fmt, (double)distance_scaled, unit_icon);
 }
@@ -1382,7 +1404,8 @@ void AP_OSD_Screen::draw_waypoint(uint8_t x, uint8_t y)
 
 void AP_OSD_Screen::draw_xtrack_error(uint8_t x, uint8_t y)
 {
-    backend->write(x, y, false, "%c%4d", SYM_XERR, (int)osd->nav_info.wp_xtrack_error);
+    backend->write(x, y, false, "%c", SYM_XERR);
+    draw_distance(x+1, y, osd->nav_info.wp_xtrack_error);
 }
 
 void AP_OSD_Screen::draw_stat(uint8_t x, uint8_t y)
@@ -1518,6 +1541,18 @@ void AP_OSD_Screen::draw_aspd2(uint8_t x, uint8_t y)
     }
 }
 
+void AP_OSD_Screen::draw_clk(uint8_t x, uint8_t y)
+{
+    AP_RTC &rtc = AP::rtc();
+    uint8_t hour, min, sec;
+    uint16_t ms;
+    if (!rtc.get_local_time(hour, min, sec, ms)) {
+    backend->write(x, y, false, "%c--:--%", SYM_CLK);
+    } else {
+    backend->write(x, y, false, "%c%02u:%02u", SYM_CLK, hour, min);
+    }
+}
+
 #define DRAW_SETTING(n) if (n.enabled) draw_ ## n(n.xpos, n.ypos)
 
 void AP_OSD_Screen::draw(void)
@@ -1559,6 +1594,7 @@ void AP_OSD_Screen::draw(void)
     DRAW_SETTING(atemp);
     DRAW_SETTING(hdop);
     DRAW_SETTING(flightime);
+    DRAW_SETTING(clk);
 
 #ifdef HAVE_AP_BLHELI_SUPPORT
     DRAW_SETTING(blh_temp);

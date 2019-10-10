@@ -19,6 +19,20 @@ extern const AP_HAL::HAL& hal;
 // maximum allowed gyro bias (rad/sec)
 #define GYRO_BIAS_LIMIT 0.5f
 
+/*
+  to run EK2 timing tests you need to set ENABLE_EKF_TIMING to 1, plus setup as follows:
+    - copter at 400Hz
+    - INS_FAST_SAMPLE=0
+    - EKF2_MAG_CAL=4
+    - GPS_TYPE=14
+    - load fakegps in mavproxy
+    - ensure a compass is enabled
+    - wait till EK2 reports "using GPS" (this is important, ignore earlier results)
+
+    DO NOT FLY WITH THIS ENABLED
+ */
+#define ENABLE_EKF_TIMING 0
+
 // constructor
 NavEKF2_core::NavEKF2_core(NavEKF2 *_frontend) :
     _perf_UpdateFilter(hal.util->perf_alloc(AP_HAL::Util::PC_ELAPSED, "EK2_UpdateFilter")),
@@ -29,12 +43,7 @@ NavEKF2_core::NavEKF2_core(NavEKF2 *_frontend) :
     _perf_FuseSideslip(hal.util->perf_alloc(AP_HAL::Util::PC_ELAPSED, "EK2_FuseSideslip")),
     _perf_TerrainOffset(hal.util->perf_alloc(AP_HAL::Util::PC_ELAPSED, "EK2_TerrainOffset")),
     _perf_FuseOptFlow(hal.util->perf_alloc(AP_HAL::Util::PC_ELAPSED, "EK2_FuseOptFlow")),
-    frontend(_frontend),
-    // setup the intermediate variables shared by all cores (to save memory)
-    common((struct core_common *)_frontend->core_common),
-    KH(common->KH),
-    KHP(common->KHP),
-    nextP(common->nextP)
+    frontend(_frontend)
 {
     _perf_test[0] = hal.util->perf_alloc(AP_HAL::Util::PC_ELAPSED, "EK2_Test0");
     _perf_test[1] = hal.util->perf_alloc(AP_HAL::Util::PC_ELAPSED, "EK2_Test1");
@@ -161,7 +170,9 @@ void NavEKF2_core::InitialiseVariables()
     lastKnownPositionNE.zero();
     prevTnb.zero();
     memset(&P[0][0], 0, sizeof(P));
-    memset(common, 0, sizeof(*common));
+    memset(&KH[0][0], 0, sizeof(KH));
+    memset(&KHP[0][0], 0, sizeof(KHP));
+    memset(&nextP[0][0], 0, sizeof(nextP));
     flowDataValid = false;
     rangeDataToFuse  = false;
     Popt = 0.0f;
@@ -519,12 +530,6 @@ void NavEKF2_core::CovarianceInit()
 // Update Filter States - this should be called whenever new IMU data is available
 void NavEKF2_core::UpdateFilter(bool predict)
 {
-#if CONFIG_HAL_BOARD == HAL_BOARD_SITL
-    // fill the common variables with NaN, so we catch any cases in
-    // SITL where they are used without initialisation
-    fill_nanf((float *)common, sizeof(*common)/sizeof(float));
-#endif
-
     // Set the flag to indicate to the filter that the front-end has given permission for a new state prediction cycle to be started
     startPredictEnabled = predict;
 
@@ -534,10 +539,14 @@ void NavEKF2_core::UpdateFilter(bool predict)
     }
 
     // start the timer used for load measurement
-#if EK2_DISABLE_INTERRUPTS
+#if ENABLE_EKF_TIMING
     void *istate = hal.scheduler->disable_interrupts_save();
+    static uint32_t timing_start_us;
+    timing_start_us = AP_HAL::micros();
 #endif
     hal.util->perf_begin(_perf_UpdateFilter);
+
+    fill_scratch_variables();
 
     // TODO - in-flight restart method
 
@@ -585,7 +594,15 @@ void NavEKF2_core::UpdateFilter(bool predict)
 
     // stop the timer used for load measurement
     hal.util->perf_end(_perf_UpdateFilter);
-#if EK2_DISABLE_INTERRUPTS
+#if ENABLE_EKF_TIMING
+    static uint32_t total_us;
+    static uint32_t timing_counter;
+    total_us += AP_HAL::micros() - timing_start_us;
+    if (timing_counter++ == 4000) {
+        hal.console->printf("ekf2 avg %.2f us\n", total_us / float(timing_counter));
+        total_us = 0;
+        timing_counter = 0;
+    }
     hal.scheduler->restore_interrupts(istate);
 #endif
 

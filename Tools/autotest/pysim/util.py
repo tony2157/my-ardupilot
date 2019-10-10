@@ -227,7 +227,6 @@ def kill_screen_gdb():
     cmd = ["screen", "-X", "-S", "ardupilot-gdb", "quit"]
     subprocess.Popen(cmd)
 
-
 def start_SITL(binary,
                valgrind=False,
                gdb=False,
@@ -241,7 +240,8 @@ def start_SITL(binary,
                gdbserver=False,
                breakpoints=[],
                disable_breakpoints=False,
-               vicon=False):
+               vicon=False,
+               lldb=False):
     """Launch a SITL instance."""
     cmd = []
     if valgrind and os.path.exists('/usr/bin/valgrind'):
@@ -289,6 +289,19 @@ def start_SITL(binary,
                         '-m',
                         '-S', 'ardupilot-gdb',
                         'gdb', '-x', '/tmp/x.gdb', binary, '--args'])
+    elif lldb:
+        f = open("/tmp/x.lldb", "w")
+        for breakpoint in breakpoints:
+            f.write("b %s\n" % (breakpoint,))
+        if disable_breakpoints:
+            f.write("disable\n")
+        f.write("settings set target.process.stop-on-exec false\n")
+        f.write("process launch\n")
+        f.close()
+        if os.environ.get('DISPLAY'):
+            cmd.extend(['xterm', '-e', 'lldb', '-s','/tmp/x.lldb', '--'])
+        else:
+            raise RuntimeError("DISPLAY was not set")
 
     cmd.append(binary)
     if wipe:
@@ -328,7 +341,7 @@ def start_SITL(binary,
     pexpect_autoclose(child)
     # give time for parameters to properly setup
     time.sleep(3)
-    if gdb:
+    if gdb or lldb:
         # if we run GDB we do so in an xterm.  "Waiting for
         # connection" is never going to appear on xterm's output.
         # ... so let's give it another magic second.
@@ -340,12 +353,26 @@ def start_SITL(binary,
     return child
 
 
+def mavproxy_cmd():
+    '''return path to which mavproxy to use'''
+    return os.getenv('MAVPROXY_CMD', 'mavproxy.py')
+
+def MAVProxy_version():
+    '''return the current version of mavproxy as a tuple e.g. (1,8,8)'''
+    command = "%s --version" % mavproxy_cmd()
+    output = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE).communicate()[0]
+    output = output.decode('ascii')
+    match = re.search("MAVProxy Version: ([0-9]+)[.]([0-9]+)[.]([0-9]+)", output)
+    if match is None:
+        raise ValueError("Unable to determine MAVProxy version from (%s)" % output)
+    return (int(match.group(1)), int(match.group(2)), int(match.group(3)))
+
 def start_MAVProxy_SITL(atype, aircraft=None, setup=False, master='tcp:127.0.0.1:5760',
                         options=[], logfile=sys.stdout):
     """Launch mavproxy connected to a SITL instance."""
     import pexpect
     global close_list
-    MAVPROXY = os.getenv('MAVPROXY_CMD', 'mavproxy.py')
+    MAVPROXY = mavproxy_cmd()
     cmd = MAVPROXY + ' --master=%s --out=127.0.0.1:14550' % master
     if setup:
         cmd += ' --setup'

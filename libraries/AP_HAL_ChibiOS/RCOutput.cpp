@@ -165,19 +165,22 @@ void RCOutput::set_freq_group(pwm_group &group)
  */
 void RCOutput::set_freq(uint32_t chmask, uint16_t freq_hz)
 {
-    //check if the request spans accross any of the channel groups
-    uint8_t update_mask = 0;
-
 #if HAL_WITH_IO_MCU
     if (AP_BoardConfig::io_enabled()) {
         // change frequency on IOMCU
         uint16_t io_chmask = chmask & 0xFF;
-        if (freq_hz > 50) {
-            io_fast_channel_mask |= io_chmask;
-        } else {
-            io_fast_channel_mask &= ~io_chmask;
-        }
         if (io_chmask) {
+            // disallow changing frequency of this group if it is greater than the default
+            for (uint8_t i=0; i<ARRAY_SIZE(iomcu.ch_masks); i++) {
+                const uint16_t mask = io_chmask & iomcu.ch_masks[i];
+                if (mask != 0) {
+                    if (freq_hz > 50) {
+                        io_fast_channel_mask |= mask;
+                    } else {
+                        io_fast_channel_mask &= ~mask;
+                    }
+                }
+            }
             iomcu.set_freq(io_fast_channel_mask, freq_hz);
         }
     }
@@ -193,7 +196,7 @@ void RCOutput::set_freq(uint32_t chmask, uint16_t freq_hz)
       we enable the new frequency on all groups that have one
       of the requested channels. This means we may enable high
       speed on some channels that aren't requested, but that
-      is needed in order to fly a vehicle such a a hex
+      is needed in order to fly a vehicle such as a hex
       multicopter properly
     */
     for (uint8_t i = 0; i < NUM_GROUPS; i++ ) {
@@ -207,10 +210,10 @@ void RCOutput::set_freq(uint32_t chmask, uint16_t freq_hz)
         if ((group.ch_mask & chmask) != 0) {
             group.rc_frequency = group_freq;
             set_freq_group(group);
-            update_mask |= group.ch_mask;
-        }
-        if (group_freq > 50) {
-            fast_channel_mask |= group.ch_mask;
+            // disallow changing frequency of this group if it is greater than the default
+            if (group_freq > 50) {
+                fast_channel_mask |= group.ch_mask;
+            }
         }
     }
 }
@@ -604,10 +607,11 @@ void RCOutput::set_group_mode(pwm_group &group)
         const uint32_t bit_period = 20;
 
         // configure timer driver for DMAR at requested rate
-        const uint8_t pad_bits = 50;
+        const uint8_t pad_end_bits = 8;
+        const uint8_t pad_start_bits = 1;
         const uint8_t bits_per_pixel = 24;
         const uint8_t channels_per_group = 4;
-        const uint16_t neopixel_bit_length = bits_per_pixel * channels_per_group * group.neopixel_nleds + pad_bits;
+        const uint16_t neopixel_bit_length = bits_per_pixel * channels_per_group * group.neopixel_nleds + (pad_start_bits + pad_end_bits) * channels_per_group;
         const uint16_t neopixel_buffer_length = neopixel_bit_length * sizeof(uint32_t);
         if (!setup_group_DMA(group, rate, bit_period, true, neopixel_buffer_length)) {
             group.current_mode = MODE_PWM_NONE;
@@ -1624,9 +1628,10 @@ void RCOutput::set_neopixel_rgb_data(const uint16_t chan, uint32_t ledmask, uint
     uint8_t led = 0;
     while (ledmask) {
         if (ledmask & 1) {
+            const uint8_t pad_start_bits = 1;
             const uint8_t neopixel_bit_length = 24;
             const uint8_t stride = 4;
-            uint32_t *buf = grp->dma_buffer + (led * neopixel_bit_length) * stride + i;
+            uint32_t *buf = grp->dma_buffer + (led * neopixel_bit_length + pad_start_bits) * stride + i;
             uint32_t bits = (green<<16) | (red<<8) | blue;
             const uint32_t BIT_0 = 7 * grp->bit_width_mul;
             const uint32_t BIT_1 = 14 * grp->bit_width_mul;

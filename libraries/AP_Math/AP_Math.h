@@ -274,11 +274,11 @@ float rand_float(void);
 // generate a random Vector3f of size 1
 Vector3f rand_vec3f(void);
 
-// confirm a value is a valid octal value
-bool is_valid_octal(uint16_t octal) WARN_IF_UNUSED;
-
 // return true if two rotations are equal
 bool rotation_equal(enum Rotation r1, enum Rotation r2) WARN_IF_UNUSED;
 
+#if CONFIG_HAL_BOARD == HAL_BOARD_SITL
 // fill an array of float with NaN, used to invalidate memory in SITL
 void fill_nanf(float *f, uint16_t count);
+#endif
+

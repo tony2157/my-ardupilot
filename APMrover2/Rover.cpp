@@ -35,6 +35,8 @@
 #include "version.h"
 #undef FORCE_VERSION_H_INCLUDE
 
+#include "AP_Gripper/AP_Gripper.h"
+
 const AP_HAL::HAL& hal = AP_HAL::get_HAL();
 
 #define SCHED_TASK(func, _interval_ticks, _max_time_micros) SCHED_TASK_CLASS(Rover, &rover, func, _interval_ticks, _max_time_micros)
@@ -59,6 +61,7 @@ const AP_Scheduler::Task Rover::scheduler_tasks[] = {
 #if VISUAL_ODOMETRY_ENABLED == ENABLED
     SCHED_TASK_CLASS(AP_VisualOdom,       &rover.g2.visual_odom,   update,         50,  200),
 #endif
+    SCHED_TASK_CLASS(AC_Fence,            &rover.g2.fence,         update,         10,  100),
     SCHED_TASK(update_wheel_encoder,   50,    200),
     SCHED_TASK(update_compass,         10,    200),
     SCHED_TASK(update_mission,         50,    200),
@@ -113,6 +116,7 @@ const AP_Scheduler::Task Rover::scheduler_tasks[] = {
 constexpr int8_t Rover::_failsafe_priorities[7];
 
 Rover::Rover(void) :
+    AP_Vehicle(),
     param_loader(var_info),
     channel_steer(nullptr),
     channel_throttle(nullptr),
@@ -330,7 +334,7 @@ void Rover::update_mission(void)
 #if OSD_ENABLED == ENABLED
 void Rover::publish_osd_info()
 {
-    AP_OSD::NavInfo nav_info {};
+    AP_OSD::NavInfo nav_info {0};
     if (control_mode == &mode_loiter) {
         nav_info.wp_xtrack_error = control_mode->get_distance_to_destination();
     } else {

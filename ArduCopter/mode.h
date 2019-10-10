@@ -1262,6 +1262,7 @@ public:
     using ModeGuided::Mode;
 
     bool init(bool ignore_checks) override;
+    void exit();
     void run() override;
 
     bool requires_GPS() const override { return true; }
