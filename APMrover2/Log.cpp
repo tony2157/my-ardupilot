@@ -28,7 +28,7 @@ void Rover::Log_Write_Attitude()
     }
 
     // log heel to sail control for sailboats
-    if (rover.g2.sailboat.enabled()) {
+    if (rover.g2.sailboat.sail_enabled()) {
         logger.Write_PID(LOG_PIDR_MSG, g2.attitude_control.get_sailboat_heel_pid().get_pid_info());
     }
 #if CONFIG_HAL_BOARD == HAL_BOARD_SITL
@@ -123,7 +123,7 @@ void Rover::Log_Write_Nav_Tuning()
 void Rover::Log_Write_Sail()
 {
     // only log sail if present
-    if (!rover.g2.sailboat.enabled()) {
+    if (!rover.g2.sailboat.sail_enabled()) {
         return;
     }
 
@@ -133,12 +133,12 @@ void Rover::Log_Write_Sail()
     float wind_speed_true = logger.quiet_nanf();
     float wind_speed_apparent = logger.quiet_nanf();
     if (rover.g2.windvane.enabled()) {
-        wind_dir_abs = degrees(g2.windvane.get_absolute_wind_direction_rad());
+        wind_dir_abs = degrees(g2.windvane.get_true_wind_direction_rad());
         wind_dir_rel = degrees(g2.windvane.get_apparent_wind_direction_rad());
         wind_speed_true = g2.windvane.get_true_wind_speed();
         wind_speed_apparent = g2.windvane.get_apparent_wind_speed();
     }
-    logger.Write("SAIL", "TimeUS,WindDirAbs,WindDirApp,WindSpdTrue,WindSpdApp,SailOut,VMG",
+    logger.Write("SAIL", "TimeUS,WindDirTrue,WindDirApp,WindSpdTrue,WindSpdApp,SailOut,VMG",
                         "shhnn%n", "F000000", "Qffffff",
                         AP_HAL::micros64(),
                         (double)wind_dir_abs,

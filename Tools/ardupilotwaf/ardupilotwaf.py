@@ -34,6 +34,7 @@ COMMON_VEHICLE_DEPENDENT_LIBRARIES = [
     'AP_InertialSensor',
     'AP_Math',
     'AP_Mission',
+    'AP_NavEKF',
     'AP_NavEKF2',
     'AP_NavEKF3',
     'AP_Notify',
@@ -504,6 +505,13 @@ special group "all" selects all programs.
         help='''Upload applicable targets to a connected device. Not all
 platforms may support this. Example: `waf copter --upload` means "build
 arducopter and upload it to my board".
+''')
+
+    g.add_option('--upload-port',
+        action='store',
+        dest='upload_port',
+        default=None,
+        help='''Specify the port to be used with the --upload option. For example a port of /dev/ttyS10 indicates that serial port 10 shuld be used.
 ''')
 
     g = opt.ap_groups['check']

@@ -173,6 +173,7 @@ void AP_Logger::Write_GPS(uint8_t i, uint64_t time_us)
         hacc          : (uint16_t)MIN((hacc*100), UINT16_MAX),
         vacc          : (uint16_t)MIN((vacc*100), UINT16_MAX),
         sacc          : (uint16_t)MIN((sacc*100), UINT16_MAX),
+        yaw_accuracy  : yaw_accuracy_deg,
         have_vv       : (uint8_t)gps.have_vertical_velocity(i),
         sample_ms     : gps.last_message_time_ms(i),
         delta_ms      : gps.last_message_delta_time_ms(i)
@@ -533,31 +534,6 @@ void AP_Logger::Write_POS(AP_AHRS &ahrs)
     WriteBlock(&pkt, sizeof(pkt));
 }
 
-#if AP_AHRS_NAVEKF_AVAILABLE
-
-
-/*
-  write an EKF timing message
- */
-void AP_Logger::Write_EKF_Timing(const char *name, uint64_t time_us, const struct ekf_timing &timing)
-{
-    Write(name,
-              "TimeUS,Cnt,IMUMin,IMUMax,EKFMin,EKFMax,AngMin,AngMax,VMin,VMax",
-              "QIffffffff",
-              time_us,
-              timing.count,
-              (double)timing.dtIMUavg_min,
-              (double)timing.dtIMUavg_max,
-              (double)timing.dtEKFavg_min,
-              (double)timing.dtEKFavg_max,
-              (double)timing.delAngDT_min,
-              (double)timing.delAngDT_max,
-              (double)timing.delVelDT_min,
-              (double)timing.delVelDT_max);
-}
-
-#endif
-
 void AP_Logger::Write_Radio(const mavlink_radio_t &packet)
 {
     const struct log_Radio pkt{
@@ -668,7 +644,7 @@ void AP_Logger::Write_Current_instance(const uint64_t time_us,
     float temp;
     bool has_temp = battery.get_temperature(temp, battery_instance);
     float current, consumed_mah, consumed_wh;
-    if (!battery.current_amps(current)) {
+    if (!battery.current_amps(current, battery_instance)) {
         current = quiet_nanf();
     }
     if (!battery.consumed_mah(consumed_mah, battery_instance)) {
@@ -1013,12 +989,13 @@ void AP_Logger::Write_OABendyRuler(bool active, float target_yaw, float margin, 
     WriteBlock(&pkt, sizeof(pkt));
 }
 
-void AP_Logger::Write_OADijkstra(uint8_t state, uint8_t curr_point, uint8_t tot_points, const Location &final_dest, const Location &oa_dest)
+void AP_Logger::Write_OADijkstra(uint8_t state, uint8_t error_id, uint8_t curr_point, uint8_t tot_points, const Location &final_dest, const Location &oa_dest)
 {
     struct log_OADijkstra pkt{
         LOG_PACKET_HEADER_INIT(LOG_OA_DIJKSTRA_MSG),
         time_us     : AP_HAL::micros64(),
         state       : state,
+        error_id    : error_id,
         curr_point  : curr_point,
         tot_points  : tot_points,
         final_lat   : final_dest.lat,

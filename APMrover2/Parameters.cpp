@@ -558,8 +558,8 @@ const AP_Param::GroupInfo ParametersG2::var_info[] = {
 
     // @Param: MIS_DONE_BEHAVE
     // @DisplayName: Mission done behave
-    // @Description: Mode to become after mission done
-    // @Values: 0:Hold,1:Loiter, 2:Acro
+    // @Description: Behaviour after mission completes
+    // @Values: 0:Hold,1:Loiter,2:Acro
     // @User: Standard
     AP_GROUPINFO("MIS_DONE_BEHAVE", 38, ParametersG2, mis_done_behave, 0),
 
@@ -603,6 +603,31 @@ const AP_Param::GroupInfo ParametersG2::var_info[] = {
     // @Path: ../libraries/AC_Avoidance/AP_OAPathPlanner.cpp
     AP_SUBGROUPINFO(oa, "OA_", 45, ParametersG2, AP_OAPathPlanner),
 
+    // @Param: SPEED_MAX
+    // @DisplayName: Speed maximum
+    // @Description: Maximum speed vehicle can obtain at full throttle. If 0, it will be estimated based on CRUISE_SPEED and CRUISE_THROTTLE.
+    // @Units: m/s
+    // @Range: 0 30
+    // @Increment: 0.1
+    // @User: Advanced
+    AP_GROUPINFO("SPEED_MAX", 46, ParametersG2, speed_max, 0.0f),
+
+    // @Param: LOIT_SPEED_GAIN
+    // @DisplayName: Loiter speed gain
+    // @Description: Determines how agressively LOITER tries to correct for drift from loiter point. Higher is faster but default should be acceptable.
+    // @Range: 0 5
+    // @Increment: 0.01
+    // @User: Advanced
+    AP_GROUPINFO("LOIT_SPEED_GAIN", 47, ParametersG2, loiter_speed_gain, 0.5f),
+
+    // @Param: FS_OPTIONS
+    // @DisplayName: Rover Failsafe Options
+    // @Description: Bitmask to enable Rover failsafe options
+    // @Values: 0:None,1:Failsafe enabled in Hold mode
+    // @Bitmask: 0:Failsafe enabled in Hold mode
+    // @User: Advanced
+    AP_GROUPINFO("FS_OPTIONS", 48, ParametersG2, fs_options, 0),
+
     AP_GROUPEND
 };
 
@@ -626,30 +651,6 @@ const AP_Param::GroupInfo ParametersG2::var_info[] = {
 // @Units: deg
 // @Range: 0 360
 // @Increment: 1
-// @User: Standard
-
-// @Param: WP_RADIUS
-// @DisplayName: Waypoint radius
-// @Description: The distance in meters from a waypoint when we consider the waypoint has been reached. This determines when the rover will turn along the next waypoint path.
-// @Units: m
-// @Range: 0 1000
-// @Increment: 0.1
-// @User: Standard
-
-// @Param: WP_OVERSHOOT
-// @DisplayName: Waypoint overshoot maximum
-// @Description: Waypoint overshoot maximum in meters.  The vehicle will attempt to stay within this many meters of the track as it completes one waypoint and moves to the next.
-// @Units: m
-// @Range: 0 10
-// @Increment: 0.1
-// @User: Standard
-
-// @Param: WP_SPEED
-// @DisplayName: Waypoint speed default
-// @Description: Waypoint speed default.  If zero use CRUISE_SPEED.
-// @Units: m/s
-// @Range: 0 100
-// @Increment: 0.1
 // @User: Standard
 
 // @Param: PIVOT_TURN_RATE

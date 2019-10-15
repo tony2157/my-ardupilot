@@ -39,6 +39,7 @@
 #include "AP_RangeFinder_PWM.h"
 #include "AP_RangeFinder_BLPing.h"
 #include "AP_RangeFinder_UAVCAN.h"
+#include "AP_RangeFinder_Lanbao.h"
 
 #include <AP_BoardConfig/AP_BoardConfig.h>
 #include <AP_Logger/AP_Logger.h>
@@ -502,6 +503,11 @@ void RangeFinder::detect_instance(uint8_t instance, uint8_t& serial_instance)
             drivers[instance] = new AP_RangeFinder_Benewake(state[instance], params[instance], serial_instance++, AP_RangeFinder_Benewake::BENEWAKE_TFmini);
         }
         break;
+    case RangeFinder_TYPE_BenewakeTF03:
+        if (AP_RangeFinder_Benewake::detect(serial_instance)) {
+            drivers[instance] = new AP_RangeFinder_Benewake(state[instance], params[instance], serial_instance++, AP_RangeFinder_Benewake::BENEWAKE_TF03);
+        }
+        break;
     case RangeFinder_TYPE_PWM:
         if (AP_RangeFinder_PWM::detect()) {
             drivers[instance] = new AP_RangeFinder_PWM(state[instance], params[instance], estimated_terrain_height);
@@ -510,6 +516,11 @@ void RangeFinder::detect_instance(uint8_t instance, uint8_t& serial_instance)
     case RangeFinder_TYPE_BLPing:
         if (AP_RangeFinder_BLPing::detect(serial_instance)) {
             drivers[instance] = new AP_RangeFinder_BLPing(state[instance], params[instance], serial_instance++);
+        }
+        break;
+    case RangeFinder_TYPE_Lanbao:
+        if (AP_RangeFinder_Lanbao::detect(serial_instance)) {
+            drivers[instance] = new AP_RangeFinder_Lanbao(state[instance], params[instance], serial_instance++);
         }
         break;
     default:

@@ -4,6 +4,9 @@
 #pragma once
 
 #include <AP_HAL/AP_HAL.h>
+#include <AP_AHRS/AP_AHRS.h>
+#include <AP_AHRS/AP_AHRS_DCM.h>
+#include <AP_AHRS/AP_AHRS_NavEKF.h>
 #include <AP_Common/AP_Common.h>
 #include <AP_Param/AP_Param.h>
 #include <AP_InertialSensor/AP_InertialSensor.h>
@@ -23,7 +26,6 @@
 class AP_Logger_Backend;
 class AP_AHRS;
 class AP_AHRS_View;
-struct ekf_timing;
 
 // do not do anything here apart from add stuff; maintaining older
 // entries means log analysis is easier
@@ -242,7 +244,6 @@ public:
     void Write_Power(void);
     void Write_AHRS2(AP_AHRS &ahrs);
     void Write_POS(AP_AHRS &ahrs);
-    void Write_EKF_Timing(const char *name, uint64_t time_us, const struct ekf_timing &timing);
     void Write_Radio(const mavlink_radio_t &packet);
     void Write_Message(const char *message);
     void Write_MessageF(const char *fmt, ...);
@@ -275,7 +276,7 @@ public:
     void Write_Proximity(AP_Proximity &proximity);
     void Write_SRTL(bool active, uint16_t num_points, uint16_t max_points, uint8_t action, const Vector3f& point);
     void Write_OABendyRuler(bool active, float target_yaw, float margin, const Location &final_dest, const Location &oa_dest);
-    void Write_OADijkstra(uint8_t state, uint8_t curr_point, uint8_t tot_points, const Location &final_dest, const Location &oa_dest);
+    void Write_OADijkstra(uint8_t state, uint8_t error_id, uint8_t curr_point, uint8_t tot_points, const Location &final_dest, const Location &oa_dest);
 
     void Write(const char *name, const char *labels, const char *fmt, ...);
     void Write(const char *name, const char *labels, const char *units, const char *mults, const char *fmt, ...);
