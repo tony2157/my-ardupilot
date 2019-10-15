@@ -560,7 +560,7 @@ class AutoTest(ABC):
         """Get SITL time in seconds."""
         x = self.mav.messages.get("SYSTEM_TIME", None)
         if x is None:
-            return self.get_sim_time()
+            raise NotAchievedException("No cached time available")
         return x.time_boot_ms * 1.0e-3
 
     def delay_sim_time(self, delay):
@@ -1088,6 +1088,7 @@ class AutoTest(ABC):
     def disarm_vehicle(self, timeout=60, force=False):
         """Disarm vehicle with mavlink disarm message."""
         self.progress("Disarm motors with MAVLink cmd")
+        self.drain_mav_unparsed()
         p2 = 0
         if force:
             p2 = 21196 # magic force disarm value
@@ -1606,7 +1607,7 @@ class AutoTest(ABC):
             if m.custom_mode == custom_mode:
                 return True
 
-    def reach_heading_manual(self, heading):
+    def reach_heading_manual(self, heading, turn_right=True):
         """Manually direct the vehicle to the target heading."""
         if self.is_copter():
             self.mavproxy.send('rc 4 1580\n')
@@ -1615,7 +1616,10 @@ class AutoTest(ABC):
         if self.is_plane():
             self.progress("NOT IMPLEMENTED")
         if self.is_rover():
-            self.mavproxy.send('rc 1 1700\n')
+            steering_pwm = 1700
+            if not turn_right:
+                steering_pwm = 1300
+            self.mavproxy.send('rc 1 %u\n' % steering_pwm)
             self.mavproxy.send('rc 3 1550\n')
             self.wait_heading(heading)
             self.set_rc(3, 1500)
@@ -3080,6 +3084,7 @@ class AutoTest(ABC):
             self.clear_mission(mavutil.mavlink.MAV_MISSION_TYPE_MISSION)
             if not self.is_sub() and not self.is_tracker():
                 self.clear_mission(mavutil.mavlink.MAV_MISSION_TYPE_RALLY)
+            self.last_wp_load = time.time()
             return
 
         self.mav.mav.mission_count_send(target_system,
@@ -3101,6 +3106,10 @@ class AutoTest(ABC):
             raise NotAchievedException("Expected MAV_MISSION_ACCEPTED got %s" %
                                        (mavutil.mavlink.enums["MAV_MISSION_RESULT"][m.type].name,))
 
+        if mission_type == mavutil.mavlink.MAV_MISSION_TYPE_MISSION:
+            self.last_wp_load = time.time()
+
+
     def clear_fence_using_mavproxy(self, timeout=10):
         self.mavproxy.send("fence clear\n")
         tstart = self.get_sim_time_cached()
@@ -3121,6 +3130,7 @@ class AutoTest(ABC):
         num_wp = mavwp.MAVWPLoader().count()
         if num_wp != 0:
             raise NotAchievedException("Failed to clear mission")
+        self.last_wp_load = time.time()
 
     def test_sensor_config_error_loop(self):
         '''test the sensor config error loop works and that parameter sets are persistent'''
