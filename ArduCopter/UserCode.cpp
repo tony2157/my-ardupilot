@@ -192,7 +192,7 @@ void Copter::userhook_SuperSlowLoop()
     if(!ap.land_complete && copter.position_ok()){ // !arming.is_armed(), !ap.land_complete, motors->armed()
 
         //Fan Control    
-        if(alt > 185.0f){
+        if(alt > 185.0f && SRV_Channels::get_output_scaled(SRV_Channel::k_egg_drop) < 50){
             SRV_Channels::set_output_scaled(SRV_Channel::k_egg_drop, fan_pwm_on);
             _fan_status = true;
             #if CONFIG_HAL_BOARD == HAL_BOARD_SITL
@@ -200,7 +200,7 @@ void Copter::userhook_SuperSlowLoop()
             #endif
         }
         else{
-            if(alt < 140.0f){
+            if(alt < 140.0f && SRV_Channels::get_output_scaled(SRV_Channel::k_egg_drop) > 50){
                 SRV_Channels::set_output_scaled(SRV_Channel::k_egg_drop, fan_pwm_off);
                 _fan_status = false;
                 #if CONFIG_HAL_BOARD == HAL_BOARD_SITL
@@ -213,28 +213,31 @@ void Copter::userhook_SuperSlowLoop()
         //printf("PWM: %5.2f \n",(float)pwm);
 
         //Wind Estimator Algorithm
-        if(alt > 200.0f){
+        if(alt > 400.0f){
             float aux; //Total area exposed to wind and aux variable
 
             //Current Attitude of the UAS
+            Vector3f _gyro_rate = copter.ins.get_gyro(0);
+            float _yaw_rate = _gyro_rate[2];
+            //printf("yaw: %5.2f \n",_yaw_rate);
             copter.EKF2.getEulerAngles(-1,e_angles);
             _roll = e_angles.x;
             _pitch = e_angles.y;
             _yaw = e_angles.z;
+            
 
             //Estimated horizontal velocity calculated by the EKF2
             //copter.EKF2.getVelNED(-1,vel_xyz);
-            //float speed = copter.inertial_nav.get_speed_xy(); // cm/s
             vel_xyz = copter.inertial_nav.get_velocity();
             speed = norm(vel_xyz.x,vel_xyz.y); // cm/s
             dist_to_wp = copter.wp_nav->get_wp_distance_to_destination(); // cm (horizontally)
 
-            if(speed < 120.0f && dist_to_wp < 500){
+            if(speed < 120.0f && dist_to_wp < 500 && abs(_yaw_rate) < 0.25){
                 if(k <= N-1){
                     // Roll and Pitch accumulation
                     _roll_sum = _roll_sum + _roll;
                     _pitch_sum = _pitch_sum + _pitch;
-                    aux = atan2f(sinf(_roll)*cosf(_pitch), -sinf(_pitch));
+                    aux = atan2f(sinf(_roll)*cosf(_pitch), -sinf(_pitch)*cosf(_roll));
                     var_temp_dir = var_temp_dir + aux*aux;
                     var_temp_gamma = var_temp_gamma + _pitch*_pitch;
                     k = k + 1;
@@ -243,7 +246,7 @@ void Copter::userhook_SuperSlowLoop()
                     // 1st order Estimator, Mean and variance calculation
                     avgP = _pitch_sum/N;
                     avgR = _roll_sum/N;
-                    body_wind_dir = atan2f(sinf(avgR)*cosf(avgP), -sinf(avgP));
+                    body_wind_dir = atan2f(sinf(avgR)*cosf(avgP), -sinf(avgP)*cosf(avgR));
                     var_gamma = var_temp_gamma/N - avgP*avgP;
                     var_wind_dir = var_temp_dir/N - body_wind_dir*body_wind_dir;
                     if (var_wind_dir < 1e-6f){
