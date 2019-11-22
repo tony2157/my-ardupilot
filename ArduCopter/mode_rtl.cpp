@@ -224,7 +224,8 @@ void ModeRTL::loiterathome_run()
     if (!copter.failsafe.radio) {
         // get pilot's desired yaw rate
         target_yaw_rate = get_pilot_desired_yaw_rate(channel_yaw->get_control_in());
-        if (!is_zero(target_yaw_rate)) {
+        //CASS modification: Avoid pilot yaw input while in wind estimator mode
+        if (!is_zero(target_yaw_rate) && auto_yaw.default_mode(true) != AUTO_YAW_INTO_WIND && auto_yaw.default_mode(true) != AUTO_YAW_WIND_CT2) {
             auto_yaw.set_mode(AUTO_YAW_HOLD);
         }
     }
@@ -274,7 +275,15 @@ void ModeRTL::descent_start()
     pos_control->set_target_to_stopping_point_z();
 
     // initialise yaw
-    auto_yaw.set_mode(AUTO_YAW_HOLD);
+    // CASS modification. Keep wind estimator while in RTL
+    if(auto_yaw.default_mode(true) == AUTO_YAW_INTO_WIND){
+        auto_yaw.set_mode(AUTO_YAW_INTO_WIND);}
+    else if(auto_yaw.default_mode(true) == AUTO_YAW_WIND_CT2){
+        auto_yaw.set_mode(AUTO_YAW_WIND_CT2);
+    }
+    else{
+        auto_yaw.set_mode(AUTO_YAW_HOLD);
+    }
 }
 
 // rtl_descent_run - implements the final descent to the RTL_ALT
@@ -357,7 +366,15 @@ void ModeRTL::land_start()
     }
 
     // initialise yaw
-    auto_yaw.set_mode(AUTO_YAW_HOLD);
+    // CASS modification. Keep wind estimator while in RTL
+    if(auto_yaw.default_mode(true) == AUTO_YAW_INTO_WIND){
+        auto_yaw.set_mode(AUTO_YAW_INTO_WIND);}
+    else if(auto_yaw.default_mode(true) == AUTO_YAW_WIND_CT2){
+        auto_yaw.set_mode(AUTO_YAW_WIND_CT2);
+    }
+    else{
+        auto_yaw.set_mode(AUTO_YAW_HOLD);
+    }
 }
 
 bool ModeRTL::is_landing() const
