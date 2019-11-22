@@ -16,14 +16,14 @@ AC_CASS_Imet::AC_CASS_Imet() :
 
 bool AC_CASS_Imet::init(uint8_t busId, uint8_t i2cAddr)
 {
-    config = ADS1015_REG_CONFIG_CQUE_NONE    | // Disable the comparator (default val)
-            ADS1015_REG_CONFIG_CLAT_NONLAT  | // Non-latching (default val)
-            ADS1015_REG_CONFIG_CPOL_ACTVLOW | // Alert/Rdy active low   (default val)
-            ADS1015_REG_CONFIG_CMODE_TRAD   | // Traditional comparator (default val)
-            ADS1015_REG_CONFIG_DR_1600SPS   | // 1600 samples per second (default)
-            ADS1015_REG_CONFIG_MODE_SINGLE  | // Single-shot mode (default)
-            ADS1015_REG_CONFIG_PGA_6_144V   | // Set PGA/voltage range
-            ADS1015_REG_CONFIG_OS_SINGLE;     // Set start single-conversion bit
+    config = ADS1115_REG_CONFIG_CQUE_NONE   | // Disable the comparator (default val)
+            ADS1115_REG_CONFIG_CLAT_NONLAT  | // Non-latching (default val)
+            ADS1115_REG_CONFIG_CPOL_ACTVLOW | // Alert/Rdy active low   (default val)
+            ADS1115_REG_CONFIG_CMODE_TRAD   | // Traditional comparator (default val)
+            ADS1115_REG_CONFIG_DR_128SPS    | // 1600 samples per second (default)
+            ADS1115_REG_CONFIG_MODE_CONTIN  | // Single-shot mode (default)
+            ADS1115_REG_CONFIG_PGA_6_144V   | // Set PGA/voltage range
+            ADS1115_REG_CONFIG_OS_SINGLE;     // Set start single-conversion bit
              
     // Bus 0 is for Pixhawk 2.1 I2C and Bus 1 is for Pixhawk 1 and PixRacer I2C
     _dev = std::move(hal.i2c_mgr->get_device(busId, i2cAddr));
@@ -94,7 +94,7 @@ bool AC_CASS_Imet::_config_read_thermistor()
         } config_pack;
 
         config_pack.reg = 0x01;
-        config_pack.val = htobe16(config | ADS1015_REG_CONFIG_MUX_SINGLE_0);
+        config_pack.val = htobe16(config | ADS1115_REG_CONFIG_MUX_SINGLE_0);
 
         if (!_dev->transfer((uint8_t *)&config_pack, sizeof(config_pack), nullptr, 0)) {
             return false;
@@ -111,7 +111,7 @@ bool AC_CASS_Imet::_config_read_source()
         } config_pack;
 
         config_pack.reg = 0x01;
-        config_pack.val = htobe16(config | ADS1015_REG_CONFIG_MUX_SINGLE_1);
+        config_pack.val = htobe16(config | ADS1115_REG_CONFIG_MUX_SINGLE_1);
 
         if (!_dev->transfer((uint8_t *)&config_pack, sizeof(config_pack), nullptr, 0)) {
             return false;
@@ -163,7 +163,7 @@ void AC_CASS_Imet::_timer(void)
     }
 
     // After 20 samples, re-measure voltage source and update it.
-    if(runs == 20) {
+    if(runs == 100) {
         _config_read_source();
         flag = true;
         runs = 0;
