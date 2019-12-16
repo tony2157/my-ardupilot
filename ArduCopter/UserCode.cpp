@@ -17,7 +17,7 @@ bool _fan_status;
 //Wind estimator Params
 float wsA = 32.8;               //Coefficient A of the linear wind speed equation, from calibration
 float wsB = -4.5;               //Coefficient B of the linear wind speed equation, from calibration
-const int N = 120;               //filter order
+const int N = 60;               //filter order
 float _wind_speed, _wind_dir;   //Estimated parameters
 float _roll, _pitch, _yaw;      //UAS attitude
 float var_temp_dir, var_temp_gamma;
