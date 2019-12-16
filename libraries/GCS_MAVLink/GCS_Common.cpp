@@ -290,7 +290,7 @@ void GCS_MAVLINK::send_distance_sensor() const
     AP_Proximity *proximity = AP_Proximity::get_singleton();
     if (proximity != nullptr) {
         for (uint8_t i = 0; i < proximity->num_sensors(); i++) {
-            if (proximity->get_type(i) == AP_Proximity::Proximity_Type_RangeFinder) {
+            if (proximity->get_type(i) == AP_Proximity::Type::RangeFinder) {
                 filter_possible_proximity_sensors = true;
             }
         }
@@ -342,7 +342,7 @@ void GCS_MAVLINK::send_proximity() const
     const uint16_t dist_max = (uint16_t)(proximity->distance_max() * 100.0f); // maximum distance the sensor can measure in centimeters
 
     // send horizontal distances
-    if (proximity->get_status() == AP_Proximity::Proximity_Good) {
+    if (proximity->get_status() == AP_Proximity::Status::Good) {
         AP_Proximity::Proximity_Distance_Array dist_array;
         if (proximity->get_horizontal_distances(dist_array)) {
             for (uint8_t i = 0; i < PROXIMITY_MAX_DIRECTION; i++) {
@@ -1016,6 +1016,10 @@ void GCS_MAVLINK::update_send()
         // AP_Logger will not send log data if we are armed.
         AP::logger().handle_log_send();
     }
+
+#if HAVE_FILESYSTEM_SUPPORT
+    send_ftp_replies();
+#endif // HAVE_FILESYSTEM_SUPPORT
 
     if (!deferred_messages_initialised) {
         initialise_message_intervals_from_streamrates();
@@ -2216,6 +2220,22 @@ void GCS_MAVLINK::send_gps_global_origin() const
         AP_HAL::micros64());
 }
 
+MAV_STATE GCS_MAVLINK::system_status() const
+{
+    MAV_STATE _system_status = vehicle_system_status();
+    if (_system_status < MAV_STATE_CRITICAL) {
+        // note that POWEROFF and FLIGHT_TERMINATION are both >
+        // CRITICAL, so we will not overwrite POWEROFF and
+        // FLIGHT_TERMINATION even if we have internal errors.  If new
+        // enum entries are added then this may also not overwrite
+        // those.
+        if (AP::internalerror().errors()) {
+            _system_status = MAV_STATE_CRITICAL;
+        }
+    }
+    return _system_status;
+}
+
 /*
   Send MAVLink heartbeat
  */
@@ -3037,6 +3057,11 @@ void GCS_MAVLINK::handle_common_message(const mavlink_message_t &msg)
         AP::logger().handle_mavlink_msg(*this, msg);
         break;
 
+    case MAVLINK_MSG_ID_FILE_TRANSFER_PROTOCOL:
+#if HAVE_FILESYSTEM_SUPPORT
+        handle_file_transfer_protocol(msg);
+#endif // HAVE_FILESYSTEM_SUPPORT
+        break;
 
     case MAVLINK_MSG_ID_DIGICAM_CONTROL:
         {
@@ -3327,6 +3352,7 @@ MAV_RESULT GCS_MAVLINK::_handle_command_preflight_calibration_baro()
 
 MAV_RESULT GCS_MAVLINK::_handle_command_preflight_calibration(const mavlink_command_long_t &packet)
 {
+    EXPECT_DELAY_MS(30000);
     if (is_equal(packet.param1,1.0f)) {
         if (!calibrate_gyros()) {
             return MAV_RESULT_FAILED;
@@ -4692,10 +4718,16 @@ uint64_t GCS_MAVLINK::capabilities() const
     if (AP::rally()) {
         ret |= MAV_PROTOCOL_CAPABILITY_MISSION_RALLY;
     }
+
     if (AP::fence()) {
         // FIXME: plane also supports this...
         ret |= MAV_PROTOCOL_CAPABILITY_MISSION_FENCE;
     }
+
+#if HAVE_FILESYSTEM_SUPPORT
+    ret |= MAV_PROTOCOL_CAPABILITY_FTP;
+#endif // HAVE_FILESYSTEM_SUPPORT
+
     return ret;
 }
 
