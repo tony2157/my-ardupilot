@@ -963,6 +963,8 @@ def write_UART_config(f):
         )
         uart_list.append(config['IOMCU_UART'][0])
         f.write('#define HAL_HAVE_SERVO_VOLTAGE 1\n') # make the assumption that IO gurantees servo monitoring
+        # all IOMCU capable boards have SBUS out
+        f.write('#define AP_FEATURE_SBUS_OUT 1\n')
     else:
         f.write('#define HAL_WITH_IO_MCU 0\n')
     f.write('\n')
@@ -970,6 +972,7 @@ def write_UART_config(f):
     need_uart_driver = False
     OTG2_index = None
     devlist = []
+    have_rts_cts = False
     for dev in uart_list:
         if dev.startswith('UART'):
             n = int(dev[4:])
@@ -985,6 +988,7 @@ def write_UART_config(f):
         if dev + "_RTS" in bylabel:
             p = bylabel[dev + '_RTS']
             rts_line = 'PAL_LINE(GPIO%s,%uU)' % (p.port, p.pin)
+            have_rts_cts = True
         else:
             rts_line = "0"
         if dev.startswith('OTG2'):
@@ -1012,6 +1016,8 @@ def write_UART_config(f):
             f.write("%s, " % get_extra_bylabel(dev + "_RXINV", "POL", "0"))
             f.write("%d, " % get_gpio_bylabel(dev + "_TXINV"))
             f.write("%s}\n" % get_extra_bylabel(dev + "_TXINV", "POL", "0"))
+    if have_rts_cts:
+        f.write('#define AP_FEATURE_RTSCTS 1\n')
     if OTG2_index is not None:
         f.write('#define HAL_OTG2_UART_INDEX %d\n' % OTG2_index)
         f.write('''
