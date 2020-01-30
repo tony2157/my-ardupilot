@@ -918,9 +918,9 @@ private:
     void userhook_init();
     void userhook_FastLoop();
     void userhook_50Hz();
-    void userhook_MediumLoop();
-    void userhook_SlowLoop();
-    void userhook_SuperSlowLoop();
+    void user_temperature_logger();
+    void user_humidity_logger();
+    void user_wind_vane();
     void userhook_auxSwitch1(uint8_t ch_flag);
     void userhook_auxSwitch2(uint8_t ch_flag);
     void userhook_auxSwitch3(uint8_t ch_flag);

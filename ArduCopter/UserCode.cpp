@@ -64,8 +64,8 @@ void Copter::userhook_50Hz()
 }
 #endif
 
-#ifdef USERHOOK_MEDIUMLOOP
-void Copter::userhook_MediumLoop()
+#ifdef USER_TEMPERATURE_LOOP
+void Copter::user_temperature_logger()
 {
     // put your 10Hz code here
     #if CONFIG_HAL_BOARD != HAL_BOARD_SITL
@@ -127,8 +127,8 @@ void Copter::userhook_MediumLoop()
 }
 #endif
 
-#ifdef USERHOOK_SLOWLOOP
-void Copter::userhook_SlowLoop()
+#ifdef USER_HUMIDITY_LOOP
+void Copter::user_humidity_logger()
 {
      #if CONFIG_HAL_BOARD != HAL_BOARD_SITL
         // Read Rel. Humidity, Temperature and Health. Write sensors packet into the SD card
@@ -172,8 +172,8 @@ void Copter::userhook_SlowLoop()
 }
 #endif
 
-#ifdef USERHOOK_SUPERSLOWLOOP
-void Copter::userhook_SuperSlowLoop()
+#ifdef USER_WIND_LOOP
+void Copter::user_wind_vane()
 {
     float var_gamma = 0.0f, var_wind_dir = 0.0f;
     float body_wind_dir = 0.0f;
