@@ -55,7 +55,7 @@ bool AC_CASS_Imet::init(uint8_t busId, uint8_t i2cAddr)
         return false;
     }
 
-    hal.scheduler->delay(5);
+    hal.scheduler->delay(200);
 
     if (!_config_read_source()) {
         printf("IMET read failed");
@@ -63,13 +63,13 @@ bool AC_CASS_Imet::init(uint8_t busId, uint8_t i2cAddr)
         return false;
     }
 
-    hal.scheduler->delay(1000);
+    hal.scheduler->delay(200);
 
     _read_adc(adc_source);
     _config_read_thermistor();
 
     // lower retries for run
-    _dev->set_retries(3);
+    _dev->set_retries(2);
 
     _dev->get_semaphore()->give();
 
@@ -152,31 +152,33 @@ bool AC_CASS_Imet::_read_adc(float &value)
 void AC_CASS_Imet::_timer(void)
 {
     float temp = adc_source;
+    bool temp_healthy;
     // Retreive data from sensor by I2C
+    if(flag == false){
+        temp_healthy = _read_adc(adc_thermistor);
+        runs += 1;
+    }
+    else{
+        temp_healthy = _read_adc(temp);
+        adc_source = (adc_source + temp)/2;
+    }   
+
+    // After 20 samples, re-measure voltage source and update it.
+    if(runs == 100) {
+        _config_read_source();
+        flag = true;
+        runs = 0;
+    }
+    else{
+        _config_read_thermistor();
+        flag = false; 
+    }
+
     if(sem->take(HAL_SEMAPHORE_BLOCK_FOREVER)){
-        if(flag == false){
-            _healthy = _read_adc(adc_thermistor);
-            runs += 1;
-        }
-        else{
-            _healthy = _read_adc(temp);
-            adc_source = (adc_source + temp)/2;
-        }   
-
         // If data was collected, then calculate temperature and resistance
-        if (_healthy) {
+        if (temp_healthy) {
             _calculate(adc_source, adc_thermistor);
-        }
-
-        // After 20 samples, re-measure voltage source and update it.
-        if(runs == 100) {
-            _config_read_source();
-            flag = true;
-            runs = 0;
-        }
-        else{
-            _config_read_thermistor();
-            flag = false; 
+            _healthy = temp_healthy;
         }
         sem->give();
     }
