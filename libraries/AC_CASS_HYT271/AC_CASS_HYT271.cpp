@@ -23,9 +23,12 @@ bool AC_CASS_HYT271::init(uint8_t busId, uint8_t i2cAddr)
         printf("HYT271 device is null!");
         return false;
     }
-    WITH_SEMAPHORE(_sem);
+    
+    WITH_SEMAPHORE(_dev->get_semaphore());
 
     _dev->set_retries(10);
+
+    hal.scheduler->delay(200);
 
     if (!_measure()) {
         printf("HYT271 read failed");
@@ -33,9 +36,7 @@ bool AC_CASS_HYT271::init(uint8_t busId, uint8_t i2cAddr)
     }
 
     // lower retries for run
-    _dev->set_retries(3);
-
-    //_dev->get_semaphore()->give();
+    _dev->set_retries(2);
 
     /* Request 15Hz update */
     // Max conversion time is 12 ms
@@ -77,6 +78,8 @@ bool AC_CASS_HYT271::_collect(float &hum, float &temp)
     raw = (data[0] << 8) | data[1];
     raw = raw & 0x3FFF;
 
+    WITH_SEMAPHORE(_sem);                           // semaphore for access to shared frontend data
+
     hum = (100.0 / (powf(2,14) - 1)) * (float)raw;
 
     data[3] = (data[3] >> 2);
@@ -88,7 +91,6 @@ bool AC_CASS_HYT271::_collect(float &hum, float &temp)
 
 void AC_CASS_HYT271::_timer(void)
 {
-    WITH_SEMAPHORE(_sem);                           // semaphore for access to shared frontend data
     _healthy = _collect(_humidity, _temperature);   // Retreive data from the sensor
     _measure();                                     // Request a new measurement to the sensor
 }

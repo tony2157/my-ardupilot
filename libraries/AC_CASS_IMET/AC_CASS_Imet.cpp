@@ -32,7 +32,8 @@ bool AC_CASS_Imet::init(uint8_t busId, uint8_t i2cAddr)
         printf("IMET device is null!");
         return false;
     }
-    WITH_SEMAPHORE(_sem);
+    
+    WITH_SEMAPHORE(_dev->get_semaphore());
 
     _dev->set_retries(10);
 
@@ -41,7 +42,7 @@ bool AC_CASS_Imet::init(uint8_t busId, uint8_t i2cAddr)
         return false;
     }
 
-    hal.scheduler->delay(5);
+    hal.scheduler->delay(200);
 
     if (!_config_read_source()) {
         printf("IMET read failed");
@@ -63,9 +64,7 @@ bool AC_CASS_Imet::init(uint8_t busId, uint8_t i2cAddr)
     _config_read_thermistor();
 
     // lower retries for run
-    _dev->set_retries(3);
-
-    //_dev->get_semaphore()->give();
+    _dev->set_retries(2);
 
     /* Request 25Hz update */
     // Max conversion time is 12 ms
@@ -146,21 +145,16 @@ bool AC_CASS_Imet::_read_adc(float &value)
 void AC_CASS_Imet::_timer(void)
 {
     // Retreive data from sensor by I2C
-    WITH_SEMAPHORE(_sem);       // semaphore for access to shared frontend data
     float temp = adc_source;
+    bool temp_healthy;
     if(flag == false){
-        _healthy = _read_adc(adc_thermistor);
+        temp_healthy = _read_adc(adc_thermistor);
         runs += 1;
     }
     else{
-        _healthy = _read_adc(temp);
+        temp_healthy = _read_adc(temp);
         adc_source = (adc_source + temp)/2;
     }   
-
-    // If data was collected, then calculate temperature and resistance
-    if (_healthy) {
-        _calculate(adc_source, adc_thermistor);
-    }
 
     // After 20 samples, re-measure voltage source and update it.
     if(runs == 100) {
@@ -171,6 +165,13 @@ void AC_CASS_Imet::_timer(void)
     else{
         _config_read_thermistor();
         flag = false; 
+    }
+
+    WITH_SEMAPHORE(_sem);       // semaphore for access to shared frontend data
+    // If data was collected, then calculate temperature and resistance
+    if (temp_healthy) {
+        _calculate(adc_source, adc_thermistor);
+        _healthy = temp_healthy;
     }
 }
 
