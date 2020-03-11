@@ -25,26 +25,68 @@ void Copter::init_CASS_imet(){
     // coeff[3][1] = 1.0;
     // coeff[3][2] = 1.0;
 
-    //CS3D SENSORS
-    //IMET temp number 57560:
-    coeff[0][0] = 9.98873354e-04f;
-    coeff[0][1] = 2.63219974e-04f;
-    coeff[0][2] = 1.47120693e-07f;
+    // //Scoop E SENSORS
+    // //IMET temp number 62321:
+    // coeff[0][0] = 1.01649866e-03f;
+    // coeff[0][1] = 2.60868443e-04f;
+    // coeff[0][2] = 1.51641342e-07f;
 
-    //IMET temp number 57551:
-    coeff[1][0] = 1.02017189e-03f;
-    coeff[1][1] = 2.60496203e-04f;
-    coeff[1][2] = 1.52569843e-07f;
+    // //IMET temp number 62289:
+    // coeff[1][0] = 1.00537764e-03f;
+    // coeff[1][1] = 2.62828696e-04f;
+    // coeff[1][2] = 1.46265555e-07f;
 
-    //IMET temp number 57558:
-    coeff[2][0] = 1.01048989e-03f;
-    coeff[2][1] = 2.62050421e-04f;
-    coeff[2][2] = 1.48891207e-07f;
+    // //IMET temp number 62299:
+    // coeff[2][0] = 1.01656967e-03f;
+    // coeff[2][1] = 2.60866688e-04f;
+    // coeff[2][2] = 1.51720394e-07f;
+
+    // //IMET temp number none:
+    // coeff[3][0] = 1.0;
+    // coeff[3][1] = 1.0;
+    // coeff[3][2] = 1.0;
+
+    //Scoop F SENSORS
+    //IMET temp number 62275:
+    coeff[0][0] = 1.01689169e-03f;
+    coeff[0][1] = 2.60664507e-04f;
+    coeff[0][2] = 1.51703287e-07f;
+
+    //IMET temp number 62288:
+    coeff[1][0] = 1.01009058e-03f;
+    coeff[1][1] = 2.61933278e-04f;
+    coeff[1][2] = 1.51703287e-07f;
+
+    //IMET temp number 62298:
+    coeff[2][0] = 1.01624431e-03f;
+    coeff[2][1] = 2.60956943e-04f;
+    coeff[2][2] = 1.51882518e-07f;
 
     //IMET temp number none:
     coeff[3][0] = 1.0;
     coeff[3][1] = 1.0;
     coeff[3][2] = 1.0;
+
+    // //CS3D SENSORS
+    // //IMET temp number 57560:
+    // coeff[0][0] = 9.98873354e-04f;
+    // coeff[0][1] = 2.63219974e-04f;
+    // coeff[0][2] = 1.47120693e-07f;
+
+    // //IMET temp number 57551:
+    // coeff[1][0] = 1.02017189e-03f;
+    // coeff[1][1] = 2.60496203e-04f;
+    // coeff[1][2] = 1.52569843e-07f;
+
+    // //IMET temp number 57558:
+    // coeff[2][0] = 1.01048989e-03f;
+    // coeff[2][1] = 2.62050421e-04f;
+    // coeff[2][2] = 1.48891207e-07f;
+
+    // //IMET temp number none:
+    // coeff[3][0] = 1.0;
+    // coeff[3][1] = 1.0;
+    // coeff[3][2] = 1.0;
     
     // //CS2.5 TONYSONDE SENSORS
     // //IMET temp number 57562:
