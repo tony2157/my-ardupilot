@@ -187,29 +187,21 @@ void Copter::userhook_SuperSlowLoop()
     alt = -100.0f*alt;           // get AGL altitude in cm
     //printf("Alt: %5.2f \n",alt);
 
+    //Fan Control    
+    if(AP_HAL::millis() > 18000){
+        SRV_Channels::set_output_scaled(SRV_Channel::k_egg_drop, fan_pwm_on);
+        _fan_status = true;
+    }
+    else{
+        SRV_Channels::set_output_scaled(SRV_Channel::k_egg_drop, fan_pwm_off);
+        _fan_status = false;
+    }
+    //uint16_t pwm;
+    //SRV_Channels::get_output_pwm(SRV_Channel::k_egg_drop, pwm);
+    //printf("PWM: %5.2f \n",(float)pwm);
+
     //Start estimation after Copter takes off
     if(!ap.land_complete && copter.position_ok()){ // !arming.is_armed(), !ap.land_complete, motors->armed()
-
-        //Fan Control    
-        if(alt > 185.0f && SRV_Channels::get_output_scaled(SRV_Channel::k_egg_drop) < 50){
-            SRV_Channels::set_output_scaled(SRV_Channel::k_egg_drop, fan_pwm_on);
-            _fan_status = true;
-            #if CONFIG_HAL_BOARD == HAL_BOARD_SITL
-                printf("FAN ON \n");  
-            #endif
-        }
-        else{
-            if(alt < 140.0f && SRV_Channels::get_output_scaled(SRV_Channel::k_egg_drop) > 50){
-                SRV_Channels::set_output_scaled(SRV_Channel::k_egg_drop, fan_pwm_off);
-                _fan_status = false;
-                #if CONFIG_HAL_BOARD == HAL_BOARD_SITL
-                    printf("FAN OFF \n");  
-                #endif
-            }
-        }
-        //uint16_t pwm;
-        //SRV_Channels::get_output_pwm(SRV_Channel::k_egg_drop, pwm);
-        //printf("PWM: %5.2f \n",(float)pwm);
 
         //Wind Estimator Algorithm
         if(alt > 400.0f){
@@ -314,8 +306,8 @@ void Copter::userhook_SuperSlowLoop()
         //copter.wp_nav->turn_into_wind_heading = (float)copter.initial_armed_bearing;
         copter.cass_wind_direction = (float)copter.initial_armed_bearing;
         copter.cass_wind_speed = 0.0;
-        SRV_Channels::set_output_scaled(SRV_Channel::k_egg_drop, fan_pwm_off);
-        _fan_status = false;
+        //SRV_Channels::set_output_scaled(SRV_Channel::k_egg_drop, fan_pwm_off);
+        //_fan_status = false;
         k = 0;
         _roll_sum = 0.0f;
         _pitch_sum = 0.0f;
