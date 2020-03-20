@@ -3,6 +3,7 @@
 #include <SRV_Channel/SRV_Channel.h>
 #include <Filter/LowPassFilter2p.h>
 
+
 //Humidity sensor Params
 const int N_RH = 4;     //supports up to 4
 
@@ -18,18 +19,14 @@ bool _fan_status;
 //Wind estimator Params
 float wsA = 32.8;               //Coefficient A of the linear wind speed equation, from calibration
 float wsB = -4.5;               //Coefficient B of the linear wind speed equation, from calibration
-//const int N = 60;               //filter order
 float _wind_speed, _wind_dir;
-float wind_x, wind_y;
-float ang_rot;                  //UAS tilt about axis of rotation
-//float var_temp_dir, var_temp_gamma;
-//float _roll_sum, _pitch_sum, avgR, avgP;
-//float mean_aux_dir[2],var_aux_dir[2];
-//float mean_aux_speed[2],var_aux_speed[2];
-uint8_t k;                      //Number of measured wind dir/speed
+float last_yrate;
+float min_roll = 0.5;            //Minimum roll angle that the wind vane will correct (too low and the copter will oscilate)
+float vane_rate = 1;      //Maximum yaw angle rate at which the Copter will rotate
+float vane_gain = 1;     //Wind vane gain: higher values will increase the resposivness
+
 LowPassFilter2pFloat wind_x_filter;
 LowPassFilter2pFloat wind_y_filter;
-LowPassFilter2pFloat rot_trace_filter;
 
 #ifdef USERHOOK_INIT
 void Copter::userhook_init()
@@ -38,21 +35,11 @@ void Copter::userhook_init()
     // this will be called once at start-up
 
     //Initialize Wind estimator
-    //_wind_dir = 0.0f; _roll = 0.0f; _pitch = 0.0f; _yaw = 0.0f;
-    //_roll_sum = 0.0f; _pitch_sum = 0.0f;
-    //avgR = 0.0; avgP = 0.0;
-    //var_temp_dir = 0.0f; var_temp_gamma = 0.0f;
-    _wind_dir = 0.0f;  _wind_speed = 0.0f; k = 0;
-    //k = 0;
-    //memset(mean_aux_dir,0.0f,sizeof(mean_aux_dir));
-    //memset(var_aux_dir,1000.0f,sizeof(var_aux_dir));
-    //memset(mean_aux_speed,0.0f,sizeof(mean_aux_speed));
-    //memset(var_aux_speed,1000.0f,sizeof(var_aux_speed));
+    _wind_dir = 0.0f;  _wind_speed = 0.0f;
 
     //Wind filter initialization
-    wind_x_filter.set_cutoff_frequency(10,1);
-    wind_y_filter.set_cutoff_frequency(10,1);
-    rot_trace_filter.set_cutoff_frequency(10,1);
+    wind_x_filter.set_cutoff_frequency(20,0.1);
+    wind_y_filter.set_cutoff_frequency(20,0.1);
 
     // Initialize Fan Control
     SRV_Channels::set_output_scaled(SRV_Channel::k_egg_drop, fan_pwm_off);
@@ -185,23 +172,12 @@ void Copter::userhook_SlowLoop()
 #ifdef USERHOOK_SUPERSLOWLOOP
 void Copter::userhook_SuperSlowLoop()
 {
-    //float var_gamma = 0.0f, var_wind_dir = 0.0f;
-    //float body_wind_dir = 0.0f;
-    float speed_xy = 0.0f, dist_to_wp = 0.0f;
-    Vector3f e_angles, vel_xyz;
-    float alt;
-
-    //copter.EKF2.getHAGL(alt);
-    //alt = copter.inertial_nav.get_altitude();
-    //copter.ahrs.get_hagl(alt);
-    copter.ahrs.get_relative_position_D_home(alt);
-    alt = -100.0f*alt;           // get AGL altitude in cm
-    //Vector3f _gyro_rate = copter.ins.get_gyro(0);
-    //float _yaw_rate = _gyro_rate[2];
-    //printf("Alt: %5.2f \n",alt);
-
-    //Start estimation after Copter takes off
+    //Start Algo after Copter takes off
     if(!ap.land_complete && copter.position_ok()){ // !arming.is_armed(), !ap.land_complete, motors->armed()
+
+        float alt;
+        copter.ahrs.get_relative_position_D_home(alt);
+        alt = -100.0f*alt;           // get AGL altitude in cm
 
         //Fan Control    
         if(alt > 185.0f && SRV_Channels::get_output_scaled(SRV_Channel::k_egg_drop) < 50){
@@ -224,45 +200,61 @@ void Copter::userhook_SuperSlowLoop()
         //SRV_Channels::get_output_pwm(SRV_Channel::k_egg_drop, pwm);
         //printf("PWM: %5.2f \n",(float)pwm);
 
-        //Wind Estimator Algorithm
-        //Current Attitude of the UAS
-        const Matrix3f &rotMat = copter.ahrs.get_rotation_body_to_ned(); // rotMat.a.x ... rotMat.c.z
-        float rot_trace = rotMat.a.x + rotMat.b.y + rotMat.c.z;
-        wind_x = -1*rotMat.a.z;
-        wind_y = -1*rotMat.b.z;
-        float filtered_wind_x = wind_x_filter.apply(wind_x);
-        float filtered_wind_y = wind_y_filter.apply(wind_y);
-        //float filtered_rot_trace = rot_trace_filter.apply(rot_trace);
-        _wind_dir = fabs(fmod(atan2f(filtered_wind_y,filtered_wind_x),2*M_PI));
-        ang_rot = acosf((rot_trace-1)/2);
-        //_wind_speed = wsA * sqrtf(tanf(ang_rot)) + wsB;
+        Vector3f vel_xyz = copter.inertial_nav.get_velocity();
+        float speed_xy = norm(vel_xyz.x,vel_xyz.y); // cm/s
+        float dist_to_wp = copter.wp_nav->get_wp_distance_to_destination(); // cm (horizontally)
+        if(speed_xy < 120.0f && dist_to_wp < 500){
+            //Wind Estimator Algorithm
+            //Current target Attitude of the UAS from the attitude controller
+            float troll = copter.wp_nav->get_roll()/100.0f;
+            float tpitch = copter.wp_nav->get_pitch()/100.0f;
 
-        //Estimated horizontal velocity calculated by the EKF2
-        //copter.EKF2.getVelNED(-1,vel_xyz);
-        vel_xyz = copter.inertial_nav.get_velocity();
-        speed_xy = norm(vel_xyz.x,vel_xyz.y); // cm/s
-        dist_to_wp = copter.wp_nav->get_wp_distance_to_destination(); // cm (horizontally)
+            //Get thurst vector elements from the rotation matrix
+            const Matrix3f &rotMat = copter.ahrs.get_rotation_body_to_ned(); // rotMat.a.x ... rotMat.c.z
+            float wind_x = -1*rotMat.a.z;
+            float wind_y = -1*rotMat.b.z;
+            //Filter and determine wind direction by trigonometry (thrust vector tilt)
+            wind_x = wind_x_filter.apply(wind_x);
+            wind_y = wind_y_filter.apply(wind_y);
+            float wind_psi = fmodf(atan2f(wind_y,wind_x),2*M_PI)*180.0f/M_PI;
+            printf("wind_y: %5.2f \n",wind_y);
 
-        if(alt > 400.0f){
-            if(speed_xy < 120.0f && dist_to_wp < 500){
-                    _wind_dir = wrap_360_cd(_wind_dir*5729.6f);
-                    // Send wind direction to the Flight control 
-                    if(alt>4.0f && ang_rot>0.05f){
-                        copter.cass_wind_direction = _wind_dir;
-                    }
-                    else{
-                        // If wind speeds are very slow or none at all (TODO: use wind speed estimation)
-                        copter.cass_wind_direction = copter.wp_nav->get_yaw();
-                    }
+            //Define a dead zone around zero roll
+             if(fabsf(troll) < min_roll){ last_yrate = 0; }
+            // if(troll > 0){ troll -= min_roll;} 
+            // else{ troll += min_roll; }
+            //Convert roll magnitude into desired yaw rate
+            float yrate = constrain_float((troll/5.0f)*vane_gain,-vane_rate,vane_rate);
+            last_yrate = 0.98f*last_yrate + 0.02f*yrate;
+
+            //For large compenstion use "wind_psi" estimator, for fine adjusments use "yrate" estimator
+            if(fabsf(troll)<5){
+                _wind_dir = copter.cass_wind_direction/100.0f + last_yrate;
+                _wind_dir = wrap_360_cd(_wind_dir*100.0f);
+            }
+            else{ 
+                _wind_dir = wrap_360_cd(wind_psi*100.0f);
+            }
+            //Set altitude to start executing the Algo
+            if(alt>400.0f){
+                // Send wind direction to the Flight control 
+                copter.cass_wind_direction = _wind_dir;
+                //Estimate wind speed
+                _wind_speed = wsA * sqrtf(tanf(fabsf(tpitch)*M_PI/180.0f)) + wsB;
+                copter.cass_wind_speed = _wind_speed;
+            }
+            else{
+                copter.cass_wind_direction = copter.wp_nav->get_yaw();
+                copter.cass_wind_speed = 0.0f;
             }
         }
     }
     else{
-        //copter.wp_nav->turn_into_wind_heading = (float)copter.initial_armed_bearing;
         copter.cass_wind_direction = (float)copter.initial_armed_bearing;
-        copter.cass_wind_speed = 0.0;
+        copter.cass_wind_speed = 0.0f;
         SRV_Channels::set_output_scaled(SRV_Channel::k_egg_drop, fan_pwm_off);
         _fan_status = false;
+        last_yrate = 0;
     }
 
     // Write wind direction packet into the SD card
@@ -270,12 +262,8 @@ void Copter::userhook_SuperSlowLoop()
         LOG_PACKET_HEADER_INIT(LOG_WIND_MSG),
         time_stamp             : AP_HAL::micros64(),// - _last_read_ms),
         _wind_dir              : _wind_dir/100,
-        _wind_speed            : 0,
-        _wind_x                : wind_x,
-        _wind_y                : wind_y,
-        _ang_rot               : ang_rot,
-        _pitch_sum             : 0,
-        _yaw                   : 0
+        _wind_speed            : _wind_speed,
+        _param                 : 0
     };
     copter.DataFlash.WriteBlock(&pkt_wind_est, sizeof(pkt_wind_est));
 
