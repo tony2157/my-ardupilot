@@ -48,7 +48,8 @@ struct PACKED log_WIND {
     uint64_t time_stamp;
     float _wind_dir;
     float _wind_speed;
-    float _param;
+    float _R13;
+    float _R23;
 };
 
 float cass_wind_direction;
