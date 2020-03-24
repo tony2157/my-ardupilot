@@ -213,13 +213,12 @@ void Copter::userhook_SuperSlowLoop()
             float tpitch = copter.wp_nav->get_pitch()/100.0f;
 
             //Get thurst vector elements from the rotation matrix
-            const Matrix3f &rotMat = copter.ahrs.get_rotation_body_to_ned(); // rotMat.a.x ... rotMat.c.z
-            R13 = -1*rotMat.a.z;
-            R23 = -1*rotMat.b.z;
+            R13 = -1*copter.ahrs.get_rotation_body_to_ned().a.z;
+            R23 = -1*copter.ahrs.get_rotation_body_to_ned().b.z;
 
             //Filter and determine wind direction by trigonometry (thrust vector tilt)
-            float wind_x = wind_x_filter.apply(R13); //2nd order, 20Hz sampling, 0.1Hz cutoff
-            float wind_y = wind_y_filter.apply(R23); //2nd order, 20Hz sampling, 0.1Hz cutoff
+            float wind_x = wind_x_filter.apply(R13); //2nd order LPF, 20Hz sampling, 0.1Hz cutoff
+            float wind_y = wind_y_filter.apply(R23); //2nd order LPF, 20Hz sampling, 0.1Hz cutoff
             float wind_psi = fmodf(atan2f(wind_y,wind_x),2*M_PI)*180.0f/M_PI;
 
             //Define a dead zone around zero roll
@@ -227,7 +226,7 @@ void Copter::userhook_SuperSlowLoop()
 
             //Convert roll magnitude into desired yaw rate
             float yrate = constrain_float((troll/5.0f)*vane_gain,-vane_rate,vane_rate);
-            last_yrate = 0.98f*last_yrate + 0.02f*yrate;
+            last_yrate = 0.98f*last_yrate + 0.02f*yrate; //1st order LPF
 
             //For large compensation use "wind_psi" estimator, for fine adjusments use "yrate" estimator
             if(fabsf(troll)<5){
