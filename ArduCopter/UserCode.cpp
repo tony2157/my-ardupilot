@@ -252,13 +252,20 @@ void Copter::userhook_SuperSlowLoop()
                 copter.cass_wind_speed = 0.0f;
             }
         }
+        else{
+            wind_x_filter.reset();
+            wind_y_filter.reset();
+            last_yrate = 0.0f;
+        }
     }
     else{
         copter.cass_wind_direction = (float)copter.initial_armed_bearing;
         copter.cass_wind_speed = 0.0f;
         SRV_Channels::set_output_scaled(SRV_Channel::k_egg_drop, fan_pwm_off);
-        _fan_status = false;
+        wind_x_filter.reset();
+        wind_y_filter.reset();
         last_yrate = 0;
+        _fan_status = false;
     }
 
     // Write wind direction packet into the SD card
