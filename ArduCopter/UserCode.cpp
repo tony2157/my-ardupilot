@@ -238,12 +238,13 @@ void Copter::userhook_SuperSlowLoop()
                 last_yrate = 0;
             }
 
+            //Estimate wind speed
+            _wind_speed = wsA * sqrtf(tanf(fabsf(tpitch)*M_PI/180.0f)) + wsB;
+
             //Min altitude at which the yaw command is sent
             if(alt>400.0f){
                 //Send wind direction to the autopilot
                 copter.cass_wind_direction = _wind_dir;
-                //Estimate wind speed
-                _wind_speed = wsA * sqrtf(tanf(fabsf(tpitch)*M_PI/180.0f)) + wsB;
                 copter.cass_wind_speed = _wind_speed;
             }
             else{
