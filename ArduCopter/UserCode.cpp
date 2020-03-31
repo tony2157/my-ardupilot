@@ -1,8 +1,8 @@
 #include "Copter.h"
 #include <utility>
 #include <SRV_Channel/SRV_Channel.h>
-#include <Filter/LowPassFilter2p.h>
-
+//#include <Filter/LowPassFilter2p.h>
+#include <Filter/cheby2LPF.h>
 
 //Humidity sensor Params
 const int N_RH = 4;     //supports up to 4
@@ -26,8 +26,11 @@ float min_roll = 0.5;            //Minimum roll angle that the wind vane will co
 float vane_rate = 1;      //Maximum yaw angle rate at which the Copter will rotate
 float vane_gain = 1;     //Wind vane gain: higher values will increase the resposivness
 
-LowPassFilter2pFloat wind_x_filter;
-LowPassFilter2pFloat wind_y_filter;
+//Declare digital LPF
+cheby2LPFFloat wind_x_filter;
+cheby2LPFFloat wind_y_filter;
+// LowPassFilter2pFloat wind_x_filter;
+// LowPassFilter2pFloat wind_y_filter;
 
 #ifdef USERHOOK_INIT
 void Copter::userhook_init()
@@ -41,8 +44,8 @@ void Copter::userhook_init()
     last_yrate = 0;
 
     //Wind filter initialization
-    wind_x_filter.set_cutoff_frequency(20,0.1);
-    wind_y_filter.set_cutoff_frequency(20,0.1);
+    wind_x_filter.set_cutoff_frequency(20,0.06);
+    wind_y_filter.set_cutoff_frequency(20,0.06);
 
     // Initialize Fan Control
     SRV_Channels::set_output_scaled(SRV_Channel::k_egg_drop, fan_pwm_off);
@@ -229,7 +232,7 @@ void Copter::userhook_SuperSlowLoop()
             last_yrate = 0.98f*last_yrate + 0.02f*yrate; //1st order LPF
 
             //For large compensation use "wind_psi" estimator, for fine adjusments use "yrate" estimator
-            if(fabsf(troll)<5){
+            if(fabsf(troll)<0){
                 _wind_dir = copter.cass_wind_direction/100.0f + last_yrate;
                 _wind_dir = wrap_360_cd(_wind_dir*100.0f);
             }
