@@ -44,7 +44,7 @@ void Copter::userhook_init()
     last_yrate = 0;
 
     //Wind filter initialization
-    if(g.wind_vane_cutoff == 0){
+    if(is_zero(g.wind_vane_cutoff)){
         //Initialize Chebyshev Type 2 filter (currently Fs = 20Hz, Fc = 0.06)
         //This is actually irrelevant since the coefs are already defined (hard-coded)
         wind_x_cheby2.set_cutoff_frequency(20,0.06);
@@ -230,7 +230,7 @@ void Copter::userhook_SuperSlowLoop()
 
             //Filter and determine wind direction by trigonometry (thrust vector tilt)
             float wind_x, wind_y;
-            if(g.wind_vane_cutoff == 0){
+            if(is_zero(g.wind_vane_cutoff)){
                 //Use Chebyshev Type 2 filter if frequency cuttoff is set to zero
                 wind_x = wind_x_cheby2.apply(R13);
                 wind_y = wind_y_cheby2.apply(R23);
@@ -274,7 +274,7 @@ void Copter::userhook_SuperSlowLoop()
             }
         }
         else{
-            if(g.wind_vane_cutoff == 0){
+            if(is_zero(g.wind_vane_cutoff)){
                 wind_x_cheby2.reset();
                 wind_y_cheby2.reset();
             }
@@ -291,7 +291,7 @@ void Copter::userhook_SuperSlowLoop()
         SRV_Channels::set_output_scaled(SRV_Channel::k_egg_drop, fan_pwm_off);
         last_yrate = 0;
         _fan_status = false;
-        if(g.wind_vane_cutoff == 0){
+        if(is_zero(g.wind_vane_cutoff)){
             wind_x_cheby2.reset();
             wind_y_cheby2.reset();
         }
