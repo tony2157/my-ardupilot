@@ -50,6 +50,7 @@ struct PACKED log_WIND {
     float _wind_speed;
     float _R13;
     float _R23;
+    float _R33;
 };
 
 float cass_wind_direction;
