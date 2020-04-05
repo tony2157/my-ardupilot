@@ -1,8 +1,7 @@
 #include "Copter.h"
 #include <utility>
 #include <SRV_Channel/SRV_Channel.h>
-//#include <Filter/LowPassFilter2p.h>
-#include <Filter/cheby2LPF.h>
+#include <Filter/LowPassFilter2p.h>
 
 //Humidity sensor Params
 const int N_RH = 4;     //supports up to 4
@@ -12,25 +11,24 @@ const int N_imet = 4;   //supports up to 4
 
 //Fan control params
 //It will run the fan at SERVO_MAX, which can be set in the params list
-uint16_t fan_pwm_on = 100; // 40
+uint16_t fan_pwm_on = 100;
 uint16_t fan_pwm_off = 0;
 bool _fan_status;
 
 //Wind estimator Params
-//float wsA = 32.8;               //Coefficient A of the linear wind speed equation, from calibration
-//float wsB = -4.5;               //Coefficient B of the linear wind speed equation, from calibration
 float _wind_speed, _wind_dir;
-float R13, R23;
+float R13, R23, R33;
 float last_yrate;
-//float min_roll = 0.5;      //Minimum roll angle that the wind vane will correct (too low and the copter will oscilate)
-//float vane_rate = 1;      //Maximum yaw angle rate at which the Copter will rotate
-//float vane_gain = 1;     //Wind vane gain: higher values will increase the resposivness
+//g.wind_vane_wsA -> Coefficient A of the linear wind speed equation, from calibration
+//g.wind_vane_wsB -> Coefficient B of the linear wind speed equation, from calibration
+//g.wind_vane_min_roll -> Minimum roll angle that the wind vane will correct (too low and the copter will oscilate)
+//g.wind_vane_fine_rate -> Maximum yaw angle rate at which the Copter will rotate
+//g.wind_vane_fine_gain -> Wind vane gain: higher values will increase the resposivness
 
 //Declare digital LPF
-cheby2LPFFloat wind_x_cheby2;
-cheby2LPFFloat wind_y_cheby2;
-LowPassFilter2pFloat wind_x_butter;
-LowPassFilter2pFloat wind_y_butter;
+LowPassFilter2pFloat filt_thrvec_x;
+LowPassFilter2pFloat filt_thrvec_y;
+LowPassFilter2pFloat filt_thrvec_z;
 
 #ifdef USERHOOK_INIT
 void Copter::userhook_init()
@@ -44,16 +42,17 @@ void Copter::userhook_init()
     last_yrate = 0;
 
     //Wind filter initialization
-    if(is_zero(g.wind_vane_cutoff)){
-        //Initialize Chebyshev Type 2 filter (currently Fs = 20Hz, Fc = 0.06)
-        //This is actually irrelevant since the coefs are already defined (hard-coded)
-        wind_x_cheby2.set_cutoff_frequency(20,0.06);
-        wind_y_cheby2.set_cutoff_frequency(20,0.06);
+    if(g.wind_vane_cutoff < 0.06){
+        //Min Fc = 0.06 for stable yaw
+        filt_thrvec_x.set_cutoff_frequency(20,0.06);
+        filt_thrvec_y.set_cutoff_frequency(20,0.06);
+        filt_thrvec_z.set_cutoff_frequency(20,0.06);
     }
     else{
         //Initialize Butterworth filter
-        wind_x_butter.set_cutoff_frequency(20,g.wind_vane_cutoff);
-        wind_y_butter.set_cutoff_frequency(20,g.wind_vane_cutoff);
+        filt_thrvec_x.set_cutoff_frequency(20,g.wind_vane_cutoff);
+        filt_thrvec_y.set_cutoff_frequency(20,g.wind_vane_cutoff);
+        filt_thrvec_z.set_cutoff_frequency(20,g.wind_vane_cutoff);
     }
 
     // Initialize Fan Control
@@ -79,7 +78,6 @@ void Copter::userhook_50Hz()
 #ifdef USERHOOK_MEDIUMLOOP
 void Copter::userhook_MediumLoop()
 {
-    // put your 10Hz code here
     #if CONFIG_HAL_BOARD != HAL_BOARD_SITL
     // Read Temperature, Resistance and Health. Write sensors packet into the SD card
     struct log_IMET pkt_temp = {
@@ -187,14 +185,17 @@ void Copter::userhook_SlowLoop()
 #ifdef USERHOOK_SUPERSLOWLOOP
 void Copter::userhook_SuperSlowLoop()
 {
-    //Run Algo after Copter takes off
+    //Run algo after Copter takes off
     if(!ap.land_complete && copter.position_ok()){ // !arming.is_armed(), !ap.land_complete, motors->armed()
 
+        //Fan Control ////////////////////////////////////////////////////////////////////////////////////////
+
+        //Get AGL altitude in cm
         float alt;
         copter.ahrs.get_relative_position_D_home(alt);
-        alt = -100.0f*alt;           // get AGL altitude in cm
-
-        //Fan Control    
+        alt = -100.0f*alt;
+   
+        //Smart fan on/off logic
         if(alt > 185.0f && SRV_Channels::get_output_scaled(SRV_Channel::k_egg_drop) < 50){
             SRV_Channels::set_output_scaled(SRV_Channel::k_egg_drop, fan_pwm_on);
             _fan_status = true;
@@ -212,94 +213,87 @@ void Copter::userhook_SuperSlowLoop()
             }
         }
 
+        //Wind Estimator Algorithm //////////////////////////////////////////////////////////////////////////
+
+        //Get thurst vector elements from the rotation matrix
+        R13 = -1*copter.ahrs.get_rotation_body_to_ned().a.z;
+        R23 = -1*copter.ahrs.get_rotation_body_to_ned().b.z;
+        R33 = -1*copter.ahrs.get_rotation_body_to_ned().c.z;
+
+        //Apply Butterworth LPF on each element
+        float thrvec_x, thrvec_y, thrvec_z;
+        thrvec_x = filt_thrvec_x.apply(R13);
+        thrvec_y = filt_thrvec_y.apply(R23);
+        thrvec_z = filt_thrvec_z.apply(R33);
+
+        //Determine wind direction by trigonometry (thrust vector tilt)
+        float wind_psi = fmodf(atan2f(thrvec_y,thrvec_x),2*M_PI)*180.0f/M_PI;
+
+        //Get current target roll from the attitude controller
+        float troll = copter.wp_nav->get_roll()/100.0f;
+
+        //Define a dead zone around zero roll
+        if(fabsf(troll) < g.wind_vane_min_roll){ last_yrate = 0; }
+
+        //Convert roll magnitude into desired yaw rate
+        float yrate = constrain_float((troll/5.0f)*g.wind_vane_fine_gain,-g.wind_vane_fine_rate,g.wind_vane_fine_rate);
+        last_yrate = 0.98f*last_yrate + 0.02f*yrate; //1st order LPF
+
+        //For large compensation use "wind_psi" estimator, for fine adjusments use "yrate" estimator
+        if(fabsf(troll)<g.wind_vane_min_roll){
+            //Set WVANE_MIN_ROLL to zero to disable the "yrate" estimator
+            //Output "y_rate" estimator
+            _wind_dir = copter.cass_wind_direction/100.0f + last_yrate;
+            _wind_dir = wrap_360_cd(_wind_dir*100.0f);
+        }
+        else{ 
+            //Output "wind_psi" estimator
+            _wind_dir = wrap_360_cd(wind_psi*100.0f);
+            last_yrate = 0;
+        }
+
+        //Estimate wind speed with filtered parameters
+        float thrvec_xy = safe_sqrt(thrvec_x*thrvec_x + thrvec_y*thrvec_y);
+        _wind_speed = g.wind_vane_wsA * safe_sqrt(fabsf(thrvec_xy/thrvec_z)) + g.wind_vane_wsB;
+        _wind_speed = _wind_speed < 0 ? 0.0f : _wind_speed;
+
         //Get current velocity and horizontal distance to next waypoint
         Vector3f vel_xyz = copter.inertial_nav.get_velocity();
         float speed_xy = norm(vel_xyz.x,vel_xyz.y); // cm/s
         float dist_to_wp = copter.wp_nav->get_wp_distance_to_destination(); // cm (horizontally)
 
-        //Wind vane is active when flying horizontally steady
-        if(speed_xy < 120.0f && dist_to_wp < 500){
-            //Wind Estimator Algorithm
-            //Get current target attitude from the attitude controller
-            float troll = copter.wp_nav->get_roll()/100.0f;
-            float tpitch = copter.wp_nav->get_pitch()/100.0f;
-
-            //Get thurst vector elements from the rotation matrix
-            R13 = -1*copter.ahrs.get_rotation_body_to_ned().a.z;
-            R23 = -1*copter.ahrs.get_rotation_body_to_ned().b.z;
-
-            //Filter and determine wind direction by trigonometry (thrust vector tilt)
-            float wind_x, wind_y;
-            if(is_zero(g.wind_vane_cutoff)){
-                //Use Chebyshev Type 2 filter if frequency cuttoff is set to zero
-                wind_x = wind_x_cheby2.apply(R13);
-                wind_y = wind_y_cheby2.apply(R23);
-            }
-            else{
-                //Use Butterworth filter if frequency cuttoff has a value different than zero
-                wind_x = wind_x_butter.apply(R13);
-                wind_y = wind_y_butter.apply(R23);
-            }
-            float wind_psi = fmodf(atan2f(wind_y,wind_x),2*M_PI)*180.0f/M_PI;
-
-            //Define a dead zone around zero roll
-            if(fabsf(troll) < g.wind_vane_min_roll){ last_yrate = 0; }
-
-            //Convert roll magnitude into desired yaw rate
-            float yrate = constrain_float((troll/5.0f)*g.wind_vane_fine_gain,-g.wind_vane_fine_rate,g.wind_vane_fine_rate);
-            last_yrate = 0.98f*last_yrate + 0.02f*yrate; //1st order LPF
-
-            //For large compensation use "wind_psi" estimator, for fine adjusments use "yrate" estimator
-            if(fabsf(troll)<g.wind_vane_min_roll){
-                _wind_dir = copter.cass_wind_direction/100.0f + last_yrate;
-                _wind_dir = wrap_360_cd(_wind_dir*100.0f);
-            }
-            else{ 
-                _wind_dir = wrap_360_cd(wind_psi*100.0f);
-                last_yrate = 0;
-            }
-
-            //Estimate wind speed
-            _wind_speed = g.wind_vane_wsA * sqrtf(tanf(fabsf(tpitch)*M_PI/180.0f)) + g.wind_vane_wsB;
-
+        //Wind vane is active when flying horizontally steady and wind speed is perceivable
+        if(speed_xy < 120.0f && dist_to_wp < 500 && _wind_speed > 0.6f){
             //Min altitude at which the yaw command is sent
             if(alt>400.0f){
-                //Send wind direction to the autopilot
+                //Send estimated wind direction to the autopilot
                 copter.cass_wind_direction = _wind_dir;
                 copter.cass_wind_speed = _wind_speed;
             }
             else{
+                //Send neutral values
                 copter.cass_wind_direction = copter.wp_nav->get_yaw();
                 copter.cass_wind_speed = 0.0f;
             }
         }
         else{
-            if(is_zero(g.wind_vane_cutoff)){
-                wind_x_cheby2.reset();
-                wind_y_cheby2.reset();
-            }
-            else{
-                wind_x_butter.reset();
-                wind_y_butter.reset();
-            }
+            //Reset 1st order filter
             last_yrate = 0.0f;
         }
     }
     else{
+        //Reset all global parameters to default values
         copter.cass_wind_direction = (float)copter.initial_armed_bearing;
         copter.cass_wind_speed = 0.0f;
         SRV_Channels::set_output_scaled(SRV_Channel::k_egg_drop, fan_pwm_off);
         last_yrate = 0;
         _fan_status = false;
-        if(is_zero(g.wind_vane_cutoff)){
-            wind_x_cheby2.reset();
-            wind_y_cheby2.reset();
-        }
-        else{
-            wind_x_butter.reset();
-            wind_y_butter.reset();
-        }
+        filt_thrvec_x.reset();
+        filt_thrvec_y.reset();
+        filt_thrvec_z.reset();
     }
+
+    //Data Logger ///////////////////////////////////////////////////////////////////////////////////////////
 
     // Write wind direction packet into the SD card
     struct log_WIND pkt_wind_est = {
@@ -308,7 +302,8 @@ void Copter::userhook_SuperSlowLoop()
         _wind_dir              : _wind_dir/100,
         _wind_speed            : _wind_speed,
         _R13                   : R13,
-        _R23                   : R23
+        _R23                   : R23,
+        _R33                   : R33
     };
     copter.DataFlash.WriteBlock(&pkt_wind_est, sizeof(pkt_wind_est));
 
