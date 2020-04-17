@@ -19,6 +19,7 @@ bool _fan_status;
 float _wind_speed, _wind_dir;
 float R13, R23, R33;
 float last_yrate;
+bool high_wind_flag;
 //g.wind_vane_wsA -> Coefficient A of the linear wind speed equation, from calibration
 //g.wind_vane_wsB -> Coefficient B of the linear wind speed equation, from calibration
 //g.wind_vane_min_roll -> Minimum roll angle that the wind vane will correct (too low and the copter will oscilate)
@@ -40,6 +41,7 @@ void Copter::userhook_init()
     _wind_dir = 0.0f;  _wind_speed = 0.0f;
     R13 = 0.0f; R23 = 0.0f;
     last_yrate = 0;
+    high_wind_flag = false;
 
     //Wind filter initialization
     if(g.wind_vane_cutoff < 0.06){
@@ -80,6 +82,7 @@ void Copter::userhook_MediumLoop()
 {
     #if CONFIG_HAL_BOARD != HAL_BOARD_SITL
     // Read Temperature, Resistance and Health. Write sensors packet into the SD card
+    // Temperature Data Logger ///////////////////////////////////////////////////////////////////////////////////////////
     struct log_IMET pkt_temp = {
         LOG_PACKET_HEADER_INIT(LOG_IMET_MSG),
         time_stamp             : AP_HAL::micros64(),                //Store time in microseconds
@@ -136,6 +139,7 @@ void Copter::userhook_SlowLoop()
 {
      #if CONFIG_HAL_BOARD != HAL_BOARD_SITL
         // Read Rel. Humidity, Temperature and Health. Write sensors packet into the SD card
+        // Relative Humidity Data Logger ///////////////////////////////////////////////////////////////////////////////////////////
         struct log_RH pkt_RH = {
             LOG_PACKET_HEADER_INIT(LOG_RH_MSG),
             time_stamp             : AP_HAL::micros64(),                        //Store time in microseconds
@@ -283,6 +287,18 @@ void Copter::userhook_SuperSlowLoop()
             //Reset 1st order filter
             last_yrate = 0.0f;
         }
+
+        //Switch to RTL automatically if wind speed is too high (in m/s)
+        if(_wind_speed > g.wind_vane_spd_tol && high_wind_flag == false){
+            gcs().send_text(MAV_SEVERITY_INFO, "Switched to RTL due to very high wind");
+            copter.set_mode(RTL, MODE_REASON_UNKNOWN);
+            high_wind_flag = true;
+        }
+        else if(_wind_speed < (g.wind_vane_spd_tol - 3.0f) && high_wind_flag == true){
+            high_wind_flag = false;
+            gcs().send_text(MAV_SEVERITY_INFO, "High wind warning cleared");
+        }
+        
     }
     else{
         //Reset all global parameters to default values
@@ -296,7 +312,7 @@ void Copter::userhook_SuperSlowLoop()
         filt_thrvec_z.reset();
     }
 
-    //Data Logger ///////////////////////////////////////////////////////////////////////////////////////////
+    //Wind Data Logger ///////////////////////////////////////////////////////////////////////////////////////////
 
     // Write wind direction packet into the SD card
     struct log_WIND pkt_wind_est = {
