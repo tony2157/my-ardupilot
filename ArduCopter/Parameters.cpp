@@ -422,6 +422,13 @@ const AP_Param::Info Copter::var_info[] = {
     // @User: Advanced
     GSCALAR(wind_vane_wsB,    "WVANE_WSB",          -4.5f),
 
+    // @Param: USER_SENSORS
+    // @DisplayName: Wind vane speed tolerance
+    // @Description: Maximum wind speed at which the RTL is triggered (in m/s)
+    // @Range: -2,147,483,648 to 2,147,483,647
+    // @User: Advanced
+    GSCALAR(wind_vane_spd_tol,    "WVANE_SPD_TOL",          22.0f),
+
 
     ////////////////////////////CASS////////////////////////////////////
 

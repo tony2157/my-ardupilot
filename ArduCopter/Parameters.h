@@ -276,11 +276,15 @@ public:
         k_param_camera_mount,
         k_param_camera_mount2,      // deprecated
 
-        //
-        // Batery monitoring parameters
-        //
-        k_param_battery_volt_pin = 168, // deprecated - can be deleted
-        k_param_battery_curr_pin,   // 169 deprecated - can be deleted
+        // //
+        // // Batery monitoring parameters
+        // //
+        // k_param_battery_volt_pin = 168, // deprecated - can be deleted
+        // k_param_battery_curr_pin,   // 169 deprecated - can be deleted
+        
+        //More CASS wind vane params
+        k_param_wind_vane_spd_tol = 168,
+        k_param_wind_vane_reserved, // reserved for future use
 
         //
         // 170: Radio settings
@@ -458,7 +462,8 @@ public:
     AP_Float    wind_vane_fine_gain;
     AP_Float    wind_vane_cutoff;
     AP_Float    wind_vane_wsA;
-    AP_Float    wind_vane_wsB; 
+    AP_Float    wind_vane_wsB;
+    AP_Float    wind_vane_spd_tol; 
 
     // Misc
     //
