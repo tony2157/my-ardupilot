@@ -206,6 +206,7 @@ void Copter::userhook_SuperSlowLoop()
         if(alt > 185.0f && SRV_Channels::get_output_scaled(SRV_Channel::k_egg_drop) < 50){
             SRV_Channels::set_output_scaled(SRV_Channel::k_egg_drop, fan_pwm_on);
             _fan_status = true;
+            gcs().send_text(MAV_SEVERITY_INFO, "Scoop Fan activated");
             #if CONFIG_HAL_BOARD == HAL_BOARD_SITL
                 printf("FAN ON \n");  //printf("PWM: %5.2f \n",var); //for debugging
             #endif
@@ -289,14 +290,17 @@ void Copter::userhook_SuperSlowLoop()
         }
 
         //Switch to RTL automatically if wind speed is too high (in m/s)
-        if(_wind_speed > g.wind_vane_spd_tol && high_wind_flag == false){
-            gcs().send_text(MAV_SEVERITY_INFO, "Switched to RTL due to very high wind");
-            copter.set_mode(RTL, MODE_REASON_UNKNOWN);
-            high_wind_flag = true;
-        }
-        else if(_wind_speed < (g.wind_vane_spd_tol - 3.0f) && high_wind_flag == true){
-            high_wind_flag = false;
-            gcs().send_text(MAV_SEVERITY_INFO, "High wind warning cleared");
+        //If tolerance is set to zero then function is disabled
+        if(!is_zero(g.wind_vane_spd_tol)){
+            if(_wind_speed > g.wind_vane_spd_tol && high_wind_flag == false){
+                gcs().send_text(MAV_SEVERITY_WARNING, "Switched to RTL due to very high wind");
+                copter.set_mode(RTL, MODE_REASON_UNKNOWN);
+                high_wind_flag = true;
+            }
+            else if(_wind_speed < (g.wind_vane_spd_tol - 3.0f) && high_wind_flag == true){
+                high_wind_flag = false;
+                gcs().send_text(MAV_SEVERITY_INFO, "High wind warning cleared");
+            }
         }
         
     }
