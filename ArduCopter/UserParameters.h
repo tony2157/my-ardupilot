@@ -29,6 +29,7 @@ public:
     AP_Float get_user_wvane_cutoff() const{return wind_vane_cutoff; }
     AP_Float get_user_wvane_wsA() const{return wind_vane_wsA; }
     AP_Float get_user_wvane_wsB() const{return wind_vane_wsB; }
+    AP_Float get_user_wvane_spd_tol() const{return wind_vane_spd_tol; }
     
 private:
     // Put your parameter variable definitions here
@@ -51,4 +52,5 @@ private:
     AP_Float wind_vane_cutoff;
     AP_Float wind_vane_wsA;
     AP_Float wind_vane_wsB;
+    AP_Float wind_vane_spd_tol;
 };

@@ -23,6 +23,7 @@ const AP_Param::GroupInfo UserParameters::var_info[] = {
     AP_GROUPINFO("_WV_CUTOFF", 11, UserParameters, wind_vane_cutoff, 0.06f),
     AP_GROUPINFO("_WV_WSA", 12, UserParameters, wind_vane_wsA, 32.8f),
     AP_GROUPINFO("_WV_WSB", 13, UserParameters, wind_vane_wsB, -4.5f),
+    AP_GROUPINFO("_WV_TOL", 14, UserParameters, wind_vane_spd_tol, 22.0f),
     
     AP_GROUPEND
 };
