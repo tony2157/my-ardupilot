@@ -19,6 +19,7 @@ bool _fan_status;
 float _wind_speed, _wind_dir;
 float R13, R23, R33;
 float last_yrate;
+bool high_wind_flag;
 //g.wind_vane_wsA -> Coefficient A of the linear wind speed equation, from calibration
 //g.wind_vane_wsB -> Coefficient B of the linear wind speed equation, from calibration
 //g.wind_vane_min_roll -> Minimum roll angle that the wind vane will correct (too low and the copter will oscilate)
@@ -40,6 +41,7 @@ void Copter::userhook_init()
     _wind_dir = 0.0f;  _wind_speed = 0.0f;
     R13 = 0.0f; R23 = 0.0f;
     last_yrate = 0;
+    high_wind_flag = false;
 
     //Wind filter initialization
     if(g2.user_parameters.get_user_wvane_cutoff() < 0.06){
@@ -203,6 +205,7 @@ void Copter::user_wind_vane()
         if(alt > 185.0f && SRV_Channels::get_output_scaled(SRV_Channel::k_egg_drop) < 50){
             SRV_Channels::set_output_scaled(SRV_Channel::k_egg_drop, fan_pwm_on);
             _fan_status = true;
+            gcs().send_text(MAV_SEVERITY_INFO, "Scoop Fan activated");
             #if CONFIG_HAL_BOARD == HAL_BOARD_SITL
                 printf("FAN ON \n");  //printf("PWM: %5.2f \n",var); //for debugging
             #endif
@@ -284,6 +287,21 @@ void Copter::user_wind_vane()
             //Reset 1st order filter
             last_yrate = 0.0f;
         }
+
+        //Switch to RTL automatically if wind speed is too high (in m/s)
+        //If tolerance is set to zero then function is disabled
+        if(!is_zero(g2.user_parameters.get_user_wvane_spd_tol())){
+            if(_wind_speed > g2.user_parameters.get_user_wvane_spd_tol() && high_wind_flag == false){
+                gcs().send_text(MAV_SEVERITY_WARNING, "Switched to RTL due to very high wind");
+                copter.set_mode(Mode::Number::RTL, ModeReason::UNKNOWN);
+                high_wind_flag = true;
+            }
+            else if(_wind_speed < (g2.user_parameters.get_user_wvane_spd_tol() - 3.0f) && high_wind_flag == true){
+                high_wind_flag = false;
+                gcs().send_text(MAV_SEVERITY_INFO, "High wind warning cleared");
+            }
+        }
+
     }
     else{
         //Reset all global parameters to default values
