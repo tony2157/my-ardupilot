@@ -10,9 +10,9 @@ public:
     
     // Put accessors to your parameter variables here
     // UserCode usage example: g2.user_parameters.get_int8Param()
-    AP_Int8 get_int8Param() const { return _int8; }
-    AP_Int16 get_int16Param() const { return _int16; }
-    AP_Float get_floatParam() const { return _float; }
+    // AP_Int8 get_int8Param() const { return _int8; }
+    // AP_Int16 get_int16Param() const { return _int16; }
+    // AP_Float get_floatParam() const { return _float; }
 
     //CASS custom parameters accessors
     AP_Int32 get_user_sensor1() const{return _sensor1; }
@@ -23,12 +23,18 @@ public:
     AP_Int32 get_user_sensor6() const{return _sensor6; }
     AP_Int32 get_user_sensor7() const{return _sensor7; }
     AP_Int32 get_user_sensor8() const{return _sensor8; }
+    AP_Float get_user_wvane_min_roll() const{return wind_vane_min_roll; }
+    AP_Float get_user_wvane_fine_rate() const{return wind_vane_fine_rate; }
+    AP_Float get_user_wvane_fine_gain() const{return wind_vane_fine_gain; }
+    AP_Float get_user_wvane_cutoff() const{return wind_vane_cutoff; }
+    AP_Float get_user_wvane_wsA() const{return wind_vane_wsA; }
+    AP_Float get_user_wvane_wsB() const{return wind_vane_wsB; }
     
 private:
     // Put your parameter variable definitions here
-    AP_Int8 _int8;
-    AP_Int16 _int16;
-    AP_Float _float;
+    // AP_Int8 _int8;
+    // AP_Int16 _int16;
+    // AP_Float _float;
 
     // CASS custom sensor parameters
     AP_Int32 _sensor1;
@@ -39,4 +45,10 @@ private:
     AP_Int32 _sensor6;
     AP_Int32 _sensor7;
     AP_Int32 _sensor8;
+    AP_Float wind_vane_min_roll;
+    AP_Float wind_vane_fine_rate;
+    AP_Float wind_vane_fine_gain;
+    AP_Float wind_vane_cutoff;
+    AP_Float wind_vane_wsA;
+    AP_Float wind_vane_wsB;
 };
