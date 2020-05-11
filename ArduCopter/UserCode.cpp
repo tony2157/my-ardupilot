@@ -124,10 +124,10 @@ void Copter::userhook_MediumLoop()
             temperature2           : simT + sinf(0.0007f*float(m)) * 0.003f,
             temperature3           : simT + sinf(0.0003f*float(m)) * 0.0025f,
             temperature4           : simT + sinf(0.0005f*float(m)) * 0.0028f,
-            resist1                : copter.CASS_Imet[0].resistance(),
-            resist2                : copter.CASS_Imet[1].resistance(),
-            resist3                : copter.CASS_Imet[2].resistance(),
-            resist4                : copter.CASS_Imet[3].resistance()
+            resist1                : -356.9892f*simT + 110935.3763f + sinf(0.001f*float(m)) * 0.002f,
+            resist2                : -356.9892f*simT + 110935.3763f + sinf(0.0007f*float(m)) * 0.003f,
+            resist3                : -356.9892f*simT + 110935.3763f + sinf(0.0003f*float(m)) * 0.0025f,
+            resist4                : -356.9892f*simT + 110935.3763f + sinf(0.0005f*float(m)) * 0.0028f
         };
     #endif
     copter.DataFlash.WriteBlock(&pkt_temp, sizeof(pkt_temp));   //Send package to SD card
