@@ -429,6 +429,12 @@ const AP_Param::Info Copter::var_info[] = {
     // @User: Advanced
     GSCALAR(wind_vane_spd_tol,    "WVANE_SPD_TOL",          22.0f),
 
+    // @Param: USER_SENSORS
+    // @DisplayName: Wind vane auto RTL
+    // @Description: Enable (1) or disable (0) wind vane mode auto RTL switch
+    // @Range: 0 to 1
+    // @User: Advanced
+    GSCALAR(wind_vane_enabled,    "WVANE_RTL_ON",          1.0f),
 
     ////////////////////////////CASS////////////////////////////////////
 

@@ -284,7 +284,7 @@ public:
         
         //More CASS wind vane params
         k_param_wind_vane_spd_tol = 168,
-        k_param_wind_vane_reserved, // reserved for future use
+        k_param_wind_vane_enabled, // reserved for future use
 
         //
         // 170: Radio settings
@@ -463,7 +463,8 @@ public:
     AP_Float    wind_vane_cutoff;
     AP_Float    wind_vane_wsA;
     AP_Float    wind_vane_wsB;
-    AP_Float    wind_vane_spd_tol; 
+    AP_Float    wind_vane_spd_tol;
+    AP_Float    wind_vane_enabled; 
 
     // Misc
     //
