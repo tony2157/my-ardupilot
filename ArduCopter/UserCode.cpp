@@ -291,10 +291,10 @@ void Copter::userhook_SuperSlowLoop()
 
         //Switch to RTL automatically if wind speed is too high (in m/s)
         //If tolerance is set to zero then auto RTL is disabled but it will still warn if enabled
-        if(!is_zero(g.wind_vane_enabled)){
+        if(!is_zero(g.wind_vane_spd_tol)){
             if(_wind_speed > g.wind_vane_spd_tol && high_wind_flag == false && copter.flightmode->is_autopilot()){
-                gcs().send_text(MAV_SEVERITY_WARNING, "Warning high wind: Switched to RTL");
-                if(!is_zero(g.wind_vane_spd_tol)){
+                gcs().send_text(MAV_SEVERITY_WARNING, "Warning high wind: Switch to RTL");
+                if(!is_zero(g.wind_vane_enabled)){
                     copter.set_mode(RTL, MODE_REASON_UNKNOWN);
                 }
                 high_wind_flag = true;
