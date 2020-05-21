@@ -49,21 +49,13 @@ bool AC_CASS_Imet::init(uint8_t busId, uint8_t i2cAddr)
 
     _dev->set_retries(10);
 
-    if (!_config_read_thermistor()) {
-        printf("IMET read failed");
-        _dev->get_semaphore()->give();
-        return false;
-    }
-
-    hal.scheduler->delay(200);
-
     if (!_config_read_source()) {
         printf("IMET read failed");
         _dev->get_semaphore()->give();
         return false;
     }
 
-    hal.scheduler->delay(200);
+    hal.scheduler->delay(300);
 
     _read_adc(adc_source);
     _config_read_thermistor();
@@ -75,7 +67,7 @@ bool AC_CASS_Imet::init(uint8_t busId, uint8_t i2cAddr)
 
     /* Request 25Hz update */
     // Max conversion time is 12 ms
-    _dev->register_periodic_callback(40000,
+    _dev->register_periodic_callback(50000,
                                      FUNCTOR_BIND_MEMBER(&AC_CASS_Imet::_timer, void));
     return true;
 }
@@ -160,7 +152,7 @@ void AC_CASS_Imet::_timer(void)
     }
     else{
         temp_healthy = _read_adc(temp);
-        adc_source = (adc_source + temp)/2;
+        adc_source = 0.95f*adc_source + 0.05f*temp;
     }   
 
     // After 20 samples, re-measure voltage source and update it.

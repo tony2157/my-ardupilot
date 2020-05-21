@@ -45,7 +45,7 @@ bool AC_CASS_HYT271::init(uint8_t busId, uint8_t i2cAddr)
 
     /* Request 25Hz update */
     // Max conversion time is 12 ms
-    _dev->register_periodic_callback(70000,
+    _dev->register_periodic_callback(100000,
                                      FUNCTOR_BIND_MEMBER(&AC_CASS_HYT271::_timer, void));
     return true;
 }
