@@ -46,15 +46,15 @@ void Copter::userhook_init()
     //Wind filter initialization
     if(g.wind_vane_cutoff < 0.06){
         //Min Fc = 0.06 for stable yaw
-        filt_thrvec_x.set_cutoff_frequency(20,0.06);
-        filt_thrvec_y.set_cutoff_frequency(20,0.06);
-        filt_thrvec_z.set_cutoff_frequency(20,0.06);
+        filt_thrvec_x.set_cutoff_frequency(10,0.05);
+        filt_thrvec_y.set_cutoff_frequency(10,0.05);
+        filt_thrvec_z.set_cutoff_frequency(10,0.05);
     }
     else{
         //Initialize Butterworth filter
-        filt_thrvec_x.set_cutoff_frequency(20,g.wind_vane_cutoff);
-        filt_thrvec_y.set_cutoff_frequency(20,g.wind_vane_cutoff);
-        filt_thrvec_z.set_cutoff_frequency(20,g.wind_vane_cutoff);
+        filt_thrvec_x.set_cutoff_frequency(10,g.wind_vane_cutoff);
+        filt_thrvec_y.set_cutoff_frequency(10,g.wind_vane_cutoff);
+        filt_thrvec_z.set_cutoff_frequency(10,g.wind_vane_cutoff);
     }
 
     // Initialize Fan Control
