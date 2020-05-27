@@ -406,7 +406,7 @@ const AP_Param::Info Copter::var_info[] = {
     // @Description: Cutoff frequency of the wind filter (range 0.06 to 1.0 is recommended)
     // @Range: -2,147,483,648 to 2,147,483,647
     // @User: Advanced
-    GSCALAR(wind_vane_cutoff,    "WVANE_CUTOFF",          0.06f),
+    GSCALAR(wind_vane_cutoff,    "WVANE_CUTOFF",          0.08f),
 
     // @Param: USER_SENSORS
     // @DisplayName: Wind vane wsA
