@@ -1,7 +1,7 @@
 #include "Copter.h"
 #include <utility>
 #include <SRV_Channel/SRV_Channel.h>
-#include <Filter/LowPassFilter2p.h>
+#include <Filter/LPFrd.h>
 
 //Humidity sensor Params
 const int N_RH = 4;     //supports up to 4
@@ -27,9 +27,9 @@ bool high_wind_flag;
 //g.wind_vane_fine_gain -> Wind vane gain: higher values will increase the resposivness
 
 //Declare digital LPF
-LowPassFilter2pFloat filt_thrvec_x;
-LowPassFilter2pFloat filt_thrvec_y;
-LowPassFilter2pFloat filt_thrvec_z;
+LPFrdFloat filt_thrvec_x;
+LPFrdFloat filt_thrvec_y;
+LPFrdFloat filt_thrvec_z;
 
 #ifdef USERHOOK_INIT
 void Copter::userhook_init()
@@ -271,7 +271,7 @@ void Copter::userhook_SuperSlowLoop()
         float dist_to_wp = copter.wp_nav->get_wp_distance_to_destination(); // cm (horizontally)
 
         //Wind vane is active when flying horizontally steady and wind speed is perceivable
-        if(speed_xy < 120.0f && dist_to_wp < 500 && _wind_speed > 0.6f){
+        if(speed_xy < 120.0f && dist_to_wp < 500 && _wind_speed > 0.8f){
             //Min altitude at which the yaw command is sent
             if(alt>400.0f){
                 //Send estimated wind direction to the autopilot
