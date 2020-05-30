@@ -271,7 +271,7 @@ void Copter::userhook_SuperSlowLoop()
         float dist_to_wp = copter.wp_nav->get_wp_distance_to_destination(); // cm (horizontally)
 
         //Wind vane is active when flying horizontally steady and wind speed is perceivable
-        if(speed_xy < 120.0f && dist_to_wp < 500 && _wind_speed > 0.8f){
+        if(speed_xy < 120.0f && dist_to_wp < 500 && _wind_speed > 1.0f){
             //Min altitude at which the yaw command is sent
             if(alt>400.0f){
                 //Send estimated wind direction to the autopilot
