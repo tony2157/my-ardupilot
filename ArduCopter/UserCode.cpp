@@ -267,13 +267,14 @@ void Copter::userhook_SuperSlowLoop()
 
         //Get current velocity and horizontal distance to next waypoint
         Vector3f vel_xyz = copter.inertial_nav.get_velocity();
-        float speed_xy = norm(vel_xyz.x,vel_xyz.y); // cm/s
-        float dist_to_wp = copter.wp_nav->get_wp_distance_to_destination(); // cm (horizontally)
+        float tyaw = copter.wp_nav->get_yaw()*DEG_TO_RAD/100.0f;
+        float speed_y = vel_xyz.x*cosf(tyaw) + vel_xyz.y*sinf(tyaw); 
+        printf("speed_y: %5.2f \n",speed_y);
 
         //Wind vane is active when flying horizontally steady and wind speed is perceivable
-        if(speed_xy < 120.0f && dist_to_wp < 500 && _wind_speed > 1.0f){
+        if(speed_y < 100.0f && _wind_speed > 1.0f){
             //Min altitude at which the yaw command is sent
-            if(alt>400.0f){
+            if(alt>400.0f){ 
                 //Send estimated wind direction to the autopilot
                 copter.cass_wind_direction = _wind_dir;
                 copter.cass_wind_speed = _wind_speed;
