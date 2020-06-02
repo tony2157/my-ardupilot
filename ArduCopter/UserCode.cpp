@@ -193,7 +193,7 @@ void Copter::userhook_SlowLoop()
 void Copter::userhook_SuperSlowLoop()
 {
     //Run algo after Copter takes off
-    if(!ap.land_complete && copter.position_ok()){ // !arming.is_armed(), !ap.land_complete, motors->armed()
+    if(!ap.land_complete && copter.position_ok()){
 
         //Fan Control ////////////////////////////////////////////////////////////////////////////////////////
 
@@ -235,7 +235,7 @@ void Copter::userhook_SuperSlowLoop()
         thrvec_z = filt_thrvec_z.apply(R33);
 
         //Determine wind direction by trigonometry (thrust vector tilt)
-        float wind_psi = fmodf(atan2f(thrvec_y,thrvec_x),2*M_PI)*180.0f/M_PI;
+        float wind_psi = fmodf(atan2f(thrvec_y,thrvec_x),2*M_PI)*RAD_TO_DEG;
 
         //Get current target roll from the attitude controller
         float troll = copter.wp_nav->get_roll()/100.0f;
@@ -265,14 +265,14 @@ void Copter::userhook_SuperSlowLoop()
         _wind_speed = g.wind_vane_wsA * safe_sqrt(fabsf(thrvec_xy/thrvec_z)) + g.wind_vane_wsB;
         _wind_speed = _wind_speed < 0 ? 0.0f : _wind_speed;
 
-        //Get current velocity and horizontal distance to next waypoint
+        //Get current velocity
         Vector3f vel_xyz = copter.inertial_nav.get_velocity();
         float tyaw = copter.wp_nav->get_yaw()*DEG_TO_RAD/100.0f;
         float speed_y = vel_xyz.x*cosf(tyaw) + vel_xyz.y*sinf(tyaw); 
         printf("speed_y: %5.2f \n",speed_y);
 
         //Wind vane is active when flying horizontally steady and wind speed is perceivable
-        if(speed_y < 100.0f && _wind_speed > 1.0f){
+        if(fabsf(speed_y) < 100.0f && _wind_speed > 1.0f){
             //Min altitude at which the yaw command is sent
             if(alt>400.0f){ 
                 //Send estimated wind direction to the autopilot
@@ -332,14 +332,6 @@ void Copter::userhook_SuperSlowLoop()
         _R33                   : R33
     };
     copter.DataFlash.WriteBlock(&pkt_wind_est, sizeof(pkt_wind_est));
-
-    // float data[5] = {0};
-    // data[0] = _wind_dir/100.0f;
-    // data[1] = _wind_speed;
-    // data[2] = Vel_xy;
-    // data[3] = var_wind_dir;
-    // data[4] = alt;
-    // copter.send_cass_data(3, data, 5);
 }
 #endif
 
