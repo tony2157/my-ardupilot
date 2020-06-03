@@ -268,7 +268,7 @@ void Copter::userhook_SuperSlowLoop()
         //Get current velocity
         Vector3f vel_xyz = copter.inertial_nav.get_velocity();
         float tyaw = copter.wp_nav->get_yaw()*DEG_TO_RAD/100.0f;
-        float speed_y = vel_xyz.x*cosf(tyaw) + vel_xyz.y*sinf(tyaw); 
+        float speed_y = vel_xyz.y*cosf(tyaw) - vel_xyz.x*sinf(tyaw); 
         printf("speed_y: %5.2f \n",speed_y);
 
         //Wind vane is active when flying horizontally steady and wind speed is perceivable
