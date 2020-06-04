@@ -436,6 +436,13 @@ const AP_Param::Info Copter::var_info[] = {
     // @User: Advanced
     GSCALAR(wind_vane_enabled,    "WVANE_RTL_ON",          1.0f),
 
+    // @Param: USER_SENSORS
+    // @DisplayName: Wind vane sampling frequency
+    // @Description: Sampling and operating frequency of the wind vane algorithm
+    // @Range: 1 to 10
+    // @User: Advanced
+    GSCALAR(wind_vane_fs,    "WVANE_FS",          10.0f),
+
     ////////////////////////////CASS////////////////////////////////////
 
     // @Param: LOG_BITMASK
