@@ -20,11 +20,13 @@ float _wind_speed, _wind_dir;
 float R13, R23, R33;
 float last_yrate;
 bool high_wind_flag;
+uint32_t last_now;
 //g.wind_vane_wsA -> Coefficient A of the linear wind speed equation, from calibration
 //g.wind_vane_wsB -> Coefficient B of the linear wind speed equation, from calibration
 //g.wind_vane_min_roll -> Minimum roll angle that the wind vane will correct (too low and the copter will oscilate)
 //g.wind_vane_fine_rate -> Maximum yaw angle rate at which the Copter will rotate
 //g.wind_vane_fine_gain -> Wind vane gain: higher values will increase the resposivness
+//g.wind_vane_fs -> Wind vane sampling frequency, range 1 to 10Hz.
 
 //Declare digital LPF
 LPFrdFloat filt_thrvec_x;
@@ -42,19 +44,20 @@ void Copter::userhook_init()
     R13 = 0.0f; R23 = 0.0f;
     last_yrate = 0;
     high_wind_flag = false;
+    last_now = AP_HAL::millis();
 
     //Wind filter initialization
-    if(g.wind_vane_cutoff < 0.06){
-        //Min Fc = 0.06 for stable yaw
-        filt_thrvec_x.set_cutoff_frequency(10,0.05);
-        filt_thrvec_y.set_cutoff_frequency(10,0.05);
-        filt_thrvec_z.set_cutoff_frequency(10,0.05);
+    if(g.wind_vane_cutoff < 0.05){
+        //Min Fc = 0.05 for stable yaw
+        filt_thrvec_x.set_cutoff_frequency(g.wind_vane_fs,0.05);
+        filt_thrvec_y.set_cutoff_frequency(g.wind_vane_fs,0.05);
+        filt_thrvec_z.set_cutoff_frequency(g.wind_vane_fs,0.05);
     }
     else{
         //Initialize Butterworth filter
-        filt_thrvec_x.set_cutoff_frequency(10,g.wind_vane_cutoff);
-        filt_thrvec_y.set_cutoff_frequency(10,g.wind_vane_cutoff);
-        filt_thrvec_z.set_cutoff_frequency(10,g.wind_vane_cutoff);
+        filt_thrvec_x.set_cutoff_frequency(g.wind_vane_fs,g.wind_vane_cutoff);
+        filt_thrvec_y.set_cutoff_frequency(g.wind_vane_fs,g.wind_vane_cutoff);
+        filt_thrvec_z.set_cutoff_frequency(g.wind_vane_fs,g.wind_vane_cutoff);
     }
 
     // Initialize Fan Control
@@ -228,82 +231,88 @@ void Copter::userhook_SuperSlowLoop()
         R23 = -1*copter.ahrs.get_rotation_body_to_ned().b.z;
         R33 = -1*copter.ahrs.get_rotation_body_to_ned().c.z;
 
-        //Apply Butterworth LPF on each element
-        float thrvec_x, thrvec_y, thrvec_z;
-        thrvec_x = filt_thrvec_x.apply(R13);
-        thrvec_y = filt_thrvec_y.apply(R23);
-        thrvec_z = filt_thrvec_z.apply(R33);
+        //Wind vane loop starts here. Loop frequency is defined by WVANE_FS param in Hz
+        if((AP_HAL::millis() - last_now) > (uint32_t)(1000/g.wind_vane_fs)){
+            //Apply Butterworth LPF on each element
+            float thrvec_x, thrvec_y, thrvec_z;
+            thrvec_x = filt_thrvec_x.apply(R13);
+            thrvec_y = filt_thrvec_y.apply(R23);
+            thrvec_z = filt_thrvec_z.apply(R33);
 
-        //Determine wind direction by trigonometry (thrust vector tilt)
-        float wind_psi = fmodf(atan2f(thrvec_y,thrvec_x),2*M_PI)*RAD_TO_DEG;
+            //Determine wind direction by trigonometry (thrust vector tilt)
+            float wind_psi = fmodf(atan2f(thrvec_y,thrvec_x),2*M_PI)*RAD_TO_DEG;
 
-        //Get current target roll from the attitude controller
-        float troll = copter.wp_nav->get_roll()/100.0f;
+            //Get current target roll from the attitude controller
+            float troll = copter.wp_nav->get_roll()/100.0f;
 
-        //Define a dead zone around zero roll
-        if(fabsf(troll) < g.wind_vane_min_roll){ last_yrate = 0; }
+            //Define a dead zone around zero roll
+            if(fabsf(troll) < g.wind_vane_min_roll){ last_yrate = 0; }
 
-        //Convert roll magnitude into desired yaw rate
-        float yrate = constrain_float((troll/5.0f)*g.wind_vane_fine_gain,-g.wind_vane_fine_rate,g.wind_vane_fine_rate);
-        last_yrate = 0.98f*last_yrate + 0.02f*yrate; //1st order LPF
+            //Convert roll magnitude into desired yaw rate
+            float yrate = constrain_float((troll/5.0f)*g.wind_vane_fine_gain,-g.wind_vane_fine_rate,g.wind_vane_fine_rate);
+            last_yrate = 0.98f*last_yrate + 0.02f*yrate; //1st order LPF
 
-        //For large compensation use "wind_psi" estimator, for fine adjusments use "yrate" estimator
-        if(fabsf(troll)<g.wind_vane_min_roll){
-            //Set WVANE_MIN_ROLL to zero to disable the "yrate" estimator
-            //Output "y_rate" estimator
-            _wind_dir = copter.cass_wind_direction/100.0f + last_yrate;
-            _wind_dir = wrap_360_cd(_wind_dir*100.0f);
-        }
-        else{ 
-            //Output "wind_psi" estimator
-            _wind_dir = wrap_360_cd(wind_psi*100.0f);
-            last_yrate = 0;
-        }
+            //For large compensation use "wind_psi" estimator, for fine adjusments use "yrate" estimator
+            if(fabsf(troll)<g.wind_vane_min_roll){
+                //Set WVANE_MIN_ROLL to zero to disable the "yrate" estimator
+                //Output "y_rate" estimator
+                _wind_dir = copter.cass_wind_direction/100.0f + last_yrate;
+                _wind_dir = wrap_360_cd(_wind_dir*100.0f);
+            }
+            else{ 
+                //Output "wind_psi" estimator
+                _wind_dir = wrap_360_cd(wind_psi*100.0f);
+                last_yrate = 0;
+            }
 
-        //Estimate wind speed with filtered parameters
-        float thrvec_xy = safe_sqrt(thrvec_x*thrvec_x + thrvec_y*thrvec_y);
-        _wind_speed = g.wind_vane_wsA * safe_sqrt(fabsf(thrvec_xy/thrvec_z)) + g.wind_vane_wsB;
-        _wind_speed = _wind_speed < 0 ? 0.0f : _wind_speed;
+            //Estimate wind speed with filtered parameters
+            float thrvec_xy = safe_sqrt(thrvec_x*thrvec_x + thrvec_y*thrvec_y);
+            _wind_speed = g.wind_vane_wsA * safe_sqrt(fabsf(thrvec_xy/thrvec_z)) + g.wind_vane_wsB;
+            _wind_speed = _wind_speed < 0 ? 0.0f : _wind_speed;
 
-        //Get current velocity
-        Vector3f vel_xyz = copter.inertial_nav.get_velocity();
-        float tyaw = copter.wp_nav->get_yaw()*DEG_TO_RAD/100.0f;
-        float speed_y = vel_xyz.y*cosf(tyaw) - vel_xyz.x*sinf(tyaw);
-        float speed = norm(vel_xyz.x,vel_xyz.y); 
-        
-        //Wind vane is active when flying horizontally steady and wind speed is perceivable
-        if(fabsf(speed_y) < 100.0f && _wind_speed > 1.0f){
-            //Min altitude and speed at which the yaw command is sent
-            if(alt>400.0f && speed<(fabsf(speed_y)+100.0f)){ 
-                //Send estimated wind direction to the autopilot
-                copter.cass_wind_direction = _wind_dir;
-                copter.cass_wind_speed = _wind_speed;
+            //Get current velocity
+            Vector3f vel_xyz = copter.inertial_nav.get_velocity();
+            float tyaw = copter.wp_nav->get_yaw()*DEG_TO_RAD/100.0f;
+            float speed_y = vel_xyz.y*cosf(tyaw) - vel_xyz.x*sinf(tyaw);
+            float speed = norm(vel_xyz.x,vel_xyz.y); 
+            
+            //Wind vane is active when flying horizontally steady and wind speed is perceivable
+            if(fabsf(speed_y) < 100.0f && _wind_speed > 1.0f){
+                //Min altitude and speed at which the yaw command is sent
+                if(alt>400.0f && speed<(fabsf(speed_y)+100.0f)){ 
+                    //Send estimated wind direction to the autopilot
+                    copter.cass_wind_direction = _wind_dir;
+                    copter.cass_wind_speed = _wind_speed;
+                }
+                else{
+                    //Send neutral values
+                    copter.cass_wind_direction = copter.wp_nav->get_yaw();
+                    copter.cass_wind_speed = 0.0f;
+                }
             }
             else{
-                //Send neutral values
-                copter.cass_wind_direction = copter.wp_nav->get_yaw();
-                copter.cass_wind_speed = 0.0f;
+                //Reset 1st order filter
+                last_yrate = 0.0f;
             }
-        }
-        else{
-            //Reset 1st order filter
-            last_yrate = 0.0f;
-        }
 
-        //Switch to RTL automatically if wind speed is too high (in m/s)
-        //If tolerance is set to zero then auto RTL is disabled but it will still warn if enabled
-        if(!is_zero(g.wind_vane_spd_tol)){
-            if(_wind_speed > g.wind_vane_spd_tol && high_wind_flag == false && copter.flightmode->is_autopilot()){
-                gcs().send_text(MAV_SEVERITY_WARNING, "Warning high wind: Switch to RTL");
-                if(!is_zero(g.wind_vane_enabled)){
-                    copter.set_mode(RTL, MODE_REASON_UNKNOWN);
+            //Switch to RTL automatically if wind speed is too high (in m/s)
+            //If tolerance is set to zero then auto RTL is disabled but it will still warn if enabled
+            if(!is_zero(g.wind_vane_spd_tol)){
+                if(_wind_speed > g.wind_vane_spd_tol && high_wind_flag == false && copter.flightmode->is_autopilot()){
+                    gcs().send_text(MAV_SEVERITY_WARNING, "Warning high wind: Switch to RTL");
+                    if(!is_zero(g.wind_vane_enabled)){
+                        copter.set_mode(RTL, MODE_REASON_UNKNOWN);
+                    }
+                    high_wind_flag = true;
                 }
-                high_wind_flag = true;
+                else if(_wind_speed < (g.wind_vane_spd_tol - 3.0f) && high_wind_flag == true){
+                    high_wind_flag = false;
+                    gcs().send_text(MAV_SEVERITY_INFO, "High wind warning cleared");
+                }
             }
-            else if(_wind_speed < (g.wind_vane_spd_tol - 3.0f) && high_wind_flag == true){
-                high_wind_flag = false;
-                gcs().send_text(MAV_SEVERITY_INFO, "High wind warning cleared");
-            }
+
+            //Update last loop time
+            last_now = AP_HAL::millis();
         }
         
     }
