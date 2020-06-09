@@ -47,17 +47,24 @@ void Copter::userhook_init()
     last_now = AP_HAL::millis();
 
     //Wind filter initialization
+    float Fss;
+    if(is_zero(fmodf(10,g.wind_vane_fs))){
+        Fss = g.wind_vane_fs;
+    }
+    else{
+        Fss = 10.0f;
+    }
     if(g.wind_vane_cutoff < 0.05){
         //Min Fc = 0.05 for stable yaw
-        filt_thrvec_x.set_cutoff_frequency(g.wind_vane_fs,0.05);
-        filt_thrvec_y.set_cutoff_frequency(g.wind_vane_fs,0.05);
-        filt_thrvec_z.set_cutoff_frequency(g.wind_vane_fs,0.05);
+        filt_thrvec_x.set_cutoff_frequency(Fss,0.05);
+        filt_thrvec_y.set_cutoff_frequency(Fss,0.05);
+        filt_thrvec_z.set_cutoff_frequency(Fss,0.05);
     }
     else{
         //Initialize Butterworth filter
-        filt_thrvec_x.set_cutoff_frequency(g.wind_vane_fs,g.wind_vane_cutoff);
-        filt_thrvec_y.set_cutoff_frequency(g.wind_vane_fs,g.wind_vane_cutoff);
-        filt_thrvec_z.set_cutoff_frequency(g.wind_vane_fs,g.wind_vane_cutoff);
+        filt_thrvec_x.set_cutoff_frequency(Fss,g.wind_vane_cutoff);
+        filt_thrvec_y.set_cutoff_frequency(Fss,g.wind_vane_cutoff);
+        filt_thrvec_z.set_cutoff_frequency(Fss,g.wind_vane_cutoff);
     }
 
     // Initialize Fan Control
@@ -232,7 +239,7 @@ void Copter::userhook_SuperSlowLoop()
         R33 = -1*copter.ahrs.get_rotation_body_to_ned().c.z;
 
         //Wind vane loop starts here. Loop frequency is defined by WVANE_FS param in Hz
-        if((AP_HAL::millis() - last_now) > (uint32_t)(1000/g.wind_vane_fs)){
+        if((AP_HAL::millis() - last_now) >= (uint32_t)(1000/g.wind_vane_fs)){
             //Apply Butterworth LPF on each element
             float thrvec_x, thrvec_y, thrvec_z;
             thrvec_x = filt_thrvec_x.apply(R13);
