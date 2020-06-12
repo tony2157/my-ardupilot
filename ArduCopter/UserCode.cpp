@@ -274,7 +274,7 @@ void Copter::userhook_SuperSlowLoop()
 
             //Estimate wind speed with filtered parameters
             float thrvec_xy = safe_sqrt(thrvec_x*thrvec_x + thrvec_y*thrvec_y);
-            _wind_speed = g.wind_vane_wsA * safe_sqrt(fabsf(thrvec_xy/thrvec_z)) + g.wind_vane_wsB;
+            _wind_speed = g.wind_vane_wsA * fabsf(thrvec_xy/thrvec_z) + g.wind_vane_wsB*safe_sqrt(fabsf(thrvec_xy/thrvec_z));
             _wind_speed = _wind_speed < 0 ? 0.0f : _wind_speed;
 
             //Get current velocity
