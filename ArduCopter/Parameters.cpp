@@ -406,28 +406,28 @@ const AP_Param::Info Copter::var_info[] = {
     // @Description: Cutoff frequency of the wind filter (range 0.06 to 1.0 is recommended)
     // @Range: -2,147,483,648 to 2,147,483,647
     // @User: Advanced
-    GSCALAR(wind_vane_cutoff,    "WVANE_CUTOFF",          0.08f),
+    GSCALAR(wind_vane_cutoff,    "WVANE_CUTOFF",          0.06f),
 
     // @Param: USER_SENSORS
     // @DisplayName: Wind vane wsA
     // @Description: Slope coefficient of the linear wind speed equation
     // @Range: -2,147,483,648 to 2,147,483,647
     // @User: Advanced
-    GSCALAR(wind_vane_wsA,    "WVANE_WSA",          32.8f),
+    GSCALAR(wind_vane_wsA,    "WVANE_WSA",          30.0f),
 
     // @Param: USER_SENSORS
     // @DisplayName: Wind vane wsB
     // @Description: Independent term coefficient of the linear wind speed equation
     // @Range: -2,147,483,648 to 2,147,483,647
     // @User: Advanced
-    GSCALAR(wind_vane_wsB,    "WVANE_WSB",          -4.5f),
+    GSCALAR(wind_vane_wsB,    "WVANE_WSB",          9.0f),
 
     // @Param: USER_SENSORS
     // @DisplayName: Wind vane speed tolerance
     // @Description: Maximum wind speed at which the RTL is triggered (in m/s)
     // @Range: -2,147,483,648 to 2,147,483,647
     // @User: Advanced
-    GSCALAR(wind_vane_spd_tol,    "WVANE_SPD_TOL",          22.0f),
+    GSCALAR(wind_vane_spd_tol,    "WVANE_SPD_TOL",          19.0f),
 
     // @Param: USER_SENSORS
     // @DisplayName: Wind vane auto RTL
