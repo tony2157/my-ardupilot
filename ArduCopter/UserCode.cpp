@@ -80,15 +80,15 @@ void Copter::userhook_FastLoop()
 }
 #endif
 
-#ifdef USERHOOK_50HZLOOP
-void Copter::userhook_50Hz()
+#ifdef USER_VPBATT_LOOP
+void Copter::user_vpbatt_monitor()
 {
     // put your 50Hz code here
 }
 #endif
 
-#ifdef USERHOOK_MEDIUMLOOP
-void Copter::userhook_MediumLoop()
+#ifdef USER_TEMPERATURE_LOOP
+void Copter::user_temperature_logger()
 {
     #if CONFIG_HAL_BOARD != HAL_BOARD_SITL
     // Read Temperature, Resistance and Health. Write sensors packet into the SD card
@@ -144,8 +144,8 @@ void Copter::userhook_MediumLoop()
 }
 #endif
 
-#ifdef USERHOOK_SLOWLOOP
-void Copter::userhook_SlowLoop()
+#ifdef USER_HUMIDITY_LOOP
+void Copter::user_humidity_logger()
 {
      #if CONFIG_HAL_BOARD != HAL_BOARD_SITL
         // Read Rel. Humidity, Temperature and Health. Write sensors packet into the SD card
@@ -199,8 +199,8 @@ void Copter::userhook_SlowLoop()
 }
 #endif
 
-#ifdef USERHOOK_SUPERSLOWLOOP
-void Copter::userhook_SuperSlowLoop()
+#ifdef USER_WVANE_LOOP
+void Copter::user_wvane_logger()
 {
     //Run algo after Copter takes off
     if(!ap.land_complete && copter.position_ok()){
