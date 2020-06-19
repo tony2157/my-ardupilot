@@ -20,7 +20,11 @@ float _wind_speed, _wind_dir;
 float R13, R23, R33;
 float last_yrate;
 bool high_wind_flag;
-uint32_t last_now;
+uint32_t wvane_now;
+//Declare digital LPF
+LPFrdFloat filt_thrvec_x;
+LPFrdFloat filt_thrvec_y;
+LPFrdFloat filt_thrvec_z;
 //g.wind_vane_wsA -> Coefficient A of the linear wind speed equation, from calibration
 //g.wind_vane_wsB -> Coefficient B of the linear wind speed equation, from calibration
 //g.wind_vane_min_roll -> Minimum roll angle that the wind vane will correct (too low and the copter will oscilate)
@@ -28,10 +32,12 @@ uint32_t last_now;
 //g.wind_vane_fine_gain -> Wind vane gain: higher values will increase the resposivness
 //g.wind_vane_fs -> Wind vane sampling frequency, range 1 to 10Hz.
 
-//Declare digital LPF
-LPFrdFloat filt_thrvec_x;
-LPFrdFloat filt_thrvec_y;
-LPFrdFloat filt_thrvec_z;
+//Smart Vertical Profiling Battery monitor parameters
+float Whc; // Energy consumed
+float Whn; // Energy needed to fly home safely
+uint32_t vpbatt_now;
+bool batt_home_ok;
+bool batt_warning_flag;
 
 #ifdef USERHOOK_INIT
 void Copter::userhook_init()
@@ -44,7 +50,7 @@ void Copter::userhook_init()
     R13 = 0.0f; R23 = 0.0f;
     last_yrate = 0;
     high_wind_flag = false;
-    last_now = AP_HAL::millis();
+    wvane_now = AP_HAL::millis();
 
     //Wind filter initialization
     float Fss;
@@ -67,6 +73,12 @@ void Copter::userhook_init()
         filt_thrvec_z.set_cutoff_frequency(Fss,g.wind_vane_cutoff);
     }
 
+    //VPBatt_monitor initilize
+    Whc = Whn = 0;
+    batt_home_ok = true;
+    batt_warning_flag = false;
+    vpbatt_now = AP_HAL::millis();
+
     // Initialize Fan Control
     SRV_Channels::set_output_scaled(SRV_Channel::k_egg_drop, fan_pwm_off);
     _fan_status = false;
@@ -83,7 +95,53 @@ void Copter::userhook_FastLoop()
 #ifdef USER_VPBATT_LOOP
 void Copter::user_vpbatt_monitor()
 {
-    // put your 50Hz code here
+    // Smart Battery Management - Use it only for Vertical profiling
+    float alt;
+    float dt = (float)(AP_HAL::millis() - vpbatt_now);
+    // Enter loop every 100 milliseconds
+    if(dt >= 100.0f){
+        // Calculate energy consumed in Watt-hour
+        Whc = Whc + battery.voltage()*battery.current_amps()*dt/3.6e6f;
+
+        // Calculate the Descent-Energy-consumption per meter height (function of wind speed)
+        float Whm = 3e-4f*_wind_speed + 8.5e-3;
+        // Constrain lower values
+        Whm = Whm > 0.01 ? Whm : 0.01;
+
+        // Get current altitude
+        copter.ahrs.get_relative_position_D_home(alt);
+        alt = -1.0f*alt;
+        // Calculate energy needed to get home safely
+        Whn = Whm*alt;
+
+        // Estimate the total energy used (percentage)
+        // vpbatt_reserve is the desired batt percentage after landing
+        float Wh_tot = (Whc + Whn)/g.vpbatt_wh + g.vpbatt_reserve/100.0f;
+
+        //Switch to RTL automatically if battery reaches critical remaining energy
+        if(!is_zero(g.vpbatt_wh)){
+            // Issue a warning once when the battery altitude range is over 85%
+            if(Wh_tot >= 0.85f && batt_warning_flag == false){
+                // It will still warn, even if the function is disabled
+                if(!is_zero(g.vpbatt_enabled)){
+                    gcs().send_text(MAV_SEVERITY_WARNING, "Over 85 Batt range");
+                }
+                batt_warning_flag = true;
+            }
+
+            // Trigger RTL when max battery altitude range is reached
+            if(Wh_tot >= 1.0f && batt_home_ok == true){
+                gcs().send_text(MAV_SEVERITY_WARNING, "Max Batt range: Switch to RTL");
+                // It will still warn, even if the function is disabled
+                if(!is_zero(g.vpbatt_enabled)){
+                    copter.set_mode(RTL, MODE_REASON_UNKNOWN);
+                }
+                batt_home_ok = false;
+            }
+        }
+        // Update time
+        vpbatt_now = AP_HAL::millis();
+    }
 }
 #endif
 
@@ -239,7 +297,7 @@ void Copter::user_wvane_logger()
         R33 = -1*copter.ahrs.get_rotation_body_to_ned().c.z;
 
         //Wind vane loop starts here. Loop frequency is defined by WVANE_FS param in Hz
-        if((AP_HAL::millis() - last_now) >= (uint32_t)(1000/g.wind_vane_fs)){
+        if((AP_HAL::millis() - wvane_now) >= (uint32_t)(1000/g.wind_vane_fs)){
             //Apply Butterworth LPF on each element
             float thrvec_x, thrvec_y, thrvec_z;
             thrvec_x = filt_thrvec_x.apply(R13);
@@ -319,7 +377,7 @@ void Copter::user_wvane_logger()
             }
 
             //Update last loop time
-            last_now = AP_HAL::millis();
+            wvane_now = AP_HAL::millis();
         }
         
     }
