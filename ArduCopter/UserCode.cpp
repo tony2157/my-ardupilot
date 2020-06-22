@@ -35,6 +35,7 @@ LPFrdFloat filt_thrvec_z;
 //Smart Vertical Profiling Battery monitor parameters
 float Whc; // Energy consumed
 float Whn; // Energy needed to fly home safely
+float int_wvspd; // Wind speed history or memory while ascending
 uint32_t vpbatt_now;
 bool batt_home_ok;
 bool batt_warning_flag;
@@ -74,7 +75,7 @@ void Copter::userhook_init()
     }
 
     //VPBatt_monitor initilize
-    Whc = Whn = 0;
+    Whc = Whn = int_wvspd = 0;
     batt_home_ok = true;
     batt_warning_flag = false;
     vpbatt_now = AP_HAL::millis();
@@ -98,48 +99,64 @@ void Copter::user_vpbatt_monitor()
     // Smart Battery Management - Use it only for Vertical profiling
     float alt;
     float dt = (float)(AP_HAL::millis() - vpbatt_now);
-    // Enter loop every 100 milliseconds
-    if(dt >= 100.0f){
-        // Calculate energy consumed in Watt-hour
-        Whc = Whc + battery.voltage()*battery.current_amps()*dt/3.6e6f;
+    // Compute loop only when flying
+    if(!ap.land_complete){
+        // Enter loop every 100 milliseconds
+        if(dt >= 100.0f){
+            // Calculate energy consumed in Watt-hour
+            Whc = Whc + battery.voltage()*battery.current_amps()*dt/3.6e6f;
 
-        // Calculate the Descent-Energy-consumption per meter height (function of wind speed)
-        float Whm = 3e-4f*_wind_speed + 8.5e-3;
-        // Constrain lower values
-        Whm = Whm > 0.01 ? Whm : 0.01;
+            //Compute the temporal integration of the wind speed (works as a memory)
+            int_wvspd = int_wvspd + _wind_speed*dt/1000;
 
-        // Get current altitude
-        copter.ahrs.get_relative_position_D_home(alt);
-        alt = -1.0f*alt;
-        // Calculate energy needed to get home safely
-        Whn = Whm*alt;
+            // Calculate the Descent-Energy-consumption per meter height (function of wind speed)
+            float Whm = 1.5e-6f*int_wvspd + 7e-3;
+            // Constrain lower values
+            Whm = Whm > 0.01 ? Whm : 0.01;
+            
+            // Get current altitude in meters
+            copter.ahrs.get_relative_position_D_home(alt);
+            alt = -1.0f*alt;
+            // Calculate energy needed to get home safely
+            Whn = Whm*alt;
+            
+            // Estimate the total energy used (percentage)
+            // vpbatt_reserve is the desired batt percentage after landing
+            float Wh_tot = (Whc + Whn)/g.vpbatt_wh + g.vpbatt_reserve/100.0f + 0.05f;
 
-        // Estimate the total energy used (percentage)
-        // vpbatt_reserve is the desired batt percentage after landing
-        float Wh_tot = (Whc + Whn)/g.vpbatt_wh + g.vpbatt_reserve/100.0f;
-
-        //Switch to RTL automatically if battery reaches critical remaining energy
-        if(!is_zero(g.vpbatt_wh)){
-            // Issue a warning once when the battery altitude range is over 85%
-            if(Wh_tot >= 0.85f && batt_warning_flag == false){
-                // It will still warn, even if the function is disabled
-                if(!is_zero(g.vpbatt_enabled)){
-                    gcs().send_text(MAV_SEVERITY_WARNING, "Over 85 Batt range");
+            //Switch to RTL automatically if battery reaches critical remaining energy
+            if(!is_zero(g.vpbatt_wh)){
+                // Issue a warning once when the battery altitude range is over 85%
+                if(Wh_tot >= 0.85f && batt_warning_flag == false){
+                    // It will still warn, even if the function is disabled
+                    if(!is_zero(g.vpbatt_enabled)){
+                        gcs().send_text(MAV_SEVERITY_WARNING, "Over 85 Batt range");
+                    }
+                    batt_warning_flag = true;
                 }
-                batt_warning_flag = true;
-            }
 
-            // Trigger RTL when max battery altitude range is reached
-            if(Wh_tot >= 1.0f && batt_home_ok == true){
-                gcs().send_text(MAV_SEVERITY_WARNING, "Max Batt range: Switch to RTL");
-                // It will still warn, even if the function is disabled
-                if(!is_zero(g.vpbatt_enabled)){
-                    copter.set_mode(RTL, MODE_REASON_UNKNOWN);
+                // Trigger RTL when max battery altitude range is reached
+                if(Wh_tot >= 1.0f && batt_home_ok == true){
+                    gcs().send_text(MAV_SEVERITY_WARNING, "Max Batt range: Switch to RTL");
+                    // It will still warn, even if the function is disabled
+                    if(!is_zero(g.vpbatt_enabled)){
+                        copter.set_mode(RTL, MODE_REASON_UNKNOWN);
+                    }
+                    batt_home_ok = false;
                 }
-                batt_home_ok = false;
             }
+            // Update time
+            vpbatt_now = AP_HAL::millis();
+
+            //Print on terminal for debugging
+            // printf("Whc: %5.2f \n",Whc);
+            // printf("int_wvspd: %5.4f \n",int_wvspd);
+            // printf("Whm: %5.4f \n",Whm);
+            // printf("Whn: %5.2f \n",Whn);
+            // printf("Wh_tot: %5.2f \n",Wh_tot);
         }
-        // Update time
+    }
+    else{
         vpbatt_now = AP_HAL::millis();
     }
 }
