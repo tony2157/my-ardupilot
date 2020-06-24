@@ -107,7 +107,11 @@ void Copter::user_vpbatt_monitor()
             Whc = Whc + battery.voltage()*battery.current_amps()*dt/3.6e6f;
 
             //Compute the temporal integration of the wind speed (works as a memory)
-            int_wvspd = int_wvspd + _wind_speed*dt/1000;
+            Vector3f velocity;
+            copter.ahrs.get_velocity_NED(velocity);
+            if(velocity[2] < 0){
+                int_wvspd = int_wvspd + _wind_speed*dt/1000;
+            }
 
             // Calculate the Descent-Energy-consumption per meter height (function of wind speed)
             float Whm = 1.5e-6f*int_wvspd + 7e-3;
@@ -149,15 +153,17 @@ void Copter::user_vpbatt_monitor()
             vpbatt_now = AP_HAL::millis();
 
             //Print on terminal for debugging
-            // printf("Whc: %5.2f \n",Whc);
-            // printf("int_wvspd: %5.4f \n",int_wvspd);
-            // printf("Whm: %5.4f \n",Whm);
-            // printf("Whn: %5.2f \n",Whn);
-            // printf("Wh_tot: %5.2f \n",Wh_tot);
+            printf("Whc: %5.2f \n",Whc);
+            printf("Vel_Z: %5.2f \n",velocity[2]);
+            printf("int_wvspd: %5.4f \n",int_wvspd);
+            printf("Whm: %5.4f \n",Whm);
+            printf("Whn: %5.2f \n",Whn);
+            printf("Wh_tot: %5.2f \n",Wh_tot);
         }
     }
     else{
         vpbatt_now = AP_HAL::millis();
+        int_wvspd = 0.0f;
     }
 }
 #endif
