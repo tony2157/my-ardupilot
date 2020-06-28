@@ -365,9 +365,10 @@ void Copter::user_wvane_logger()
             float speed = norm(vel_xyz.x,vel_xyz.y); 
             
             //Wind vane is active when flying horizontally steady and wind speed is perceivable
-            if(fabsf(speed_y) < 100.0f && _wind_speed > 1.0f && vel_xyz[2] >= 0){
+            //Condition when ascending
+            if(fabsf(speed_y) < 100.0f && _wind_speed > 1.0f && vel_xyz[2] >= 0.0f){
                 //Min altitude and speed at which the yaw command is sent
-                if(alt>400.0f && speed<(fabsf(speed_y)+100.0f)){ 
+                if(alt>300.0f && speed<(fabsf(speed_y)+100.0f)){ 
                     //Send estimated wind direction to the autopilot
                     copter.cass_wind_direction = _wind_dir;
                     copter.cass_wind_speed = _wind_speed;
@@ -378,8 +379,9 @@ void Copter::user_wvane_logger()
                     copter.cass_wind_speed = 0.0f;
                 }
             }
-            else if (fabsf(speed_y) < 100.0f && _wind_speed > 2.0f && vel_xyz[2] < 0){
-                if(alt>400.0f && speed<(fabsf(speed_y)+100.0f)){ 
+            //Condition when descending
+            else if (fabsf(speed_y) < 100.0f && _wind_speed > 3.0f && vel_xyz[2] < 0.0f){
+                if(alt>800.0f && speed<(fabsf(speed_y)+100.0f)){ 
                     //Send estimated wind direction to the autopilot
                     copter.cass_wind_direction = _wind_dir;
                     copter.cass_wind_speed = _wind_speed;
