@@ -460,7 +460,7 @@ void Copter::userhook_auxSwitch1(uint8_t ch_flag)
     int32_t vp_lat = copter.current_loc.lat; // ahrs.get_home().lat;
     int32_t vp_lng = copter.current_loc.lng; // ahrs.get_home().lng;
     float max_alt = g.autovp_max_altitude*100; //convert to cm
-    char autovp_message[26];
+    char autovp_message[22];
 
     // Run code when switch is toggled HIGH (pwm > 1800)
     if(ch_flag==AUX_SWITCH_HIGH){
@@ -482,12 +482,12 @@ void Copter::userhook_auxSwitch1(uint8_t ch_flag)
                 gcs().send_text(MAV_SEVERITY_WARNING, "AutoVP: failed to create mission");
             }
 
-            // Command #1 : take-off to 2m
+            // Command #1 : take-off to 5m
             cmd.id = MAV_CMD_NAV_TAKEOFF;
             cmd.content.location.options = 0;
             cmd.p1 = 0;
             cmd.content.location.flags.relative_alt = 1;
-            cmd.content.location.alt = 200; //in cm
+            cmd.content.location.alt = 500; //in cm
             cmd.content.location.lat = 0;
             cmd.content.location.lng = 0;
             if (!mission.add_cmd(cmd)) {
@@ -509,7 +509,7 @@ void Copter::userhook_auxSwitch1(uint8_t ch_flag)
             // Constrain target altitude
             if(max_alt > 180000){
                 max_alt = 180000;
-                gcs().send_text(MAV_SEVERITY_INFO, "AutoVP: Max Alt set to 1500m");
+                gcs().send_text(MAV_SEVERITY_INFO, "AutoVP: Max Alt set to 1800m");
             }
             if(max_alt < 1000){
                 max_alt = 1000;
@@ -540,7 +540,8 @@ void Copter::userhook_auxSwitch1(uint8_t ch_flag)
             }
 
             // Send successful creation message
-            snprintf(autovp_message, 26, "AutoVP target alt: %4.0f m",max_alt/100);
+            gcs().send_text(MAV_SEVERITY_INFO, "AutoVP mission received");
+            snprintf(autovp_message, 22, "Target alt: %.1f m",max_alt/100);
             gcs().send_text(MAV_SEVERITY_INFO, autovp_message);
 
             mission_now = AP_HAL::millis();
