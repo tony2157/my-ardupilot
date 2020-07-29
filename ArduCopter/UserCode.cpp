@@ -283,15 +283,6 @@ void Copter::user_humidity_logger()
 #ifdef USER_WVANE_LOOP
 void Copter::user_wvane_logger()
 {
-    //Fan Control when grounded (for calibration)
-    if(AP_HAL::millis() > 18000){
-        SRV_Channels::set_output_scaled(SRV_Channel::k_egg_drop, fan_pwm_on);
-        _fan_status = true;
-    }
-    else{
-        SRV_Channels::set_output_scaled(SRV_Channel::k_egg_drop, fan_pwm_off);
-        _fan_status = false;
-    }
     //Run algo after Copter takes off
     if(!ap.land_complete && copter.position_ok()){
 
@@ -430,24 +421,22 @@ void Copter::user_wvane_logger()
     else{
         //Reset all global parameters to default values
         copter.cass_wind_direction = (float)copter.initial_armed_bearing;
-<<<<<<< HEAD
         copter.cass_wind_speed = 0.0f;
-        SRV_Channels::set_output_scaled(SRV_Channel::k_egg_drop, fan_pwm_off);
         last_yrate = 0;
         _fan_status = false;
         filt_thrvec_x.reset();
         filt_thrvec_y.reset();
         filt_thrvec_z.reset();
-=======
-        copter.cass_wind_speed = 0.0;
-        //SRV_Channels::set_output_scaled(SRV_Channel::k_egg_drop, fan_pwm_off);
-        //_fan_status = false;
-        k = 0;
-        _roll_sum = 0.0f;
-        _pitch_sum = 0.0f;
-        var_temp_dir = 0.0f;
-        var_temp_gamma = 0.0f;
->>>>>>> Add fan control with timer for standalone use
+
+        //Fan Control when grounded (for calibration)
+        if(AP_HAL::millis() > 18000){
+            SRV_Channels::set_output_scaled(SRV_Channel::k_egg_drop, fan_pwm_on);
+            _fan_status = true;
+        }
+        else{
+            SRV_Channels::set_output_scaled(SRV_Channel::k_egg_drop, fan_pwm_off);
+            _fan_status = false;
+        }
     }
 
     //Wind Data Logger ///////////////////////////////////////////////////////////////////////////////////////////
