@@ -284,6 +284,9 @@ void ModeRTL::descent_start()
     else{
         auto_yaw.set_mode(AUTO_YAW_HOLD);
     }
+
+    // optionally deploy landing gear
+    copter.landinggear.deploy_for_landing();
 }
 
 // rtl_descent_run - implements the final descent to the RTL_ALT
@@ -375,24 +378,14 @@ void ModeRTL::land_start()
     else{
         auto_yaw.set_mode(AUTO_YAW_HOLD);
     }
+
+    // optionally deploy landing gear
+    copter.landinggear.deploy_for_landing();
 }
 
 bool ModeRTL::is_landing() const
 {
     return _state == RTL_Land;
-}
-
-bool ModeRTL::landing_gear_should_be_deployed() const
-{
-    switch(_state) {
-    case RTL_LoiterAtHome:
-    case RTL_Land:
-    case RTL_FinalDescent:
-        return true;
-    default:
-        return false;
-    }
-    return false;
 }
 
 // rtl_returnhome_run - return home

@@ -45,6 +45,9 @@ bool ModeLand::init(bool ignore_checks)
         auto_yaw.set_mode(AUTO_YAW_HOLD);
     }
 
+    // optionally deploy landing gear
+    copter.landinggear.deploy_for_landing();
+
     return true;
 }
 
