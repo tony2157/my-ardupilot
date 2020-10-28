@@ -66,9 +66,9 @@
 // Put your custom code into the UserCode.cpp with function names matching those listed below and ensure the appropriate #define below is uncommented below
 #define USERHOOK_INIT userhook_init();                      // for code to be run once at startup
 //#define USERHOOK_FASTLOOP userhook_FastLoop();            // for code to be run at 100hz
-//#define USERHOOK_50HZLOOP userhook_50Hz();                  // for code to be run at 50hz
+#define USER_VPBATT_MNTR_LOOP user_vpbatt_monitor();                  // for code to be run at 50hz
 #define USER_TEMPERATURE_LOOP user_temperature_logger();        // CASS iMet sensors logged at 20Hz 
 #define USER_HUMIDITY_LOOP user_humidity_logger();            // CASS HYT271 sensors logged at 10Hz
 #define USER_WIND_LOOP user_wind_vane();                    // CASS wind vane mode
-//#define USERHOOK_AUXSWITCH ENABLED                        // for code to handle user aux switches
+#define USERHOOK_AUXSWITCH ENABLED                        // for code to handle user aux switches
 #define USER_PARAMS_ENABLED ENABLED                       // to enable user parameters
