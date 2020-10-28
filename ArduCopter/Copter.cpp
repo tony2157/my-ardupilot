@@ -186,8 +186,8 @@ const AP_Scheduler::Task Copter::scheduler_tasks[] = {
 #ifdef USERHOOK_FASTLOOP
     SCHED_TASK(userhook_FastLoop,    100,     75),
 #endif
-#ifdef USERHOOK_50HZLOOP
-    SCHED_TASK(userhook_50Hz,         50,     75),
+#ifdef USER_VPBATT_MNTR_LOOP
+    SCHED_TASK(user_vpbatt_monitor,         50,     75),
 #endif
 #ifdef USER_TEMPERATURE_LOOP
     SCHED_TASK(user_temperature_logger,   20,     75),

@@ -914,13 +914,13 @@ private:
     // UserCode.cpp
     void userhook_init();
     void userhook_FastLoop();
-    void userhook_50Hz();
+    void user_vpbatt_monitor();
     void user_temperature_logger();
     void user_humidity_logger();
     void user_wind_vane();
-    void userhook_auxSwitch1(uint8_t ch_flag);
-    void userhook_auxSwitch2(uint8_t ch_flag);
-    void userhook_auxSwitch3(uint8_t ch_flag);
+    void userhook_auxSwitch1();
+    void userhook_auxSwitch2();
+    void userhook_auxSwitch3();
 
     // CASS Mavlink message
     void send_cass_imet(mavlink_channel_t chan);
