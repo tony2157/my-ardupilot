@@ -2,7 +2,7 @@
  * I2C driver for Measurement Specialties IMET ADS1115 digital temperature sensor
  */
 
-#pragma once
+//#pragma once
 
 /*=========================================================================
     I2C ADDRESS/BITS
@@ -24,10 +24,10 @@
 /*=========================================================================
     CONFIG REGISTER
     -----------------------------------------------------------------------*/
-    #define ADS1115_REG_CONFIG_OS_MASK      (0x8000)
+    #define ADS1115_REG_CONFIG_OS_MASK      (0x80)
     #define ADS1115_REG_CONFIG_OS_SINGLE    (0x8000)  // Write: Set to start a single-conversion
-    #define ADS1115_REG_CONFIG_OS_BUSY      (0x0000)  // Read: Bit = 0 when conversion is in progress
-    #define ADS1115_REG_CONFIG_OS_NOTBUSY   (0x8000)  // Read: Bit = 1 when device is not performing a conversion
+    #define ADS1115_REG_CONFIG_OS_BUSY      (0x00)  // Read: Bit = 0 when conversion is in progress
+    #define ADS1115_REG_CONFIG_OS_NOTBUSY   (0x80)  // Read: Bit = 1 when device is not performing a conversion
 
     #define ADS1115_REG_CONFIG_MUX_MASK     (0x7000)
     #define ADS1115_REG_CONFIG_MUX_DIFF_0_1 (0x0000)  // Differential P = AIN0, N = AIN1 (default)
@@ -47,6 +47,16 @@
     #define ADS1115_REG_CONFIG_PGA_0_512V   (0x0800)  // +/-0.512V range
     #define ADS1115_REG_CONFIG_PGA_0_256V   (0x0A00)  // +/-0.256V range
 
+    // Do not exceed VDD + 0.3V, or the gain set max!
+    //                        ADS1015         ADS1115
+    //                        -------------   -----------------
+    // 2/3x gain  +/- 6.144V  1 bit = 3mV     0.1875mV (default)
+    // 1x gain    +/- 4.096V  1 bit = 2mV     0.125mV
+    // 2x gain    +/- 2.048V  1 bit = 1mV     0.0625mV
+    // 4x gain    +/- 1.024V  1 bit = 0.5mV   0.03125mV
+    // 8x gain    +/- 0.512V  1 bit = 0.25mV  0.015625mV
+    // 16x gain   +/- 0.256V  1 bit = 0.125mV 0.0078125mV
+
     #define ADS1115_REG_CONFIG_MODE_MASK    (0x0100)
     #define ADS1115_REG_CONFIG_MODE_CONTIN  (0x0000)  // Continuous conversion mode
     #define ADS1115_REG_CONFIG_MODE_SINGLE  (0x0100)  // Power-down single-shot mode (default)
@@ -56,7 +66,7 @@
     #define ADS1115_REG_CONFIG_DR_16SPS     (0x0020)  // 16 samples per second
     #define ADS1115_REG_CONFIG_DR_32SPS     (0x0040)  // 32 samples per second
     #define ADS1115_REG_CONFIG_DR_64SPS     (0x0060)  // 64 samples per second
-    #define ADS1115_REG_CONFIG_DR_128SPS    (0x0080)  // 120 samples per second (default)
+    #define ADS1115_REG_CONFIG_DR_128SPS    (0x0080)  // 128 samples per second (default)
     #define ADS1115_REG_CONFIG_DR_250SPS    (0x00A0)  // 250 samples per second
     #define ADS1115_REG_CONFIG_DR_475SPS    (0x00C0)  // 475 samples per second
     #define ADS1115_REG_CONFIG_DR_860SPS    (0x00E0)  // 860 samples per second
@@ -78,6 +88,10 @@
     #define ADS1115_REG_CONFIG_CQUE_2CONV   (0x0001)  // Assert ALERT/RDY after two conversions
     #define ADS1115_REG_CONFIG_CQUE_4CONV   (0x0002)  // Assert ALERT/RDY after four conversions
     #define ADS1115_REG_CONFIG_CQUE_NONE    (0x0003)  // Disable the comparator and put ALERT/RDY in high state (default)
+
+    #define ADS1115_CHANNELS_COUNT          8
+    #define ADS1115_READ_THERMISTOR         4
+    #define ADS1115_READ_SOURCE             5
 /*=========================================================================*/
 
 #include <AP_Common/AP_Common.h>
@@ -94,7 +108,7 @@ class AC_CASS_Imet {
 public:
     AC_CASS_Imet(void);
     ~AC_CASS_Imet(void){}
-    bool init(uint8_t busId, uint8_t i2cAddr);
+    bool init(uint8_t busId, uint8_t i2cAddr); // initialize sensor object
     float temperature(void) { return _temperature; } // temperature in kelvin
     float resistance(void) { return _resist; }   // voltage read by the ADCS
     bool healthy(void) { return _healthy; } // do we have a valid temperature reading?
@@ -102,19 +116,18 @@ public:
     void set_sensor_coeff(float *k);
 
 private:
-    AP_HAL::OwnPtr<AP_HAL::I2CDevice> _dev;
-    HAL_Semaphore _sem; // semaphore for access to shared frontend data
-    bool flag;  //toggles between voltage and current measurements
-    float coeff[3]; //sensor coefficients
-    float adc_thermistor, adc_source;   //voltage source and thermistor form ADC
+    AP_HAL::OwnPtr<AP_HAL::I2CDevice> _dev; // I2C object for communication management
+    HAL_Semaphore _sem; // iterruption object for data logging management
+    bool flag;  // toggles between voltage and current measurements
+    float coeff[3]; // sensor coefficients
+    float adc_thermistor, adc_source;   // voltage source and thermistor form ADC
     float _temperature; // degrees K
-    float _resist; //pseudo-resistance read by the ADC
+    float _resist; // pseudo-resistance read by the ADC
     bool _healthy; // we have a valid temperature reading to report
     uint16_t config; // Configuration to be sent to the ADC registers
     uint8_t runs; // Number of samples taken before getting an updated measurment of the source
-    bool _config_read_thermistor(void); // configure ADC to read thermistor
-    bool _config_read_source(void); // configure ADC to read source
-    bool _read_adc(float &value);
+    bool _start_conversion(uint8_t channel); // Configure and start conversion/measurement
+    bool _read_adc(float &value); // Request and retreive data from the sensor
     void _timer(void); // update the temperature, called at 20Hz
     void _calculate(float source, float thermistor); // calculate temperature using adc readings and coefficients
 };
