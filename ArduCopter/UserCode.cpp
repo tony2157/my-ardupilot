@@ -469,19 +469,14 @@ void Copter::userhook_auxSwitch1()
 
         // clear mission
         copter.mode_auto.mission.clear();
-        //mission.clear();
-
+        
         // Command #0 : home
         cmd.id = MAV_CMD_NAV_WAYPOINT;
         cmd.content.location = Location{
                                     vp_lat,
                                     vp_lng,
                                     0,
-                                    Location::AltFrame::ABOVE_HOME};
-        // cmd.content.location.relative_alt = 1;
-        // cmd.content.location.alt = 0;
-        // cmd.content.location.lat = vp_lat;
-        // cmd.content.location.lng = vp_lng;
+                                    Location::AltFrame::ABOVE_ORIGIN};
         if (!copter.mode_auto.mission.add_cmd(cmd)) {
             gcs().send_text(MAV_SEVERITY_WARNING, "AutoVP: failed to create mission");
         }
@@ -493,11 +488,7 @@ void Copter::userhook_auxSwitch1()
                                     0,
                                     0,
                                     500,
-                                    Location::AltFrame::ABOVE_HOME};
-        // cmd.content.location.relative_alt = 1;
-        // cmd.content.location.alt = 500; //in cm
-        // cmd.content.location.lat = 0;
-        // cmd.content.location.lng = 0;
+                                    Location::AltFrame::ABOVE_ORIGIN};
         if (!copter.mode_auto.mission.add_cmd(cmd)) {
             gcs().send_text(MAV_SEVERITY_WARNING, "AutoVP: failed to create mission");
         }
@@ -509,11 +500,7 @@ void Copter::userhook_auxSwitch1()
                                     vp_lat,
                                     vp_lng,
                                     1000,
-                                    Location::AltFrame::ABOVE_HOME};
-        // cmd.content.location.relative_alt = 1;
-        // cmd.content.location.alt = 1000;
-        // cmd.content.location.lat = vp_lat;
-        // cmd.content.location.lng = vp_lng;
+                                    Location::AltFrame::ABOVE_ORIGIN};
         if (!copter.mode_auto.mission.add_cmd(cmd)) {
             gcs().send_text(MAV_SEVERITY_WARNING, "AutoVP: failed to create mission");
         }
@@ -535,11 +522,7 @@ void Copter::userhook_auxSwitch1()
                                     vp_lat,
                                     vp_lng,
                                     (int32_t)max_alt,
-                                    Location::AltFrame::ABOVE_HOME};
-        // cmd.content.location.relative_alt = 1;
-        // cmd.content.location.alt = (int32_t)max_alt;
-        // cmd.content.location.lat = vp_lat;
-        // cmd.content.location.lng = vp_lng;
+                                    Location::AltFrame::ABOVE_ORIGIN};
         if (!copter.mode_auto.mission.add_cmd(cmd)) {
             gcs().send_text(MAV_SEVERITY_WARNING, "AutoVP: failed to create mission");
         }
@@ -551,11 +534,7 @@ void Copter::userhook_auxSwitch1()
                                     0,
                                     0,
                                     0,
-                                    Location::AltFrame::ABOVE_HOME};
-        // cmd.content.location.relative_alt = 1;
-        // cmd.content.location.lat = 0;
-        // cmd.content.location.lng = 0;
-        // cmd.content.location.alt = 0;
+                                    Location::AltFrame::ABOVE_ORIGIN};
         if (!copter.mode_auto.mission.add_cmd(cmd)) {
             gcs().send_text(MAV_SEVERITY_WARNING, "AutoVP: failed to create mission");
         }
