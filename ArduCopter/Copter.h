@@ -71,6 +71,7 @@
 // CASS libraries declaration
 #include <AC_CASS_IMET/AC_CASS_Imet.h>
 #include <AC_CASS_HYT271/AC_CASS_HYT271.h>
+#include <AC_CASS_QWIICMUX/AC_CASS_QWIICMUX.h>
 
 // Configuration
 #include "defines.h"
@@ -279,6 +280,8 @@ private:
     AC_CASS_Imet CASS_Imet[4]; 
     // HYT271 humidity sensors class declaration
     AC_CASS_HYT271 CASS_HYT271[4];
+    // QUIICMUX class declaration
+    QWIICMUX CASS_QWIICMUX;
 
     struct RangeFinderState {
         bool enabled:1;
@@ -928,7 +931,8 @@ private:
 
     // CASS Libraries sensor code initilizer
     void init_CASS_imet(void);
-    void init_CASS_hyt271(void);  
+    void init_CASS_hyt271(void);
+    void init_CASS_QWIICMUX(void);  
 
 #if OSD_ENABLED == ENABLED
     void publish_osd_info();

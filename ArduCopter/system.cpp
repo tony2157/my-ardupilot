@@ -124,6 +124,7 @@ void Copter::init_ardupilot()
     // initialize CASS_Imet sensors
     init_CASS_imet();
     init_CASS_hyt271();
+    init_CASS_QWIICMUX();
 
     // check if we should enter esc calibration mode
     esc_calibration_startup_check();

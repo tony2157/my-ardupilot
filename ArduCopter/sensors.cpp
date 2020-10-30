@@ -152,6 +152,13 @@ void Copter::init_CASS_hyt271(){
     }
 }
 
+void Copter::init_CASS_QWIICMUX(){
+    // Initialize and set I2C addresses
+    uint8_t deafult_i2cAddr = 0x70;
+    uint8_t busId = 0;
+    CASS_QWIICMUX.init(busId,deafult_i2cAddr);
+}
+
 // return barometric altitude in centimeters
 void Copter::read_barometer(void)
 {
