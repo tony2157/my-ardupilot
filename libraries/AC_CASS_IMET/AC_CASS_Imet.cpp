@@ -89,7 +89,7 @@ void AC_CASS_Imet::set_i2c_addr(uint8_t addr){
 }
 
 void AC_CASS_Imet::set_sensor_coeff(float *k){
-    for(uint8_t i=0; i<3; i++){
+    for(uint8_t i=0; i<4; i++){
         coeff[i] = k[i];
     }
 }
@@ -181,5 +181,5 @@ void AC_CASS_Imet::_calculate(float source, float thermistor)
 {
     _resist = 64900.0f * (source / thermistor - 1.0f);
     //converts to temperature (kelvin)
-    _temperature = 1.0f / (coeff[0] + coeff[1] * logf(_resist) + coeff[2] * powf(logf(_resist), 3));
+    _temperature = 1.0f / (coeff[0] + coeff[1] * logf(_resist) + coeff[2] * powf(logf(_resist), 2) + coeff[3] * powf(logf(_resist), 3));
 }

@@ -119,7 +119,7 @@ private:
     AP_HAL::OwnPtr<AP_HAL::I2CDevice> _dev; // I2C object for communication management
     HAL_Semaphore _sem; // iterruption object for data logging management
     bool flag;  // toggles between voltage and current measurements
-    float coeff[3]; // sensor coefficients
+    float coeff[4]; // sensor coefficients
     float adc_thermistor, adc_source;   // voltage source and thermistor form ADC
     float _temperature; // degrees K
     float _resist; // pseudo-resistance read by the ADC
