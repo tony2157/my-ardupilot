@@ -377,7 +377,7 @@ void Copter::user_wind_vane()
             //Condition when ascending
             if(fabsf(speed_y) < 100.0f && _wind_speed > 1.0f && vel_xyz[2] >= 0.0f){
                 //Min altitude and speed at which the yaw command is sent
-                if(alt>500.0f && speed<(fabsf(speed_y)+100.0f)){ 
+                if(alt>400.0f && speed<(fabsf(speed_y)+100.0f)){ 
                     //Send estimated wind direction to the autopilot
                     copter.cass_wind_direction = _wind_dir;
                     copter.cass_wind_speed = _wind_speed;
@@ -390,7 +390,7 @@ void Copter::user_wind_vane()
             }
             //Condition when descending
             else if (fabsf(speed_y) < 100.0f && _wind_speed > 3.0f && vel_xyz[2] < 0.0f){
-                if(alt>1000.0f && speed<(fabsf(speed_y)+100.0f)){ 
+                if(alt>600.0f && speed<(fabsf(speed_y)+100.0f)){ 
                     //Send estimated wind direction to the autopilot
                     copter.cass_wind_direction = _wind_dir;
                     copter.cass_wind_speed = _wind_speed;
