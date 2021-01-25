@@ -3,12 +3,6 @@
 #include <SRV_Channel/SRV_Channel.h>
 #include <Filter/LPFrd.h>
 
-//Humidity sensor Params
-const int N_RH = 4;     //supports up to 4
-
-//IMET sensor Params
-const int N_imet = 4;   //supports up to 4
-
 //Fan control params
 //It will run the fan at SERVO_MAX, which can be set in the params list
 uint16_t fan_pwm_on = 100;
