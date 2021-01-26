@@ -470,7 +470,7 @@ void Copter::userhook_auxSwitch1()
                                     vp_lat,
                                     vp_lng,
                                     0,
-                                    Location::AltFrame::ABOVE_ORIGIN};
+                                    Location::AltFrame::ABOVE_HOME};
         if (!copter.mode_auto.mission.add_cmd(cmd)) {
             gcs().send_text(MAV_SEVERITY_WARNING, "AutoVP: failed to create mission");
         }
@@ -482,7 +482,7 @@ void Copter::userhook_auxSwitch1()
                                     0,
                                     0,
                                     500,
-                                    Location::AltFrame::ABOVE_ORIGIN};
+                                    Location::AltFrame::ABOVE_HOME};
         if (!copter.mode_auto.mission.add_cmd(cmd)) {
             gcs().send_text(MAV_SEVERITY_WARNING, "AutoVP: failed to create mission");
         }
@@ -494,7 +494,7 @@ void Copter::userhook_auxSwitch1()
                                     vp_lat,
                                     vp_lng,
                                     1000,
-                                    Location::AltFrame::ABOVE_ORIGIN};
+                                    Location::AltFrame::ABOVE_HOME};
         if (!copter.mode_auto.mission.add_cmd(cmd)) {
             gcs().send_text(MAV_SEVERITY_WARNING, "AutoVP: failed to create mission");
         }
@@ -516,7 +516,7 @@ void Copter::userhook_auxSwitch1()
                                     vp_lat,
                                     vp_lng,
                                     (int32_t)max_alt,
-                                    Location::AltFrame::ABOVE_ORIGIN};
+                                    Location::AltFrame::ABOVE_HOME};
         if (!copter.mode_auto.mission.add_cmd(cmd)) {
             gcs().send_text(MAV_SEVERITY_WARNING, "AutoVP: failed to create mission");
         }
@@ -528,7 +528,7 @@ void Copter::userhook_auxSwitch1()
                                     0,
                                     0,
                                     0,
-                                    Location::AltFrame::ABOVE_ORIGIN};
+                                    Location::AltFrame::ABOVE_HOME};
         if (!copter.mode_auto.mission.add_cmd(cmd)) {
             gcs().send_text(MAV_SEVERITY_WARNING, "AutoVP: failed to create mission");
         }
