@@ -168,11 +168,10 @@ void AC_CASS_Imet::_timer(void)
         flag = false; 
     }
 
-    WITH_SEMAPHORE(_sem);       // semaphore for access to shared frontend data
-    // If data was collected, then calculate temperature and resistance
-    if (temp_healthy) {
-        _calculate(adc_source, adc_thermistor);
-        _healthy = temp_healthy;
+    WITH_SEMAPHORE(_sem);                          // semaphore for access to shared frontend data
+    _healthy = temp_healthy;                       // report sensor health
+    if (temp_healthy) {                            // If health is false, keep last value
+        _calculate(adc_source, adc_thermistor);    // If data was collected, then calculate temperature and resistance
     }
 
 }
