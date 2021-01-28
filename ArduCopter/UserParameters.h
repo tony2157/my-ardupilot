@@ -25,9 +25,6 @@ public:
     AP_Int32 get_user_sensor7() const{return _sensor7; }
     AP_Int32 get_user_sensor8() const{return _sensor8; }
     // Wind Vane
-    AP_Float get_wvane_min_roll() const{return wind_vane_min_roll; }
-    AP_Float get_wvane_fine_rate() const{return wind_vane_fine_rate; }
-    AP_Float get_wvane_fine_gain() const{return wind_vane_fine_gain; }
     AP_Float get_wvane_cutoff() const{return wind_vane_cutoff; }
     AP_Float get_wvane_wsA() const{return wind_vane_wsA; }
     AP_Float get_wvane_wsB() const{return wind_vane_wsB; }
@@ -58,9 +55,6 @@ private:
     AP_Int32 _sensor8;
 
     //CASS wind vane param ID
-    AP_Float    wind_vane_min_roll;
-    AP_Float    wind_vane_fine_rate;
-    AP_Float    wind_vane_fine_gain;
     AP_Float    wind_vane_cutoff;
     AP_Float    wind_vane_wsA;
     AP_Float    wind_vane_wsB;

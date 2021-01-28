@@ -332,29 +332,7 @@ void Copter::user_wind_vane()
 
             //Determine wind direction by trigonometry (thrust vector tilt)
             float wind_psi = fmodf(atan2f(thrvec_y,thrvec_x),2*M_PI)*RAD_TO_DEG;
-
-            //Get current target roll from the attitude controller
-            float troll = copter.wp_nav->get_roll()/100.0f;
-
-            //Define a dead zone around zero roll
-            if(fabsf(troll) < g2.user_parameters.get_wvane_min_roll()){ last_yrate = 0; }
-
-            //Convert roll magnitude into desired yaw rate
-            float yrate = constrain_float((troll/5.0f)*g2.user_parameters.get_wvane_fine_gain(),-g2.user_parameters.get_wvane_fine_rate(),g2.user_parameters.get_wvane_fine_rate());
-            last_yrate = 0.98f*last_yrate + 0.02f*yrate; //1st order LPF
-
-            //For large compensation use "wind_psi" estimator, for fine adjusments use "yrate" estimator
-            if(fabsf(troll)<g2.user_parameters.get_wvane_min_roll()){
-                //Set WVANE_MIN_ROLL to zero to disable the "yrate" estimator
-                //Output "y_rate" estimator
-                _wind_dir = copter.cass_wind_direction/100.0f + last_yrate;
-                _wind_dir = wrap_360_cd(_wind_dir*100.0f);
-            }
-            else{ 
-                //Output "wind_psi" estimator
-                _wind_dir = wrap_360_cd(wind_psi*100.0f);
-                last_yrate = 0;
-            }
+            _wind_dir = wrap_360_cd(wind_psi*100.0f);
 
             //Estimate wind speed with filtered parameters
             float thrvec_xy = safe_sqrt(thrvec_x*thrvec_x + thrvec_y*thrvec_y);
@@ -364,7 +342,7 @@ void Copter::user_wind_vane()
             //Get current velocity
             Vector3f vel_xyz = copter.inertial_nav.get_velocity(); // NEU convention
             float tyaw = copter.wp_nav->get_yaw()*DEG_TO_RAD/100.0f;
-            float speed_y = vel_xyz.y*cosf(tyaw) - vel_xyz.x*sinf(tyaw);
+            float speed_y = vel_xyz.y*cosf(tyaw) - vel_xyz.x*sinf(tyaw); // Get lateral velocity in body frame
             float speed = norm(vel_xyz.x,vel_xyz.y); 
             
             //Wind vane is active when flying horizontally steady and wind speed is perceivable
