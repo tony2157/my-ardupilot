@@ -432,12 +432,14 @@ void Copter::userhook_auxSwitch1()
     // put your aux switch #1 handler here (CHx_OPT = 47)
     // Code runs when switch is toggled HIGH (pwm > 1800)
     AP_Mission::Mission_Command cmd;
-    int32_t vp_lat = copter.current_loc.lat; // ahrs.get_home().lat;
-    int32_t vp_lng = copter.current_loc.lng; // ahrs.get_home().lng;
     float max_alt = g2.user_parameters.get_autovp_max_alt()*100; //convert to cm
 
     // Check if drone is grounded and ready to create a mission
     if(ap.land_complete && copter.position_ok() && (AP_HAL::millis() - mission_now) > 5000){
+
+        // Get current position
+        int32_t vp_lat = copter.current_loc.lat; // ahrs.get_home().lat;
+        int32_t vp_lng = copter.current_loc.lng; // ahrs.get_home().lng;
 
         // clear mission
         copter.mode_auto.mission.clear();
@@ -459,7 +461,7 @@ void Copter::userhook_auxSwitch1()
         cmd.content.location = Location{
                                     0,
                                     0,
-                                    500,
+                                    300,
                                     Location::AltFrame::ABOVE_HOME};
         if (!copter.mode_auto.mission.add_cmd(cmd)) {
             gcs().send_text(MAV_SEVERITY_WARNING, "AutoVP: failed to create mission");
@@ -519,7 +521,7 @@ void Copter::userhook_auxSwitch1()
     }
     else{
         // Send unable to create mission message warning
-        gcs().send_text(MAV_SEVERITY_WARNING, "AutoVP: Unable to create mission");
+        gcs().send_text(MAV_SEVERITY_WARNING, "AutoVP: Unable to create mission, EKF not ready");
     }
 }
 
