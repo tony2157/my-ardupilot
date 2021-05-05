@@ -212,6 +212,12 @@ public:
 
         float look_ahead_yaw();
         float roi_yaw() const;
+        float turn_into_wind(); // CASS: wind messanger to autopilot
+        float turn_into_wind_CT2(); // CASS: vector difference between wind and displacement vectors
+
+        // CASS: wind direction and heading in turn_into_wind
+        float _wind_yaw;
+        float _wind_CT2_yaw;
 
         // auto flight mode's yaw mode
         uint8_t _mode = AUTO_YAW_LOOK_AT_NEXT_WP;
