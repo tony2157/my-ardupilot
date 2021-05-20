@@ -14,29 +14,16 @@
  */
 #pragma once
 
+#include "RGBLed.h"
+#include "DShotLED.h"
 #include <AP_Common/AP_Common.h>
-#include <AP_HAL/AP_HAL.h>
-#include "AP_BattMonitor_Backend.h"
 
-class AP_BattMonitor_BLHeliESC :public AP_BattMonitor_Backend
-{
+class DShotLED : public RGBLed {
 public:
-    // constructor. This incorporates initialisation as well.
-    AP_BattMonitor_BLHeliESC(AP_BattMonitor &mon, AP_BattMonitor::BattMonitor_State &mon_state, AP_BattMonitor_Params &params):
-        AP_BattMonitor_Backend(mon, mon_state, params)
-    {};
+    DShotLED() : RGBLed(0, 1, 1, 1) {}
 
-    virtual ~AP_BattMonitor_BLHeliESC(void) {};
+    bool init(void) override { return true; }
 
-    // initialise
-    void init() override;
-
-    // read the latest battery voltage
-    void read() override;
-
-    // BLHeliESC provides current info
-    bool has_current() const override { return have_current; };
-
-private:
-    bool have_current;
+protected:
+    bool hw_set_rgb(uint8_t r, uint8_t g, uint8_t b) override;
 };

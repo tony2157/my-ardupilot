@@ -2525,7 +2525,7 @@ MAV_RESULT GCS_MAVLINK::handle_command_do_aux_function(const mavlink_command_lon
     }
     const RC_Channel::AUX_FUNC aux_func = (RC_Channel::AUX_FUNC)packet.param1;
     const RC_Channel::AuxSwitchPos position = (RC_Channel::AuxSwitchPos)packet.param2;
-    if (!rc().do_aux_function(aux_func, position)) {
+    if (!rc().run_aux_function(aux_func, position, RC_Channel::AuxFuncTriggerSource::MAVLINK)) {
         // note that this is not quite right; we could be more nuanced
         // about our return code here.
         return MAV_RESULT_FAILED;
@@ -4905,8 +4905,10 @@ bool GCS_MAVLINK::try_send_message(const enum ap_message id)
         AP::gps().send_mavlink_gps_rtk(chan, 0);
         break;
     case MSG_GPS2_RAW:
+#if GPS_MAX_RECEIVERS > 1
         CHECK_PAYLOAD_SIZE(GPS2_RAW);
         AP::gps().send_mavlink_gps2_raw(chan);
+#endif
         break;
     case MSG_GPS2_RTK:
         CHECK_PAYLOAD_SIZE(GPS2_RTK);
@@ -5058,60 +5060,11 @@ bool GCS_MAVLINK::try_send_message(const enum ap_message id)
         send_autopilot_version();
         break;
 
-    case MSG_ESC_TELEMETRY: {
-#ifdef HAVE_AP_BLHELI_SUPPORT
-        CHECK_PAYLOAD_SIZE(ESC_TELEMETRY_1_TO_4);
-        AP_BLHeli *blheli = AP_BLHeli::get_singleton();
-        if (blheli) {
-            blheli->send_esc_telemetry_mavlink(uint8_t(chan));
-        }
-#endif
-#if HAL_MAX_CAN_PROTOCOL_DRIVERS
-        uint8_t num_drivers = AP::can().get_num_drivers();
-
-        for (uint8_t i = 0; i < num_drivers; i++) {
-            switch (AP::can().get_driver_type(i)) {
-                case AP_CANManager::Driver_Type_KDECAN: {
-// To be replaced with macro saying if KDECAN library is included
-#if APM_BUILD_TYPE(APM_BUILD_ArduCopter) || APM_BUILD_TYPE(APM_BUILD_ArduPlane) || APM_BUILD_TYPE(APM_BUILD_ArduSub)
-                    AP_KDECAN *ap_kdecan = AP_KDECAN::get_kdecan(i);
-                    if (ap_kdecan != nullptr) {
-                        ap_kdecan->send_mavlink(uint8_t(chan));
-                    }
-#endif
-                    break;
-                }
-                case AP_CANManager::Driver_Type_ToshibaCAN: {
-                    AP_ToshibaCAN *ap_tcan = AP_ToshibaCAN::get_tcan(i);
-                    if (ap_tcan != nullptr) {
-                        ap_tcan->send_esc_telemetry_mavlink(uint8_t(chan));
-                    }
-                    break;
-                }
-#if HAL_PICCOLO_CAN_ENABLE
-                case AP_CANManager::Driver_Type_PiccoloCAN: {
-                    AP_PiccoloCAN *ap_pcan = AP_PiccoloCAN::get_pcan(i);
-                    if (ap_pcan != nullptr) {
-                        ap_pcan->send_esc_telemetry_mavlink(uint8_t(chan));
-                    }
-                    break;
-                }
-#endif
-                case AP_CANManager::Driver_Type_UAVCAN: {
-                    AP_UAVCAN *ap_uavcan = AP_UAVCAN::get_uavcan(i);
-                    if (ap_uavcan != nullptr) {
-                        ap_uavcan->send_esc_telemetry_mavlink(uint8_t(chan));
-                    }
-                    break;
-                }
-                case AP_CANManager::Driver_Type_None:
-                default:
-                    break;
-            }
-        }
+    case MSG_ESC_TELEMETRY:
+#if HAL_WITH_ESC_TELEM
+        AP::esc_telem().send_esc_telemetry_mavlink(uint8_t(chan));
 #endif
         break;
-    }
 
     case MSG_EFI_STATUS: {
 #if EFI_ENABLED

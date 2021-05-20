@@ -6,6 +6,9 @@
 #include <AP_Frsky_Telem/AP_Frsky_Parameters.h>
 #include <AP_Mission/AP_Mission.h>
 #include <AP_OSD/AP_OSD.h>
+#if CONFIG_HAL_BOARD == HAL_BOARD_CHIBIOS
+#include <AP_HAL_ChibiOS/sdcard.h>
+#endif
 
 #define SCHED_TASK(func, rate_hz, max_time_micros) SCHED_TASK_CLASS(AP_Vehicle, &vehicle, func, rate_hz, max_time_micros)
 
@@ -86,6 +89,14 @@ void AP_Vehicle::setup()
 
     load_parameters();
 
+#if CONFIG_HAL_BOARD == HAL_BOARD_CHIBIOS
+    if (AP_BoardConfig::get_sdcard_slowdown() != 0) {
+        // user wants the SDcard slower, we need to remount
+        sdcard_stop();
+        sdcard_retry();
+    }
+#endif
+
     // initialise the main loop scheduler
     const AP_Scheduler::Task *tasks;
     uint8_t task_count;
@@ -130,7 +141,10 @@ void AP_Vehicle::setup()
     init_ardupilot();
     gcs().send_text(MAV_SEVERITY_INFO, "ArduPilot Ready");
 
+#if !APM_BUILD_TYPE(APM_BUILD_Replay)
     SRV_Channels::init();
+#endif
+
     // gyro FFT needs to be initialized really late
 #if HAL_GYROFFT_ENABLED
     gyro_fft.init(AP::scheduler().get_loop_period_us());
@@ -161,6 +175,7 @@ void AP_Vehicle::setup()
 #if GENERATOR_ENABLED
     generator.init();
 #endif
+
 }
 
 void AP_Vehicle::loop()
@@ -207,6 +222,9 @@ const AP_Scheduler::Task AP_Vehicle::scheduler_tasks[] = {
     SCHED_TASK(update_dynamic_notch,                   200,    200),
     SCHED_TASK_CLASS(AP_VideoTX,   &vehicle.vtx,            update,                    2, 100),
     SCHED_TASK(send_watchdog_reset_statustext,         0.1,     20),
+#if HAL_WITH_ESC_TELEM
+    SCHED_TASK_CLASS(AP_ESC_Telem, &vehicle.esc_telem,      update,                   10,  50),
+#endif
 #if GENERATOR_ENABLED
     SCHED_TASK_CLASS(AP_Generator, &vehicle.generator,      update,                   10,  50),
 #endif

@@ -87,34 +87,12 @@ enum tuning_func {
 #define WP_YAW_BEHAVIOR_INTO_WIND                     4   // CASS: auto pilot will look into the wind
 #define WP_YAW_BEHAVIOR_WIND_CT2                      5   // CASS: auto pilot CT2 wind vector
 
-// Auto modes
-enum AutoMode {
-    Auto_TakeOff,
-    Auto_WP,
-    Auto_Land,
-    Auto_RTL,
-    Auto_CircleMoveToEdge,
-    Auto_Circle,
-    Auto_NavGuided,
-    Auto_Loiter,
-    Auto_LoiterToAlt,
-    Auto_NavPayloadPlace,
-};
 
 // Airmode
 enum class AirMode {
     AIRMODE_NONE,
     AIRMODE_DISABLED,
     AIRMODE_ENABLED,
-};
-
-// Safe RTL states
-enum SmartRTLState {
-    SmartRTL_WaitForPathCleanup,
-    SmartRTL_PathFollow,
-    SmartRTL_PreLandPosition,
-    SmartRTL_Descend,
-    SmartRTL_Land
 };
 
 enum PayloadPlaceStateType {
@@ -135,7 +113,6 @@ enum PayloadPlaceStateType {
 enum DevOptions {
     DevOptionADSBMAVLink = 1,
     DevOptionVFR_HUDRelativeAlt = 2,
-    DevOptionSetAttitudeTarget_ThrustAsThrust = 4,
 };
 
 //  Logging parameters

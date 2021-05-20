@@ -404,7 +404,11 @@ Please use a replacement build as follows:
 
         boards = _board_classes.keys()
         if not ctx.env.BOARD in boards:
-            ctx.fatal("Invalid board '%s': choices are %s" % (ctx.env.BOARD, ', '.join(sorted(boards, key=str.lower))))
+            ctx.fatal(
+                "Invalid board '%s': choices are\n%sInvalid board '%s'.  Options shown above this line." %
+                (ctx.env.BOARD,
+                 ''.join(["  %s\n" % x for x in sorted(boards, key=str.lower)]),
+                 ctx.env.BOARD))
         _board = _board_classes[ctx.env.BOARD]()
     return _board
 
@@ -691,6 +695,13 @@ class chibios(Board):
         else:
             cfg.msg("Enabling malloc guard", "no")
             
+        if cfg.env.ENABLE_STATS:
+            cfg.msg("Enabling ChibiOS thread statistics", "yes")
+            env.CFLAGS += [ '-DHAL_ENABLE_THREAD_STATISTICS' ]
+            env.CXXFLAGS += [ '-DHAL_ENABLE_THREAD_STATISTICS' ]
+        else:
+            cfg.msg("Enabling ChibiOS thread statistics", "no")
+
         env.LIB += ['gcc', 'm']
 
         env.GIT_SUBMODULES += [
