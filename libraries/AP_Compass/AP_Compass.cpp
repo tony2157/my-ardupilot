@@ -1557,7 +1557,7 @@ Compass::read(void)
         learn->update();
     }
 #endif
-#ifndef HAL_NO_LOGGING
+#if HAL_LOGGING_ENABLED
     if (any_healthy && _log_bit != (uint32_t)-1 && AP::logger().should_log(_log_bit)) {
         AP::logger().Write_Compass();
     }
@@ -1769,7 +1769,7 @@ Compass::calculate_heading(const Matrix3f &dcm_matrix, uint8_t i) const
 
     // magnetic heading
     // 6/4/11 - added constrain to keep bad values from ruining DCM Yaw - Jason S.
-    float heading = constrain_float(atan2f(-headY,headX), -3.15f, 3.15f);
+    float heading = constrain_float(atan2f(-headY,headX), -M_PI, M_PI);
 
     // Declination correction (if supplied)
     if ( fabsf(_declination) > 0.0f ) {
