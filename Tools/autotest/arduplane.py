@@ -1280,8 +1280,7 @@ class AutoTestPlane(AutoTest):
             self.progress("Testing FENCE_ACTION_RTL with rally point")
 
             self.wait_ready_to_arm()
-            loc = self.home_position_as_mav_location()
-            self.location_offset_ne(loc, 50, -50)
+            loc = self.home_relative_loc_ne(50, -50)
 
             self.set_parameter("RALLY_TOTAL", 1)
             self.mav.mav.rally_point_send(target_system,
@@ -1342,8 +1341,7 @@ class AutoTestPlane(AutoTest):
         self.delay_sim_time(1)
 
         # Grab a location for rally point, and upload it.
-        rally_loc = self.home_position_as_mav_location()
-        self.location_offset_ne(rally_loc, -50, -50)
+        rally_loc = self.home_relative_loc_ne(-50, 50)
         self.set_parameter("RALLY_TOTAL", 1)
         self.mav.mav.rally_point_send(target_system,
                                       target_component,
@@ -2067,7 +2065,7 @@ class AutoTestPlane(AutoTest):
         self.customise_SITL_commandline(
             [],
             model=model,
-            defaults_filepath=self.model_defaults_filepath("ArduPlane", model),
+            defaults_filepath=self.model_defaults_filepath(model),
             wipe=True)
 
         self.load_mission('CMAC-soar.txt', strict=False)
@@ -2405,6 +2403,11 @@ class AutoTestPlane(AutoTest):
 
         if not bad_value:
             raise NotAchievedException("uncompensated IMUs did not vary enough")
+
+        # the above tests change the internal persistent state of the
+        # vehicle in ways that autotest doesn't track (magically set
+        # parameters).  So wipe the vehicle's eeprom:
+        self.reset_SITL_commandline()
 
     def ekf_lane_switch(self):
 

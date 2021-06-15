@@ -879,6 +879,7 @@ bool Compass::register_compass(int32_t dev_id, uint8_t& instance)
     _state[i].registered = true;
     _state[i].priority = priority;
     instance = uint8_t(i);
+    _compass_count = 1;
     return true;
 #else
     Priority priority;
@@ -1439,12 +1440,14 @@ bool Compass::is_replacement_mag(uint32_t devid) {
         return false;
     }
 
+#if COMPASS_MAX_UNREG_DEV > 0
     // Check that its not an unused additional mag
     for (uint8_t i = 0; i<COMPASS_MAX_UNREG_DEV; i++) {
         if (_previously_unreg_mag[i] == devid) {
             return false;
         }
     }
+#endif
 
     // Check that its not previously setup mag
     for (StateIndex i(0); i<COMPASS_MAX_INSTANCES; i++) {
@@ -1464,12 +1467,14 @@ void Compass::remove_unreg_dev_id(uint32_t devid)
         return;
     }
 
+#if COMPASS_MAX_UNREG_DEV > 0
     for (uint8_t i = 0; i<COMPASS_MAX_UNREG_DEV; i++) {
         if ((uint32_t)extra_dev_id[i] == devid) {
             extra_dev_id[i].set_and_save(0);
             return;
         }
     }
+#endif
 #endif
 }
 
@@ -1485,7 +1490,7 @@ void Compass::_reset_compass_id()
         }
         if (!_get_state(i).registered) {
             _priority_did_stored_list[i].set_and_save(0);
-            gcs().send_text(MAV_SEVERITY_ALERT, "Mag: Compass #%d with DEVID %lu removed", uint8_t(i), (unsigned long)_priority_did_list[i]);
+            GCS_SEND_TEXT(MAV_SEVERITY_ALERT, "Mag: Compass #%d with DEVID %lu removed", uint8_t(i), (unsigned long)_priority_did_list[i]);
         }
     }
 
@@ -1562,6 +1567,14 @@ Compass::read(void)
         AP::logger().Write_Compass();
     }
 #endif
+
+    // Set _first_usable parameter
+    for (Priority i(0); i<COMPASS_MAX_INSTANCES; i++) {
+        if (_use_for_yaw[i]) {
+            _first_usable = uint8_t(i);
+            break;
+        }
+    }
     return healthy();
 }
 
@@ -1704,7 +1717,7 @@ void Compass::try_set_initial_location()
 bool
 Compass::use_for_yaw(void) const
 {
-    return healthy(0) && use_for_yaw(0);
+    return healthy(_first_usable) && use_for_yaw(_first_usable);
 }
 
 /// return true if the specified compass can be used for yaw calculations

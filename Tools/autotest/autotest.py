@@ -125,12 +125,12 @@ def build_binaries():
     return True
 
 
-def build_examples():
+def build_examples(**kwargs):
     """Build examples."""
     for target in 'fmuv2', 'Pixhawk1', 'navio', 'linux':
         print("Running build.examples for %s" % target)
         try:
-            util.build_examples(target)
+            util.build_examples(target, **kwargs)
         except Exception as e:
             print("Failed build_examples on board=%s" % target)
             print(str(e))
@@ -139,12 +139,12 @@ def build_examples():
     return True
 
 
-def build_unit_tests():
+def build_unit_tests(**kwargs):
     """Build tests."""
     for target in ['linux']:
         print("Running build.unit_tests for %s" % target)
         try:
-            util.build_tests(target)
+            util.build_tests(target, **kwargs)
         except Exception as e:
             print("Failed build.unit_tests on board=%s" % target)
             print(str(e))
@@ -415,6 +415,7 @@ def run_step(step):
         "configure": not opts.no_configure,
         "math_check_indexes": opts.math_check_indexes,
         "extra_configure_args": opts.waf_configure_args,
+        "coverage": opts.coverage,
     }
 
     if opts.Werror:
@@ -483,6 +484,7 @@ def run_step(step):
         "use_map": opts.map,
         "valgrind": opts.valgrind,
         "gdb": opts.gdb,
+        "gdb_no_tui": opts.gdb_no_tui,
         "lldb": opts.lldb,
         "gdbserver": opts.gdbserver,
         "breakpoints": opts.breakpoint,
@@ -516,7 +518,7 @@ def run_step(step):
         return build_binaries()
 
     if step == 'build.examples':
-        return build_examples()
+        return build_examples(**build_opts)
 
     if step == 'run.examples':
         return examples.run_examples(debug=opts.debug, valgrind=False, gdb=False)
@@ -528,7 +530,7 @@ def run_step(step):
         return convert_gpx()
 
     if step == 'build.unit_tests':
-        return build_unit_tests()
+        return build_unit_tests(**build_opts)
 
     if step == 'run.unit_tests':
         return run_unit_tests()
@@ -877,6 +879,10 @@ if __name__ == "__main__":
                            default=False,
                            action='store_true',
                            help='make built binaries debug binaries')
+    group_build.add_option("--coverage",
+                           default=False,
+                           action='store_true',
+                           help='make built binaries coverage binaries')
     group_build.add_option("--enable-math-check-indexes",
                            default=False,
                            action="store_true",
@@ -897,6 +903,10 @@ if __name__ == "__main__":
                          default=False,
                          action='store_true',
                          help='run ArduPilot binaries under gdb')
+    group_sim.add_option("--gdb-no-tui",
+                         default=False,
+                         action='store_true',
+                         help='when running under GDB do NOT start in TUI mode')
     group_sim.add_option("--gdbserver",
                          default=False,
                          action='store_true',
@@ -1131,9 +1141,6 @@ if __name__ == "__main__":
 
     try:
         if not run_tests(steps_to_run):
-            if os.environ.get("COVERAGE", False):
-                # Don't report failure on coverage test
-                sys.exit(0)
             sys.exit(1)
     except KeyboardInterrupt:
         print("KeyboardInterrupt caught; closing pexpect connections")
