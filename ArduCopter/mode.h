@@ -386,7 +386,7 @@ public:
     void takeoff_start(const Location& dest_loc);
     void wp_start(const Location& dest_loc);
     void land_start();
-    void land_start(const Vector3f& destination);
+    void land_start(const Vector2f& destination);
     void circle_movetoedge_start(const Location &circle_center, float radius_m);
     void circle_start();
     void nav_guided_start();
@@ -448,7 +448,7 @@ private:
 
     Location loc_from_cmd(const AP_Mission::Mission_Command& cmd, const Location& default_loc) const;
 
-    void payload_place_start(const Vector3f& destination);
+    void payload_place_start(const Vector2f& destination);
     void payload_place_run();
     bool payload_place_run_should_run();
     void payload_place_run_loiter();

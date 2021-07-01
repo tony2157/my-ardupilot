@@ -268,6 +268,7 @@ public:
     void send_rpm() const;
     void send_generator_status() const;
     virtual void send_winch_status() const {};
+    void send_water_depth() const;
 
     // lock a channel, preventing use by MAVLink
     void lock(bool _lock) {
@@ -341,8 +342,6 @@ public:
     MAV_RESULT set_message_interval(uint32_t msg_id, int32_t interval_us);
 
 protected:
-
-    virtual bool in_hil_mode() const { return false; }
 
     bool mavlink_coordinate_frame_to_location_alt_frame(MAV_FRAME coordinate_frame,
                                                         Location::AltFrame &frame);
@@ -465,6 +464,7 @@ protected:
     bool telemetry_delayed() const;
     virtual uint32_t telem_delay() const = 0;
 
+    MAV_RESULT handle_command_run_prearm_checks(const mavlink_command_long_t &packet);
     MAV_RESULT handle_command_preflight_set_sensor_offsets(const mavlink_command_long_t &packet);
     MAV_RESULT handle_command_flash_bootloader(const mavlink_command_long_t &packet);
 
@@ -849,6 +849,12 @@ private:
     uint32_t last_mavlink_stats_logged;
 
     uint8_t last_battery_status_idx;
+
+    // send_sensor_offsets decimates its send rate using this counter:
+    // FIXME: decimate this instead when initialising the message
+    // intervals from the stream rates.  Consider the implications of
+    // doing so vis-a-vis the fact it will consume a bucket.
+    uint8_t send_sensor_offsets_counter;
 
     // if we've ever sent a DISTANCE_SENSOR message out of an
     // orientation we continue to send it out, even if it is not
