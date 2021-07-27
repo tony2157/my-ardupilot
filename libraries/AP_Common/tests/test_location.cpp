@@ -127,6 +127,33 @@ TEST(Location, LatLngWrapping)
     }
 }
 
+TEST(Location, LocOffsetDouble)
+{
+    struct {
+        int32_t home_lat;
+        int32_t home_lng;
+        Vector2d delta_metres_ne1;
+        Vector2d delta_metres_ne2;
+        Vector2d expected_pos_change;
+    } tests[] {
+               -353632620, 1491652373,
+               Vector2d{4682795.4576701336, 5953662.7673837934},
+               Vector2d{4682797.1904749088, 5953664.1586009059},
+               Vector2d{1.7365739867091179,1.2050807},
+    };
+
+    for (auto &test : tests) {
+        Location home{test.home_lat, test.home_lng, 0, Location::AltFrame::ABOVE_HOME};
+        Location loc1 = home;
+        Location loc2 = home;
+        loc1.offset(test.delta_metres_ne1.x, test.delta_metres_ne1.y);
+        loc2.offset(test.delta_metres_ne2.x, test.delta_metres_ne2.y);
+        Vector2d diff = loc1.get_distance_NE_double(loc2);
+        EXPECT_FLOAT_EQ(diff.x, test.expected_pos_change.x);
+        EXPECT_FLOAT_EQ(diff.y, test.expected_pos_change.y);
+    }
+}
+
 TEST(Location, Tests)
 {
     Location test_location;
@@ -380,6 +407,25 @@ TEST(Location, Line)
     EXPECT_TRUE(test_wp.past_interval_finish_line(test_home, test_home));
     test_wp.lat = 35362970;
     EXPECT_TRUE(test_wp.past_interval_finish_line(test_home, test_wp_last));
+}
+
+/*
+  check if we obey basic euclidian geometry rules of position
+  addition/subtraction
+ */
+TEST(Location, OffsetError)
+{
+    // test at 10km from origin
+    const float ofs_ne = 10e3 / sqrtf(2.0);
+    for (float lat = -80; lat <= 80; lat += 10.0) {
+        Location origin{int32_t(lat*1e7), 0, 0, Location::AltFrame::ABOVE_HOME};
+        Location loc = origin;
+        loc.offset(ofs_ne, ofs_ne);
+        Location loc2 = loc;
+        loc2.offset(-ofs_ne, -ofs_ne);
+        float dist = origin.get_distance(loc2);
+        EXPECT_FLOAT_EQ(dist, 0);
+    }
 }
 
 AP_GTEST_MAIN()

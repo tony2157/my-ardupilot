@@ -13,8 +13,7 @@
 
 static Vector3p posvel_pos_target_cm;
 static Vector3f posvel_vel_target_cms;
-static uint32_t posvel_update_time_ms;
-static uint32_t vel_update_time_ms;
+static uint32_t update_time_ms;
 
 struct {
     uint32_t update_time_ms;
@@ -75,6 +74,7 @@ void Sub::guided_vel_control_start()
 
     // initialize vertical maximum speeds and acceleration
     pos_control.set_max_speed_accel_z(-get_pilot_speed_dn(), g.pilot_speed_up, g.pilot_accel_z);
+    pos_control.set_correction_speed_accel_z(-get_pilot_speed_dn(), g.pilot_speed_up, g.pilot_accel_z);
 
     // initialise velocity controller
     pos_control.init_z_controller();
@@ -89,6 +89,7 @@ void Sub::guided_posvel_control_start()
 
     // set vertical speed and acceleration
     pos_control.set_max_speed_accel_z(wp_nav.get_default_speed_down(), wp_nav.get_default_speed_up(), wp_nav.get_accel_z());
+    pos_control.set_correction_speed_accel_z(wp_nav.get_default_speed_down(), wp_nav.get_default_speed_up(), wp_nav.get_accel_z());
 
     // initialise velocity controller
     pos_control.init_z_controller();
@@ -106,6 +107,7 @@ void Sub::guided_angle_control_start()
 
     // set vertical speed and acceleration
     pos_control.set_max_speed_accel_z(wp_nav.get_default_speed_down(), wp_nav.get_default_speed_up(), wp_nav.get_accel_z());
+    pos_control.set_correction_speed_accel_z(wp_nav.get_default_speed_down(), wp_nav.get_default_speed_up(), wp_nav.get_accel_z());
 
     // initialise velocity controller
     pos_control.init_z_controller();
@@ -189,7 +191,7 @@ void Sub::guided_set_velocity(const Vector3f& velocity)
         guided_vel_control_start();
     }
 
-    vel_update_time_ms = AP_HAL::millis();
+    update_time_ms = AP_HAL::millis();
 
     // set position controller velocity target
     pos_control.set_vel_desired_cms(velocity);
@@ -213,7 +215,7 @@ bool Sub::guided_set_destination_posvel(const Vector3f& destination, const Vecto
     }
 #endif
 
-    posvel_update_time_ms = AP_HAL::millis();
+    update_time_ms = AP_HAL::millis();
     posvel_pos_target_cm = destination.topostype();
     posvel_vel_target_cms = velocity;
 
@@ -358,7 +360,7 @@ void Sub::guided_vel_control_run()
 
     // set velocity to zero if no updates received for 3 seconds
     uint32_t tnow = AP_HAL::millis();
-    if (tnow - vel_update_time_ms > GUIDED_POSVEL_TIMEOUT_MS && !pos_control.get_vel_desired_cms().is_zero()) {
+    if (tnow - update_time_ms > GUIDED_POSVEL_TIMEOUT_MS && !pos_control.get_vel_desired_cms().is_zero()) {
         pos_control.set_vel_desired_cms(Vector3f(0,0,0));
     }
 
@@ -415,7 +417,7 @@ void Sub::guided_posvel_control_run()
 
     // set velocity to zero if no updates received for 3 seconds
     uint32_t tnow = AP_HAL::millis();
-    if (tnow - posvel_update_time_ms > GUIDED_POSVEL_TIMEOUT_MS && !posvel_vel_target_cms.is_zero()) {
+    if (tnow - update_time_ms > GUIDED_POSVEL_TIMEOUT_MS && !posvel_vel_target_cms.is_zero()) {
         posvel_vel_target_cms.zero();
     }
 

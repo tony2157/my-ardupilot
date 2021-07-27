@@ -308,6 +308,16 @@ void UARTDriver::begin(uint32_t b, uint16_t rxS, uint16_t txS)
     }
 #endif
 
+#if defined(USART_CR1_FIFOEN)
+    // enable the UART FIFO on G4 and H7. This allows for much higher baudrates
+    // without data loss when not using DMA
+    if (_last_options & OPTION_NOFIFO) {
+        _cr1_options &= ~USART_CR1_FIFOEN;
+    } else {
+        _cr1_options |= USART_CR1_FIFOEN;
+    }
+#endif
+
     /*
       allocate the write buffer
      */
@@ -899,7 +909,13 @@ void UARTDriver::write_pending_bytes_DMA(uint32_t n)
         chEvtGetAndClearEvents(EVT_TRANSMIT_DMA_COMPLETE);
 
         if (dma_handle->has_contention()) {
-            if (_baudrate <= 115200) {
+            // on boards with a hw fifo we can use a higher threshold for disabling DMA
+#if defined(USART_CR1_FIFOEN)
+            const uint32_t baud_threshold = 460800;
+#else
+            const uint32_t baud_threshold = 115200;
+#endif
+            if (_baudrate <= baud_threshold) {
                 contention_counter += 3;
                 if (contention_counter > 1000) {
                     // more than 25% of attempts to use this DMA

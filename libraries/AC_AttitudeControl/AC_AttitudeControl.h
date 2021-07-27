@@ -111,6 +111,9 @@ public:
     // get the pitch angular velocity limit in radians/s
     float get_ang_vel_pitch_max_radss() const { return _ang_vel_pitch_max; }
 
+    // get the yaw slew limit
+    float get_slew_yaw_cds() const { return _slew_yaw; }
+
     // get the rate control input smoothing time constant
     float get_input_tc() const { return _input_tc; }
 
@@ -120,7 +123,7 @@ public:
     // Ensure attitude controller have zero errors to relax rate controller output
     void relax_attitude_controllers();
 
-    // Used by child class AC_AttitudeControl_TS to change behavior for tailsitter quadplanes
+    // Used by child class AC_AttitudeControl_TS to change behaviour for tailsitter quadplanes
     virtual void relax_attitude_controllers(bool exclude_pitch) { relax_attitude_controllers(); }
 
     // reset rate controller I terms
@@ -130,10 +133,12 @@ public:
     void reset_rate_controller_I_terms_smoothly();
 
     // Sets attitude target to vehicle attitude and sets all rates to zero
-    void reset_target_and_rate();
+    // If reset_rate is false rates are not reset to allow the rate controllers to run
+    void reset_target_and_rate(bool reset_rate = true);
 
     // Sets yaw target to vehicle heading and sets yaw rate to zero
-    void reset_yaw_target_and_rate();
+    // If reset_rate is false rates are not reset to allow the rate controllers to run
+    void reset_yaw_target_and_rate(bool reset_rate = true);
 
     // handle reset of attitude from EKF since the last iteration
     void inertial_frame_reset();
