@@ -196,7 +196,7 @@ const AP_Scheduler::Task Copter::scheduler_tasks[] = {
     SCHED_TASK(user_humidity_logger,     10,    75),
 #endif
 #ifdef USER_WIND_LOOP
-    SCHED_TASK(user_wind_vane, 20,   75),
+    SCHED_TASK(user_wind_vane, 10,   75),
 #endif
 #if BUTTON_ENABLED == ENABLED
     SCHED_TASK_CLASS(AP_Button,            &copter.g2.button,           update,           5, 100),

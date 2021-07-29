@@ -395,19 +395,6 @@ void Copter::user_wind_vane()
 
             //Update last loop time
             wvane_now = AP_HAL::millis();
-
-            // Wind Data Logger ///////////////////////////////////////////////////////////////////////////////////////////
-            // Write wind direction packet into the SD card
-            struct log_WIND pkt_wind_est = {
-                LOG_PACKET_HEADER_INIT(LOG_WIND_MSG),
-                time_stamp             : AP_HAL::micros64(),
-                _wind_dir              : _wind_dir/100,
-                _wind_speed            : _wind_speed,
-                _R13                   : R13,
-                _R23                   : R23,
-                _R33                   : R33
-            };
-            logger.WriteBlock(&pkt_wind_est, sizeof(pkt_wind_est));
         }
     }
     else{
@@ -421,6 +408,19 @@ void Copter::user_wind_vane()
         filt_thrvec_y.reset();
         filt_thrvec_z.reset();
     }
+
+    // Wind Data Logger ///////////////////////////////////////////////////////////////////////////////////////////
+    // Write wind direction packet into the SD card
+    struct log_WIND pkt_wind_est = {
+        LOG_PACKET_HEADER_INIT(LOG_WIND_MSG),
+        time_stamp             : AP_HAL::micros64(),
+        _wind_dir              : _wind_dir/100,
+        _wind_speed            : _wind_speed,
+        _R13                   : R13,
+        _R23                   : R23,
+        _R33                   : R33
+    };
+    logger.WriteBlock(&pkt_wind_est, sizeof(pkt_wind_est));
 }
 #endif
 
