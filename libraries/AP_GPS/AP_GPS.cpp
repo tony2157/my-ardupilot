@@ -300,7 +300,7 @@ const AP_Param::GroupInfo AP_GPS::var_info[] = {
     // @Param: _DRV_OPTIONS
     // @DisplayName: driver options
     // @Description: Additional backend specific options
-    // @Bitmask: 0:Use UART2 for moving baseline on ublox,1:Use base station for GPS yaw on SBF
+    // @Bitmask: 0:Use UART2 for moving baseline on ublox,1:Use base station for GPS yaw on SBF,2:Use baudrate 115200
     // @User: Advanced
     AP_GROUPINFO("_DRV_OPTIONS", 22, AP_GPS, _driver_options, 0),
 #endif
@@ -650,6 +650,9 @@ void AP_GPS::detect_instance(uint8_t instance)
                 // link to the flight controller
                 static const char blob[] = UBLOX_SET_BINARY_460800;
                 send_blob_start(instance, blob, sizeof(blob));
+            } else if (_type[instance] == GPS_TYPE_UBLOX && (_driver_options & AP_GPS_Backend::DriverOptions::UBX_Use115200)) {
+                static const char blob[] = UBLOX_SET_BINARY_115200;
+                send_blob_start(instance, blob, sizeof(blob));
             } else {
                 send_blob_start(instance, _initialisation_blob, sizeof(_initialisation_blob));
             }
@@ -674,6 +677,7 @@ void AP_GPS::detect_instance(uint8_t instance)
         if ((_type[instance] == GPS_TYPE_AUTO ||
              _type[instance] == GPS_TYPE_UBLOX) &&
             ((!_auto_config && _baudrates[dstate->current_baud] >= 38400) ||
+             (_baudrates[dstate->current_baud] >= 115200 && (_driver_options & AP_GPS_Backend::DriverOptions::UBX_Use115200)) ||
              _baudrates[dstate->current_baud] == 230400) &&
             AP_GPS_UBLOX::_detect(dstate->ublox_detect_state, data)) {
             new_gps = new AP_GPS_UBLOX(*this, state[instance], _port[instance], GPS_ROLE_NORMAL);
@@ -1874,15 +1878,21 @@ bool AP_GPS::prepare_for_arming(void) {
 }
 
 bool AP_GPS::backends_healthy(char failure_msg[], uint16_t failure_msg_len) {
-#if HAL_ENABLE_LIBUAVCAN_DRIVERS
     for (uint8_t i = 0; i < GPS_MAX_RECEIVERS; i++) {
+#if HAL_ENABLE_LIBUAVCAN_DRIVERS
         if (_type[i] == GPS_TYPE_UAVCAN) {
             if (!AP_GPS_UAVCAN::backends_healthy(failure_msg, failure_msg_len)) {
                 return false;
             }
         }
-    }
 #endif
+        if (_type[i] == GPS_TYPE_UBLOX_RTK_ROVER) {
+            if (AP_HAL::millis() - state[i].gps_yaw_time_ms > 15000) {
+                hal.util->snprintf(failure_msg, failure_msg_len, "GPS[%u] yaw not available", unsigned(i+1));
+                return false;
+            }
+        }
+    }
     return true;
 }
 

@@ -86,9 +86,13 @@ uint8_t AP_ESC_Telem::get_num_active_escs() const {
 // get an individual ESC's slewed rpm if available, returns true on success
 bool AP_ESC_Telem::get_rpm(uint8_t esc_index, float& rpm) const
 {
+    if (esc_index >= ESC_TELEM_MAX_ESCS) {
+        return false;
+    }
+
     const volatile AP_ESC_Telem_Backend::RpmData& rpmdata = _rpm_data[esc_index];
 
-    if (esc_index > ESC_TELEM_MAX_ESCS || is_zero(rpmdata.update_rate_hz)) {
+    if (is_zero(rpmdata.update_rate_hz)) {
         return false;
     }
 
@@ -105,12 +109,15 @@ bool AP_ESC_Telem::get_rpm(uint8_t esc_index, float& rpm) const
 // get an individual ESC's raw rpm if available, returns true on success
 bool AP_ESC_Telem::get_raw_rpm(uint8_t esc_index, float& rpm) const
 {
+    if (esc_index >= ESC_TELEM_MAX_ESCS) {
+        return false;
+    }
+
     const volatile AP_ESC_Telem_Backend::RpmData& rpmdata = _rpm_data[esc_index];
 
     const uint32_t now = AP_HAL::micros();
 
-    if (esc_index >= ESC_TELEM_MAX_ESCS || now < rpmdata.last_update_us
-        || now - rpmdata.last_update_us > ESC_RPM_DATA_TIMEOUT_US) {
+    if (now < rpmdata.last_update_us || now - rpmdata.last_update_us > ESC_RPM_DATA_TIMEOUT_US) {
         return false;
     }
 
@@ -269,7 +276,7 @@ void AP_ESC_Telem::update_telem_data(const uint8_t esc_index, const AP_ESC_Telem
     // can only get slightly more up-to-date information that perhaps they were expecting or might
     // read data that has just gone stale - both of these are safe and avoid the overhead of locking
 
-    if (esc_index > ESC_TELEM_MAX_ESCS) {
+    if (esc_index >= ESC_TELEM_MAX_ESCS) {
         return;
     }
 
@@ -303,7 +310,7 @@ void AP_ESC_Telem::update_telem_data(const uint8_t esc_index, const AP_ESC_Telem
 // this should be called by backends when new telemetry values are available
 void AP_ESC_Telem::update_rpm(const uint8_t esc_index, const uint16_t new_rpm, const float error_rate)
 {
-    if (esc_index > ESC_TELEM_MAX_ESCS) {
+    if (esc_index >= ESC_TELEM_MAX_ESCS) {
         return;
     }
 
