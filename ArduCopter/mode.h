@@ -872,6 +872,7 @@ public:
     bool set_attitude_target_provides_thrust() const;
     bool stabilizing_pos_xy() const;
     bool stabilizing_vel_xy() const;
+    bool use_wpnav_for_position_control() const;
 
     void limit_clear();
     void limit_init_time_and_pos();
@@ -885,6 +886,7 @@ public:
     enum class SubMode {
         TakeOff,
         WP,
+        Pos,
         PosVelAccel,
         VelAccel,
         Accel,
@@ -918,7 +920,12 @@ private:
         SetAttitudeTarget_ThrustAsThrust = (1U << 3),
         DoNotStabilizePositionXY = (1U << 4),
         DoNotStabilizeVelocityXY = (1U << 5),
+        WPNavUsedForPosControl = (1U << 6),
     };
+
+    // wp controller
+    void wp_control_start();
+    void wp_control_run();
 
     void pva_control_start();
     void pos_control_start();
@@ -930,7 +937,6 @@ private:
     void accel_control_run();
     void velaccel_control_run();
     void posvelaccel_control_run();
-    void set_desired_velocity_with_accel_and_fence_limits(const Vector3f& vel_des);
     void set_yaw_state(bool use_yaw, float yaw_cd, bool use_yaw_rate, float yaw_rate_cds, bool relative_angle);
     bool use_pilot_yaw(void) const;
 
