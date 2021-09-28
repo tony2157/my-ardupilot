@@ -101,6 +101,9 @@ public:
         return pos_control->get_vel_desired_cms();
     }
 
+    // returns true if pilot's yaw input should be used to adjust vehicle's heading
+    virtual bool use_pilot_yaw() const {return true; }
+
 protected:
 
     // helper functions
@@ -400,6 +403,7 @@ public:
     bool is_landing() const override;
 
     bool is_taking_off() const override;
+    bool use_pilot_yaw() const override;
 
     bool requires_terrain_failsafe() const override { return true; }
 
@@ -434,8 +438,6 @@ private:
         AllowTakeOffWithoutRaisingThrottle = (1 << 1U),
         IgnorePilotYaw                     = (1 << 2U),
     };
-
-    bool use_pilot_yaw(void) const;
 
     bool start_command(const AP_Mission::Mission_Command& cmd);
     bool verify_command(const AP_Mission::Mission_Command& cmd);
@@ -901,6 +903,8 @@ public:
     // return guided mode timeout in milliseconds.  Only used for velocity, acceleration and angle control
     uint32_t get_timeout_ms() const;
 
+    bool use_pilot_yaw() const override;
+
 protected:
 
     const char *name() const override { return "GUIDED"; }
@@ -938,12 +942,11 @@ private:
     void velaccel_control_run();
     void posvelaccel_control_run();
     void set_yaw_state(bool use_yaw, float yaw_cd, bool use_yaw_rate, float yaw_rate_cds, bool relative_angle);
-    bool use_pilot_yaw(void) const;
 
     // controls which controller is run (pos or vel):
     SubMode guided_mode = SubMode::TakeOff;
     bool send_notification;     // used to send one time notification to ground station
-
+    bool takeoff_complete;      // true once takeoff has completed (used to trigger retracting of landing gear)
 };
 
 
@@ -1163,6 +1166,8 @@ public:
     // for reporting to GCS
     bool get_wp(Location &loc) override;
 
+    bool use_pilot_yaw() const override;
+
     // RTL states
     enum class SubMode : uint8_t {
         STARTING,
@@ -1245,8 +1250,6 @@ private:
         IgnorePilotYaw    = (1U << 2),
     };
 
-    bool use_pilot_yaw(void) const;
-
 };
 
 
@@ -1269,6 +1272,7 @@ public:
     void exit() override;
 
     bool is_landing() const override;
+    bool use_pilot_yaw() const override;
 
     // Safe RTL states
     enum class SubMode : uint8_t {
