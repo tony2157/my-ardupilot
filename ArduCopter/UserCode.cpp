@@ -408,6 +408,16 @@ void Copter::user_wind_vane()
         filt_thrvec_x.reset();
         filt_thrvec_y.reset();
         filt_thrvec_z.reset();
+
+        //Fan Control when grounded (for calibration)
+        if(AP_HAL::millis() > 18000){
+            SRV_Channels::set_output_scaled(SRV_Channel::k_egg_drop, fan_pwm_on);
+            _fan_status = true;
+        }
+        else{
+            SRV_Channels::set_output_scaled(SRV_Channel::k_egg_drop, fan_pwm_off);
+            _fan_status = false;
+        }
     }
 
     // Wind Data Logger ///////////////////////////////////////////////////////////////////////////////////////////
