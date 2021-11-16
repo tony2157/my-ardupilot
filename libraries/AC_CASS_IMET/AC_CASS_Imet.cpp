@@ -44,7 +44,7 @@ bool AC_CASS_Imet::init(uint8_t busId, uint8_t i2cAddr)
              ADS1115_REG_CONFIG_CLAT_NONLAT  | // Non-latching (default val)
              ADS1115_REG_CONFIG_CPOL_ACTVLOW | // Alert/Rdy active low   (default val)
              ADS1115_REG_CONFIG_CMODE_TRAD   | // Traditional comparator (default val)
-             ADS1115_REG_CONFIG_DR_32SPS     | // 32 samples (conversions) per second
+             ADS1115_REG_CONFIG_DR_16SPS     | // 32 samples (conversions) per second
              ADS1115_REG_CONFIG_MODE_SINGLE  | // Single-shot mode (default)
              ADS1115_REG_CONFIG_PGA_6_144V   | // Set PGA/voltage range
              ADS1115_REG_CONFIG_OS_SINGLE;     // Start single-conversion
@@ -92,7 +92,7 @@ void AC_CASS_Imet::set_i2c_addr(uint8_t addr){
 }
 
 void AC_CASS_Imet::set_sensor_coeff(float *k){
-    for(uint8_t i=0; i<3; i++){
+    for(uint8_t i=0; i<4; i++){
         coeff[i] = k[i];
     }
 }
@@ -185,5 +185,5 @@ void AC_CASS_Imet::_calculate(float source, float thermistor)
     // Calculate resistance (inversed)
     _resist = 64900.0f * (source / thermistor - 1.0f);
     // Convert to temperature (Kelvin)
-    _temperature = 1.0f / (coeff[0] + coeff[1] * logf(_resist) + coeff[2] * powf(logf(_resist), 3));
+    _temperature = 1.0f / (coeff[0] + coeff[1] * logf(_resist) + coeff[2] * powf(logf(_resist), 2) + coeff[3] * powf(logf(_resist), 3));
 }
