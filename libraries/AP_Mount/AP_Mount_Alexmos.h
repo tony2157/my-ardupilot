@@ -55,6 +55,9 @@
 #define AP_MOUNT_ALEXMOS_MODE_ANGLE 2
 #define AP_MOUNT_ALEXMOS_MODE_SPEED_ANGLE 3
 #define AP_MOUNT_ALEXMOS_MODE_RC 4
+#define AP_MOUNT_ALEXMOS_MODE_ANGLE_FLAG_AUTO_TASK 66
+#define AP_MOUNT_ALEXMOS_MODE_ANGLE_REL_FRAME_FLAG_AUTO_TASK 69
+
 
 #define AP_MOUNT_ALEXMOS_SPEED 30 // degree/s2
 
@@ -142,7 +145,9 @@ private:
 
     // CMD_CONTROL
     struct PACKED alexmos_angles_speed {
-        int8_t mode;
+        int8_t mode_roll;
+        int8_t mode_pitch;
+        int8_t mode_yaw;
         int16_t speed_roll;
         int16_t angle_roll;
         int16_t speed_pitch;

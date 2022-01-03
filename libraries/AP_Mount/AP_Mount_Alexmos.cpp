@@ -52,7 +52,7 @@ void AP_Mount_Alexmos::update()
 
         // point mount to a GPS point given by the mission planner
         case MAV_MOUNT_MODE_GPS_POINT:
-            if (calc_angle_to_roi_target(_angle_ef_target_rad, true, false)) {
+            if (calc_angle_to_roi_target(_angle_ef_target_rad, true, true)) {
                 control_axis(_angle_ef_target_rad, false);
             }
             break;
@@ -153,7 +153,9 @@ void AP_Mount_Alexmos::control_axis(const Vector3f& angle, bool target_in_degree
         target_deg *= RAD_TO_DEG;
     }
     alexmos_parameters outgoing_buffer;
-    outgoing_buffer.angle_speed.mode = AP_MOUNT_ALEXMOS_MODE_ANGLE;
+    outgoing_buffer.angle_speed.mode_roll = AP_MOUNT_ALEXMOS_MODE_ANGLE;
+    outgoing_buffer.angle_speed.mode_pitch = AP_MOUNT_ALEXMOS_MODE_ANGLE;
+    outgoing_buffer.angle_speed.mode_yaw = AP_MOUNT_ALEXMOS_MODE_ANGLE;
     outgoing_buffer.angle_speed.speed_roll = DEGREE_PER_SEC_TO_VALUE(AP_MOUNT_ALEXMOS_SPEED);
     outgoing_buffer.angle_speed.angle_roll = DEGREE_TO_VALUE(target_deg.x);
     outgoing_buffer.angle_speed.speed_pitch = DEGREE_PER_SEC_TO_VALUE(AP_MOUNT_ALEXMOS_SPEED);
