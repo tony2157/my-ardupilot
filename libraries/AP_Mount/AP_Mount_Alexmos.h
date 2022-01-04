@@ -60,7 +60,7 @@
 #define AP_MOUNT_ALEXMOS_MODE_ANGLE_REL_FRAME_FLAG_AUTO_TASK 69
 
 
-#define AP_MOUNT_ALEXMOS_SPEED 30 // degree/s2
+#define AP_MOUNT_ALEXMOS_SPEED 40 // degree/s2
 
 #define VALUE_TO_DEGREE(d) ((float)((d * 720) >> 15))
 #define DEGREE_TO_VALUE(d) ((int16_t)((float)(d)*(1.0f/0.02197265625f)))
