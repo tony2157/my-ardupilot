@@ -143,7 +143,7 @@ void AP_Mount_Alexmos::get_boardinfo()
 }
 
 /*
-  control_axis : send new angles to the gimbal at a fixed speed of 30 deg/s2
+  control_axis : send new angles to the gimbal at a fixed speed of 40 deg/s2
 */
 void AP_Mount_Alexmos::control_axis(const Vector3f& angle, bool target_in_degrees)
 {
@@ -159,7 +159,7 @@ void AP_Mount_Alexmos::control_axis(const Vector3f& angle, bool target_in_degree
     outgoing_buffer.angle_speed.speed_roll = DEGREE_PER_SEC_TO_VALUE(AP_MOUNT_ALEXMOS_SPEED);
     outgoing_buffer.angle_speed.angle_roll = DEGREE_TO_VALUE(target_deg.x);
     outgoing_buffer.angle_speed.speed_pitch = DEGREE_PER_SEC_TO_VALUE(AP_MOUNT_ALEXMOS_SPEED);
-    outgoing_buffer.angle_speed.angle_pitch = DEGREE_TO_VALUE(target_deg.y);
+    outgoing_buffer.angle_speed.angle_pitch = DEGREE_TO_VALUE(-1*target_deg.y);
     outgoing_buffer.angle_speed.speed_yaw = DEGREE_PER_SEC_TO_VALUE(AP_MOUNT_ALEXMOS_SPEED);
     outgoing_buffer.angle_speed.angle_yaw = DEGREE_TO_VALUE(target_deg.z);
     send_command(CMD_CONTROL, (uint8_t *)&outgoing_buffer.angle_speed, sizeof(alexmos_angles_speed));
