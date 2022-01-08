@@ -1,3 +1,4 @@
+#define ALLOW_DOUBLE_MATH_FUNCTIONS
 #include "AP_Mount_Backend.h"
 #if HAL_MOUNT_ENABLED
 #include <AP_AHRS/AP_AHRS.h>
@@ -187,14 +188,14 @@ bool AP_Mount_Backend::calc_angle_to_location(const struct Location &target, Vec
     }
 
     // Haversine formula
-    float curr_lat = current_loc.lat*1.0e-7f*M_PI/180.0;
-    float tar_lat = target.lat*1.0e-7f*M_PI/180.0;
-    float delta_lat = tar_lat - curr_lat;
-    float delta_lng = Location::diff_longitude(target.lng,current_loc.lng)*1.0e-7f*M_PI/180.0;
-    float a = sinf(delta_lat/2)*sinf(delta_lat/2) + cosf(curr_lat)*cosf(tar_lat)*sinf(delta_lng/2)*sinf(delta_lng/2);
-    float target_distance = 2*RADIUS_OF_EARTH*atan2f(safe_sqrt(a),safe_sqrt(1-a))*100.0f; // in cm
-    float y = sinf(delta_lng)*cosf(tar_lat);
-    float x = cosf(curr_lat)*sinf(tar_lat) - sinf(curr_lat)*cosf(tar_lat)*cosf(delta_lng);
+    double curr_lat = current_loc.lat*1.0e-7*M_PI/180.0;
+    double tar_lat = target.lat*1.0e-7*M_PI/180.0;
+    double delta_lat = tar_lat - curr_lat;
+    double delta_lng = Location::diff_longitude(target.lng,current_loc.lng)*1.0e-7*M_PI/180.0;
+    double a = sin(delta_lat/2)*sin(delta_lat/2) + cos(curr_lat)*cos(tar_lat)*sin(delta_lng/2)*sin(delta_lng/2);
+    double target_distance = 2*RADIUS_OF_EARTH*atan2(sqrt(a),sqrt(1-a))*100.0; // in cm
+    double y = sin(delta_lng)*cos(tar_lat);
+    double x = cos(curr_lat)*sin(tar_lat) - sin(curr_lat)*cos(tar_lat)*cos(delta_lng);
 
     int32_t target_alt_cm = 0;
     if (!target.get_alt_cm(Location::AltFrame::ABOVE_HOME, target_alt_cm)) {
@@ -205,20 +206,20 @@ bool AP_Mount_Backend::calc_angle_to_location(const struct Location &target, Vec
         return false;
     }
 
-    float z = target_alt_cm - current_alt_cm;
+    double z = target_alt_cm - current_alt_cm;
 
     // initialise all angles to zero
     angles_to_target_rad.zero();
 
     // tilt calcs
     if (calc_tilt) {
-        angles_to_target_rad.y = atan2f(z, target_distance);
+        angles_to_target_rad.y = (float)atan2(z, target_distance);
     }
 
     // pan calcs
     if (calc_pan) {
         // calc absolute heading and then onvert to vehicle relative yaw
-        angles_to_target_rad.z = atan2f(y, x);
+        angles_to_target_rad.z = (float)atan2(y, x);
         if (relative_pan) {
             angles_to_target_rad.z = wrap_PI(angles_to_target_rad.z - AP::ahrs().yaw);
         }
