@@ -40,20 +40,20 @@ void AP_Mount_Alexmos::update()
         // point to the angles given by a mavlink message
         case MAV_MOUNT_MODE_MAVLINK_TARGETING:
             // do nothing because earth-frame angle targets (i.e. _angle_ef_target_rad) should have already been set by a MOUNT_CONTROL message from GCS
-            control_axis(_angle_ef_target_rad, false);
+            control_axis_d(_angle_ef_target_rad_d, false);
             break;
 
         // RC radio manual angle control, but with stabilization from the AHRS
         case MAV_MOUNT_MODE_RC_TARGETING:
             // update targets using pilot's rc inputs
             update_targets_from_rc();
-            control_axis(_angle_ef_target_rad, false);
+            control_axis_d(_angle_ef_target_rad_d, false);
             break;
 
         // point mount to a GPS point given by the mission planner
         case MAV_MOUNT_MODE_GPS_POINT:
-            if (calc_angle_to_roi_target(_angle_ef_target_rad, true, true)) {
-                control_axis(_angle_ef_target_rad, false);
+            if (calc_angle_to_roi_target_d(_angle_ef_target_rad_d, true, true)) {
+                control_axis_d(_angle_ef_target_rad_d, false);
             }
             break;
 
@@ -64,16 +64,16 @@ void AP_Mount_Alexmos::update()
             }
             _state._roi_target = AP::ahrs().get_home();
             _state._roi_target_set = true;
-            if (calc_angle_to_roi_target(_angle_ef_target_rad, true, false)) {
-                control_axis(_angle_ef_target_rad, false);
+            if (calc_angle_to_roi_target_d(_angle_ef_target_rad_d, true, false)) {
+                control_axis_d(_angle_ef_target_rad_d, false);
             }
             break;
 
         case MAV_MOUNT_MODE_SYSID_TARGET:
-            if (calc_angle_to_sysid_target(_angle_ef_target_rad,
+            if (calc_angle_to_sysid_target_d(_angle_ef_target_rad_d,
                                            true,
                                            false)) {
-                control_axis(_angle_ef_target_rad, false);
+                control_axis_d(_angle_ef_target_rad_d, false);
             }
             break;
 
@@ -145,11 +145,11 @@ void AP_Mount_Alexmos::get_boardinfo()
 /*
   control_axis : send new angles to the gimbal at a fixed speed of 40 deg/s2
 */
-void AP_Mount_Alexmos::control_axis(const Vector3f& angle, bool target_in_degrees)
+void AP_Mount_Alexmos::control_axis(const Vector3f& angle, bool targets_in_degrees)
 {
     // convert to degrees if necessary
     Vector3f target_deg = angle;
-    if (!target_in_degrees) {
+    if (!targets_in_degrees) {
         target_deg *= RAD_TO_DEG;
     }
     alexmos_parameters outgoing_buffer;
@@ -162,6 +162,26 @@ void AP_Mount_Alexmos::control_axis(const Vector3f& angle, bool target_in_degree
     outgoing_buffer.angle_speed.angle_pitch = DEGREE_TO_VALUE(-1*target_deg.y);
     outgoing_buffer.angle_speed.speed_yaw = DEGREE_PER_SEC_TO_VALUE(AP_MOUNT_ALEXMOS_SPEED);
     outgoing_buffer.angle_speed.angle_yaw = DEGREE_TO_VALUE(target_deg.z);
+    send_command(CMD_CONTROL, (uint8_t *)&outgoing_buffer.angle_speed, sizeof(alexmos_angles_speed));
+}
+
+void AP_Mount_Alexmos::control_axis_d(const Vector3d& angle , bool targets_in_degrees)
+{
+    // convert to degrees if necessary
+    Vector3d target_deg = angle;
+    if (!targets_in_degrees) {
+        target_deg *= RAD_TO_DEG;
+    }
+    alexmos_parameters outgoing_buffer;
+    outgoing_buffer.angle_speed.mode_roll = AP_MOUNT_ALEXMOS_MODE_ANGLE;
+    outgoing_buffer.angle_speed.mode_pitch = AP_MOUNT_ALEXMOS_MODE_ANGLE;
+    outgoing_buffer.angle_speed.mode_yaw = AP_MOUNT_ALEXMOS_MODE_ANGLE_REL_FRAME;
+    outgoing_buffer.angle_speed.speed_roll = DEGREE_PER_SEC_TO_VALUE_D(AP_MOUNT_ALEXMOS_SPEED);
+    outgoing_buffer.angle_speed.angle_roll = DEGREE_TO_VALUE_D(target_deg.x);
+    outgoing_buffer.angle_speed.speed_pitch = DEGREE_PER_SEC_TO_VALUE_D(AP_MOUNT_ALEXMOS_SPEED);
+    outgoing_buffer.angle_speed.angle_pitch = DEGREE_TO_VALUE_D(-1*target_deg.y);
+    outgoing_buffer.angle_speed.speed_yaw = DEGREE_PER_SEC_TO_VALUE_D(AP_MOUNT_ALEXMOS_SPEED);
+    outgoing_buffer.angle_speed.angle_yaw = DEGREE_TO_VALUE_D(target_deg.z);
     send_command(CMD_CONTROL, (uint8_t *)&outgoing_buffer.angle_speed, sizeof(alexmos_angles_speed));
 }
 

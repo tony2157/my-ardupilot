@@ -19,6 +19,7 @@
  */
 #pragma once
 
+#define ALLOW_DOUBLE_MATH_FUNCTIONS
 #include <AP_Common/AP_Common.h>
 #include "AP_Mount.h"
 #if HAL_MOUNT_ENABLED
@@ -98,6 +99,12 @@ protected:
                                 bool calc_pan,
                                 bool relative_pan = true) const WARN_IF_UNUSED;
 
+    bool calc_angle_to_location_d(const struct Location &target,
+                                Vector3d& angles_to_target_rad,
+                                bool calc_tilt,
+                                bool calc_pan,
+                                bool relative_pan = true) const WARN_IF_UNUSED;
+
     // calc_angle_to_roi_target - calculates the earth-frame roll, tilt
     // and pan angles (and radians) to point at the ROI-target (as set
     // by various mavlink messages)
@@ -106,10 +113,20 @@ protected:
                                   bool calc_pan,
                                   bool relative_pan = true) const WARN_IF_UNUSED;
 
+    bool calc_angle_to_roi_target_d(Vector3d& angles_to_target_rad,
+                                    bool calc_tilt,
+                                    bool calc_pan,
+                                    bool relative_pan = true) const WARN_IF_UNUSED;
+
     // calc_angle_to_sysid_target - calculates the earth-frame roll, tilt
     // and pan angles (and radians) to point at the sysid-target (as set
     // by various mavlink messages)
     bool calc_angle_to_sysid_target(Vector3f& angles_to_target_rad,
+                                    bool calc_tilt,
+                                    bool calc_pan,
+                                    bool relative_pan = true) const WARN_IF_UNUSED;
+
+    bool calc_angle_to_sysid_target_d(Vector3d& angles_to_target_rad,
                                     bool calc_tilt,
                                     bool calc_pan,
                                     bool relative_pan = true) const WARN_IF_UNUSED;
@@ -121,6 +138,7 @@ protected:
     AP_Mount::mount_state &_state;    // references to the parameters and state for this backend
     uint8_t     _instance;  // this instance's number
     Vector3f    _angle_ef_target_rad;   // desired earth-frame roll, tilt and vehicle-relative pan angles in radians
+    Vector3d    _angle_ef_target_rad_d;
 
 private:
 

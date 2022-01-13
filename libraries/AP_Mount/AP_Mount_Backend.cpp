@@ -161,6 +161,17 @@ bool AP_Mount_Backend::calc_angle_to_roi_target(Vector3f& angles_to_target_rad,
     return calc_angle_to_location(_state._roi_target, angles_to_target_rad, calc_tilt, calc_pan, relative_pan);
 }
 
+bool AP_Mount_Backend::calc_angle_to_roi_target_d(Vector3d& angles_to_target_rad,
+                                                bool calc_tilt,
+                                                bool calc_pan,
+                                                bool relative_pan) const
+{
+    if (!_state._roi_target_set) {
+        return false;
+    }
+    return calc_angle_to_location_d(_state._roi_target, angles_to_target_rad, calc_tilt, calc_pan, relative_pan);
+}
+
 bool AP_Mount_Backend::calc_angle_to_sysid_target(Vector3f& angles_to_target_rad,
                                                   bool calc_tilt,
                                                   bool calc_pan,
@@ -179,8 +190,74 @@ bool AP_Mount_Backend::calc_angle_to_sysid_target(Vector3f& angles_to_target_rad
                                   relative_pan);
 }
 
+bool AP_Mount_Backend::calc_angle_to_sysid_target_d(Vector3d& angles_to_target_rad,
+                                                  bool calc_tilt,
+                                                  bool calc_pan,
+                                                  bool relative_pan) const
+{
+    if (!_state._target_sysid_location_set) {
+        return false;
+    }
+    if (!_state._target_sysid) {
+        return false;
+    }
+    return calc_angle_to_location_d(_state._target_sysid_location,
+                                  angles_to_target_rad,
+                                  calc_tilt,
+                                  calc_pan,
+                                  relative_pan);
+}
+
 // calc_angle_to_location - calculates the earth-frame roll, tilt and pan angles (and radians) to point at the given target
 bool AP_Mount_Backend::calc_angle_to_location(const struct Location &target, Vector3f& angles_to_target_rad, bool calc_tilt, bool calc_pan, bool relative_pan) const
+{
+    Location current_loc;
+    if (!AP::ahrs().get_position(current_loc)) {
+        return false;
+    }
+
+    // Haversine formula
+    float curr_lat = current_loc.lat*1.0e-7*M_PI/180.0;
+    float tar_lat = target.lat*1.0e-7*M_PI/180.0;
+    float delta_lat = tar_lat - curr_lat;
+    float delta_lng = Location::diff_longitude(target.lng,current_loc.lng)*1.0e-7*M_PI/180.0;
+    float a = sinf(delta_lat/2)*sinf(delta_lat/2) + cosf(curr_lat)*cosf(tar_lat)*sinf(delta_lng/2)*sinf(delta_lng/2);
+    float target_distance = 2*RADIUS_OF_EARTH*atan2f(sqrt(a),sqrtf(1-a))*100.0; // in cm
+    float y = sinf(delta_lng)*cosf(tar_lat);
+    float x = cosf(curr_lat)*sinf(tar_lat) - sinf(curr_lat)*cosf(tar_lat)*cosf(delta_lng);
+
+    int32_t target_alt_cm = 0;
+    if (!target.get_alt_cm(Location::AltFrame::ABOVE_HOME, target_alt_cm)) {
+        return false;
+    }
+    int32_t current_alt_cm = 0;
+    if (!current_loc.get_alt_cm(Location::AltFrame::ABOVE_HOME, current_alt_cm)) {
+        return false;
+    }
+
+    float z = target_alt_cm - current_alt_cm;
+
+    // initialise all angles to zero
+    angles_to_target_rad.zero();
+
+    // tilt calcs
+    if (calc_tilt) {
+        angles_to_target_rad.y = atan2f(z, target_distance);
+    }
+
+    // pan calcs
+    if (calc_pan) {
+        // calc absolute heading and then onvert to vehicle relative yaw
+        angles_to_target_rad.z = atan2f(y, x);
+        if (relative_pan) {
+            angles_to_target_rad.z = wrap_PI(angles_to_target_rad.z - AP::ahrs().yaw);
+        }
+    }
+    return true;
+}
+
+// calc_angle_to_location - calculates the earth-frame roll, tilt and pan angles (and radians) to point at the given target
+bool AP_Mount_Backend::calc_angle_to_location_d(const struct Location &target, Vector3d& angles_to_target_rad, bool calc_tilt, bool calc_pan, bool relative_pan) const
 {
     Location current_loc;
     if (!AP::ahrs().get_position(current_loc)) {
@@ -213,15 +290,15 @@ bool AP_Mount_Backend::calc_angle_to_location(const struct Location &target, Vec
 
     // tilt calcs
     if (calc_tilt) {
-        angles_to_target_rad.y = (float)atan2(z, target_distance);
+        angles_to_target_rad.y = atan2(z, target_distance);
     }
 
     // pan calcs
     if (calc_pan) {
         // calc absolute heading and then onvert to vehicle relative yaw
-        angles_to_target_rad.z = (float)atan2(y, x);
+        angles_to_target_rad.z = atan2(y, x);
         if (relative_pan) {
-            angles_to_target_rad.z = wrap_PI(angles_to_target_rad.z - AP::ahrs().yaw);
+            angles_to_target_rad.z = wrap_180((angles_to_target_rad.z - (double)AP::ahrs().yaw)*RAD_TO_DEG)*DEG_TO_RAD;
         }
     }
     return true;

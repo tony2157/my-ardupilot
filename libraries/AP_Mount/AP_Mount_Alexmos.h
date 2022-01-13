@@ -66,6 +66,10 @@
 #define DEGREE_TO_VALUE(d) ((int16_t)((float)(d)*(1.0f/0.02197265625f)))
 #define DEGREE_PER_SEC_TO_VALUE(d) ((int16_t)((float)(d)*(1.0f/0.1220740379f)))
 
+#define VALUE_TO_DEGREE_D(d) ((double)((d * 720) >> 15))
+#define DEGREE_TO_VALUE_D(d) ((int16_t)((double)(d)*(1.0f/0.02197265625f)))
+#define DEGREE_PER_SEC_TO_VALUE_D(d) ((int16_t)((double)(d)*(1.0f/0.1220740379f)))
+
 class AP_Mount_Alexmos : public AP_Mount_Backend
 {
 public:
@@ -102,6 +106,9 @@ private:
 
     // control_axis - send new angles to the gimbal at a fixed speed of 30 deg/s
     void control_axis(const Vector3f& angle , bool targets_in_degrees);
+
+    // (double)control_axis - send new angles to the gimbal at a fixed speed of 30 deg/s
+    void control_axis_d(const Vector3d& angle , bool targets_in_degrees);
 
     // read_params - read current profile profile_id and global parameters from the gimbal settings
     void read_params(uint8_t profile_id);
