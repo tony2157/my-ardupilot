@@ -38,6 +38,9 @@ public:
     AP_Float get_vpbatt_wh() const{return vpbatt_wh; }
     // Mission auto-generator
     AP_Float get_autovp_max_alt() const{return autovp_max_altitude; }
+    // Gimbal function
+    AP_Int32 get_gimbal_pan_lock() const{return gimbal_pan_lock; }
+    AP_Float get_gimbal_pan_angle() const{return gimbal_pan_angle; }
     
 private:
     // Put your parameter variable definitions here
@@ -71,4 +74,8 @@ private:
 
     //CASS AutoVP mission auto-generation
     AP_Float    autovp_max_altitude;
+
+    //Gimbal function
+    AP_Int32    gimbal_pan_lock;
+    AP_Float    gimbal_pan_angle;
 };
