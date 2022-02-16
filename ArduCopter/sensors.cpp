@@ -5,23 +5,23 @@ void Copter::init_CASS_imet(){
     float coeff[4][4];
 
     //CS3D SENSORS (dummy values)
-    //IMET temp number 44540:
-    coeff[0][0] = 9.00273166e-04f;
-    coeff[0][1] = 2.94676002e-04f;
-    coeff[0][2] = -3.24176601e-06f;
-    coeff[0][3] = 2.54082690e-07f;
+    //IMET temp number 58729:
+    coeff[0][0] = 9.15005097e-04f;
+    coeff[0][1] = 2.89939573e-04f;
+    coeff[0][2] = -2.82396874e-06f;
+    coeff[0][3] = 2.41889458e-07f;
 
-    //IMET temp number 44517:
-    coeff[1][0] = 8.88799996e-04f;
-    coeff[1][1] = 2.98027731e-04f;
-    coeff[1][2] = -3.55646098e-06f;
-    coeff[1][3] = 2.63999175e-07f;
+    //IMET temp number 58731
+    coeff[1][0] = 9.16715331e-04f;
+    coeff[1][1] = 2.90649356e-04f;
+    coeff[1][2] = -2.86603599e-06f;
+    coeff[1][3] = 2.43454547e-07f;
 
-    //IMET temp number 57558:
-    coeff[2][0] = 8.8882883e-04f;
-    coeff[2][1] = 2.97803079e-04f;
-    coeff[2][2] = -3.49927771e-06f;
-    coeff[2][3] = 2.62053650e-07f;
+    //IMET temp number 58726:
+    coeff[2][0] = 9.17936414e-04f;
+    coeff[2][1] = 2.89053868e-04f;
+    coeff[2][2] = -2.72937893e-06f;
+    coeff[2][3] = 2.39436750e-07f;
 
     //IMET temp number none:
     coeff[3][0] = 1.0f;
