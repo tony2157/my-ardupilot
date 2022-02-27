@@ -589,11 +589,21 @@ void Mode::land_run_horizontal_control()
             }
         }
 
-        // get pilot's desired yaw rate
-        target_yaw_rate = get_pilot_desired_yaw_rate(channel_yaw->get_control_in());
-        if (!is_zero(target_yaw_rate)) {
-            auto_yaw.set_mode(AUTO_YAW_HOLD);
+        // BLISS modification. Ignore pilot yaw input above 20m when in RTL/Landing
+        target_yaw_rate = 0;
+        if (!copter.failsafe.radio && use_pilot_yaw() && copter.current_loc.alt < RTL_ALT_MIN*10) {
+            // get pilot's desired yaw rate
+            target_yaw_rate = get_pilot_desired_yaw_rate(channel_yaw->get_control_in());
+            if (!is_zero(target_yaw_rate)) {
+                auto_yaw.set_mode(AUTO_YAW_HOLD);
+            }
         }
+
+        // // get pilot's desired yaw rate
+        // target_yaw_rate = get_pilot_desired_yaw_rate(channel_yaw->get_control_in());
+        // if (!is_zero(target_yaw_rate)) {
+        //     auto_yaw.set_mode(AUTO_YAW_HOLD);
+        // }
     }
 
 #if PRECISION_LANDING == ENABLED
