@@ -156,12 +156,14 @@ void Copter::user_vpbatt_monitor()
             vpbatt_now = AP_HAL::millis();
 
             //Print on terminal for debugging
-            //printf("Whc: %5.2f \n",Whc);
-            //printf("Vel_Z: %5.2f \n",velocity[2]);
-            //printf("int_wvspd: %5.4f \n",int_wvspd);
-            //printf("Whm: %5.4f \n",Whm);
-            //printf("Whn: %5.2f \n",Whn);
-            //printf("Wh_tot: %5.2f \n",Wh_tot);
+            #if CONFIG_HAL_BOARD == HAL_BOARD_SITL
+            // printf("Whc: %5.2f \n",Whc);
+            // printf("Vel_Z: %5.2f \n",velocity[2]);
+            // printf("int_wvspd: %5.4f \n",int_wvspd);
+            // printf("Whm: %5.4f \n",Whm);
+            // printf("Whn: %5.2f \n",Whn);
+            // printf("Wh_tot: %5.2f \n",Wh_tot);
+            #endif
         }
     }
     else{
