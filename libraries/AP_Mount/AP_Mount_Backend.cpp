@@ -280,7 +280,7 @@ bool AP_Mount_Backend::calc_angle_to_location_d(const struct Location &target, V
     double bearing = atan2(y, x);
 
     double fixed_yaw = (double)_state._roll_stb_lead*DEG_TO_RAD;
-    //double ang_diff = wrap_2PI(bearing - fixed_yaw);
+    double ang_diff = wrap_2PI(bearing - fixed_yaw);
 
     int32_t target_alt_cm = 0;
     if (!target.get_alt_cm(Location::AltFrame::ABOVE_HOME, target_alt_cm)) {
@@ -310,10 +310,10 @@ bool AP_Mount_Backend::calc_angle_to_location_d(const struct Location &target, V
         }
     else {
             // tilt calcs
-            angles_to_target_rad.y = atan2(z, target_distance);
+            angles_to_target_rad.y = atan2(z, target_distance*cos(ang_diff));
             
             // roll calcs
-            angles_to_target_rad.x = atan2(target_distance,z);
+            angles_to_target_rad.x = atan2(z, target_distance*sin(ang_diff));
 
             angles_to_target_rad.z = fixed_yaw;
             if (relative_pan) {
