@@ -33,9 +33,6 @@ const AP_Param::GroupInfo UserParameters::var_info[] = {
     AP_GROUPINFO("_VPBATT_WH", 17, UserParameters, vpbatt_wh, 89.0f),
     // Mission Auto-generator
     AP_GROUPINFO("_AUTOVP_ALT", 18, UserParameters, autovp_max_altitude, 120.0f),
-    // Gimbal functions
-    AP_GROUPINFO("_GMBL_PAN_LOCK", 19, UserParameters, gimbal_pan_lock, 0),
-    AP_GROUPINFO("_GMBL_PAN_ANG", 20, UserParameters, gimbal_pan_angle, 0.0f),
     
     AP_GROUPEND
 };
