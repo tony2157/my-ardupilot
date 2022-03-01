@@ -269,10 +269,18 @@ bool AP_Mount_Backend::calc_angle_to_location_d(const struct Location &target, V
     double tar_lat = target.lat*1.0e-7*M_PI/180.0;
     double delta_lat = tar_lat - curr_lat;
     double delta_lng = Location::diff_longitude(target.lng,current_loc.lng)*1.0e-7*M_PI/180.0;
-    double a = sin(delta_lat/2)*sin(delta_lat/2) + cos(curr_lat)*cos(tar_lat)*sin(delta_lng/2)*sin(delta_lng/2);
+    double a = sin(delta_lat/2)*sin(delta_lat/2) + cos(curr_lat)*cos(tar_lat)*sin(delta_lng/2)*sin(delta_lng/2);\
+
+    // Compute distance to target
     double target_distance = 2*RADIUS_OF_EARTH*atan2(sqrt(a),sqrt(1-a))*100.0; // in cm
+
+    // Compute bearing to target
     double y = sin(delta_lng)*cos(tar_lat);
     double x = cos(curr_lat)*sin(tar_lat) - sin(curr_lat)*cos(tar_lat)*cos(delta_lng);
+    double bearing = atan2(y, x);
+
+    double fixed_yaw = (double)_state._roll_stb_lead*DEG_TO_RAD;
+    //double ang_diff = wrap_2PI(bearing - fixed_yaw);
 
     int32_t target_alt_cm = 0;
     if (!target.get_alt_cm(Location::AltFrame::ABOVE_HOME, target_alt_cm)) {
@@ -283,24 +291,35 @@ bool AP_Mount_Backend::calc_angle_to_location_d(const struct Location &target, V
         return false;
     }
 
+    // Compute height difference
     double z = target_alt_cm - current_alt_cm;
 
     // initialise all angles to zero
     angles_to_target_rad.zero();
 
-    // tilt calcs
-    if (calc_tilt) {
-        angles_to_target_rad.y = atan2(z, target_distance);
-    }
+    if(_state._pitch_stb_lead < 0.5f){
+            // tilt calcs
+            angles_to_target_rad.y = atan2(z, target_distance);
 
-    // pan calcs
-    if (calc_pan) {
-        // calc absolute heading and then onvert to vehicle relative yaw
-        angles_to_target_rad.z = atan2(y, x);
-        if (relative_pan) {
-            angles_to_target_rad.z = wrap_180((angles_to_target_rad.z - (double)AP::ahrs().yaw)*RAD_TO_DEG)*DEG_TO_RAD;
+            // pan calcs
+            // calc absolute heading and then convert to vehicle relative yaw
+            angles_to_target_rad.z = bearing;
+            if (relative_pan) {
+                angles_to_target_rad.z = wrap_180((angles_to_target_rad.z - (double)AP::ahrs().yaw)*RAD_TO_DEG)*DEG_TO_RAD;
+            }
         }
-    }
+    else {
+            // tilt calcs
+            angles_to_target_rad.y = atan2(z, target_distance);
+            
+            // roll calcs
+            angles_to_target_rad.x = atan2(target_distance,z);
+
+            angles_to_target_rad.z = fixed_yaw;
+            if (relative_pan) {
+                angles_to_target_rad.z = wrap_180((angles_to_target_rad.z - (double)AP::ahrs().yaw)*RAD_TO_DEG)*DEG_TO_RAD;
+            }
+        }
     return true;
 }
 
