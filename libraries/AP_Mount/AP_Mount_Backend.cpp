@@ -301,10 +301,12 @@ bool AP_Mount_Backend::calc_angle_to_location_d(const struct Location &target, V
             // tilt calcs
             angles_to_target_rad.y = atan2(z, target_distance);
 
+            // roll is leveled to the ground
+
             // pan calcs
-            // calc absolute heading and then convert to vehicle relative yaw
             angles_to_target_rad.z = bearing;
             if (relative_pan) {
+                // Convert to vehicle relative yaw
                 angles_to_target_rad.z = wrap_180((angles_to_target_rad.z - (double)AP::ahrs().yaw)*RAD_TO_DEG)*DEG_TO_RAD;
             }
         }
@@ -315,6 +317,7 @@ bool AP_Mount_Backend::calc_angle_to_location_d(const struct Location &target, V
             // roll calcs
             angles_to_target_rad.x = atan2(z, target_distance*sin(ang_diff));
 
+            // pan is set to a fixed value defined by user
             angles_to_target_rad.z = fixed_yaw;
             if (relative_pan) {
                 angles_to_target_rad.z = wrap_180((angles_to_target_rad.z - (double)AP::ahrs().yaw)*RAD_TO_DEG)*DEG_TO_RAD;
