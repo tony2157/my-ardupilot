@@ -294,35 +294,40 @@ bool AP_Mount_Backend::calc_angle_to_location_d(const struct Location &target, V
     // Compute height difference
     double z = target_alt_cm - current_alt_cm;
 
+    float dist2target = fabsf(current_loc.get_distance(target)) + fabsf((float)z/100.0f);
+
     // initialise all angles to zero
     angles_to_target_rad.zero();
 
-    if(_state._pitch_stb_lead < 0.5f){
-            // tilt calcs
-            angles_to_target_rad.y = atan2(z, target_distance);
+    if(dist2target > 5){
+        if(_state._pitch_stb_lead < 0.5f){
+                // tilt calcs
+                angles_to_target_rad.y = atan2(z, target_distance);
 
-            // roll is leveled to the ground
+                // roll is leveled to the ground
 
-            // pan calcs
-            angles_to_target_rad.z = bearing;
-            if (relative_pan) {
-                // Convert to vehicle relative yaw
-                angles_to_target_rad.z = wrap_180((angles_to_target_rad.z - (double)AP::ahrs().yaw)*RAD_TO_DEG)*DEG_TO_RAD;
+                // pan calcs
+                angles_to_target_rad.z = bearing;
+                if (relative_pan) {
+                    // Convert to vehicle relative yaw
+                    angles_to_target_rad.z = wrap_180((angles_to_target_rad.z - (double)AP::ahrs().yaw)*RAD_TO_DEG)*DEG_TO_RAD;
+                }
             }
-        }
-    else {
-            // tilt calcs
-            angles_to_target_rad.y = atan2(z, target_distance*cos(ang_diff));
-            
-            // roll calcs
-            angles_to_target_rad.x = atan2(z, target_distance*sin(ang_diff));
+        else {
+                // tilt calcs
+                angles_to_target_rad.y = atan2(z, target_distance*cos(ang_diff));
+                
+                // roll calcs
+                angles_to_target_rad.x = atan2f(z, target_distance*sinf(ang_diff)) + M_PI_2;
 
-            // pan is set to a fixed value defined by user
-            angles_to_target_rad.z = fixed_yaw;
-            if (relative_pan) {
-                angles_to_target_rad.z = wrap_180((angles_to_target_rad.z - (double)AP::ahrs().yaw)*RAD_TO_DEG)*DEG_TO_RAD;
+                // pan is set to a fixed value defined by user
+                angles_to_target_rad.z = fixed_yaw;
+                if (relative_pan) {
+                    angles_to_target_rad.z = wrap_180((angles_to_target_rad.z - (double)AP::ahrs().yaw)*RAD_TO_DEG)*DEG_TO_RAD;
+                }
             }
-        }
+    }
+
     return true;
 }
 

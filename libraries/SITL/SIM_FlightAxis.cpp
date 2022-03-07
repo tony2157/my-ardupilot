@@ -512,11 +512,11 @@ void FlightAxis::report_FPS(void)
 {
     if (frame_counter++ % 1000 == 0) {
         if (!is_zero(last_frame_count_s)) {
-            uint64_t frames = socket_frame_counter - last_socket_frame_counter;
+            //uint64_t frames = socket_frame_counter - last_socket_frame_counter;
             last_socket_frame_counter = socket_frame_counter;
-            double dt = state.m_currentPhysicsTime_SEC - last_frame_count_s;
-            printf("%.2f/%.2f FPS avg=%.2f\n",
-                   frames / dt, 1000 / dt, 1.0/average_frame_time_s);
+            //double dt = state.m_currentPhysicsTime_SEC - last_frame_count_s;
+            //printf("%.2f/%.2f FPS avg=%.2f\n",
+            //       frames / dt, 1000 / dt, 1.0/average_frame_time_s);
         } else {
             printf("Initial position %f %f %f\n", position.x, position.y, position.z);
         }

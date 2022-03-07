@@ -89,7 +89,73 @@ void Copter::userhook_init()
 #ifdef USERHOOK_FASTLOOP
 void Copter::userhook_FastLoop()
 {
-    // put your 100Hz code here
+    Location this_loc;
+    Location target;
+    if (!AP::ahrs().get_position(this_loc)) {
+        return;
+    }
+    
+    if(copter.position_ok()){
+        target = AP::ahrs().get_home();
+    }
+    else {
+        return;
+    }
+
+    // Haversine formula
+    float curr_lat = this_loc.lat*1.0e-7f*M_PI/180.0f;
+    float tar_lat = target.lat*1.0e-7f*M_PI/180.0f;
+    float delta_lat = tar_lat - curr_lat;
+    float delta_lng = Location::diff_longitude(target.lng,this_loc.lng)*1.0e-7f*M_PI/180.0f;
+    float a = sinf(delta_lat/2)*sinf(delta_lat/2) + cosf(curr_lat)*cosf(tar_lat)*sinf(delta_lng/2)*sinf(delta_lng/2);
+
+    // Compute distance to target
+    float target_distance = 2.0f*RADIUS_OF_EARTH*atan2f(sqrtf(a),sqrtf(1-a))*100.0f; // in cm
+
+    // Compute bearing to target
+    float y = sinf(delta_lng)*cosf(tar_lat);
+    float x = cosf(curr_lat)*sinf(tar_lat) - sinf(curr_lat)*cosf(tar_lat)*cosf(delta_lng);
+    float bearing = atan2f(y, x);
+
+    float fixed_yaw = g2.user_parameters.get_user_sensor1()*DEG_TO_RAD;
+    float ang_diff = wrap_PI(bearing - fixed_yaw);
+
+    int32_t target_alt_cm = 0;
+    if (!target.get_alt_cm(Location::AltFrame::ABOVE_HOME, target_alt_cm)) {
+        return;
+    }
+    int32_t current_alt_cm = 0;
+    if (!this_loc.get_alt_cm(Location::AltFrame::ABOVE_HOME, current_alt_cm)) {
+        return;
+    }
+
+    // Compute height difference
+    float z = target_alt_cm - current_alt_cm;
+
+    float dist2target = fabsf(current_loc.get_distance(target)) + fabsf(z/100.0f);
+
+    // initialise all angles to zero
+    Vector3f angles_to_target_rad;
+    angles_to_target_rad.zero();
+
+    if(dist2target > 5){
+        // tilt calcs
+        angles_to_target_rad.y = atan2f(z, target_distance*cosf(ang_diff));
+        
+        // roll calcs
+        angles_to_target_rad.x = atan2f(z, target_distance*sinf(ang_diff)) + M_PI_2;
+
+        // pan is set to a fixed value defined by user
+        angles_to_target_rad.z = fixed_yaw;
+        angles_to_target_rad.z =  wrap_PI(angles_to_target_rad.z - AP::ahrs().yaw);
+    }
+    
+    printf("targer_dist: %5.2f \n",target_distance);
+    printf("Target_Height: %5.2f \n",z);
+    printf("Ang_diff: %5.2f \n",ang_diff);
+    printf("Gimbal_Roll: %5.2f \n",((float)angles_to_target_rad.x)*RAD_TO_DEG);
+    printf("Gimbal_Pitch: %5.2f \n",((float)angles_to_target_rad.y)*RAD_TO_DEG);
+    printf("Gimbal_Yaw: %5.2f \n",((float)angles_to_target_rad.z)*RAD_TO_DEG);
 }
 #endif
 
