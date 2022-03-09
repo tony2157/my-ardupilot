@@ -138,7 +138,7 @@ void Copter::userhook_FastLoop()
     Vector3f angles_to_target_rad;
     angles_to_target_rad.zero();
 
-    if(dist2target > 5){
+    if(dist2target > 10){
         // tilt calcs
         angles_to_target_rad.y = atan2f(z, target_distance*cosf(ang_diff));
         
