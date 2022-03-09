@@ -296,11 +296,13 @@ bool AP_Mount_Backend::calc_angle_to_location_d(const struct Location &target, V
 
     float dist2target = fabsf(current_loc.get_distance(target)) + fabsf((float)z/100.0f);
 
+    float slope = fabsf((float)z/(100.0f*dist2target));
+
     // initialise all angles to zero
     angles_to_target_rad.zero();
 
-    if(dist2target > 5){
-        if(_state._pitch_stb_lead < 0.5f){
+    if(dist2target > 10){
+        if(_state._pitch_stb_lead < 0.5f || slope < 1.5f){
                 // tilt calcs
                 angles_to_target_rad.y = atan2(z, target_distance);
 
@@ -318,7 +320,7 @@ bool AP_Mount_Backend::calc_angle_to_location_d(const struct Location &target, V
                 angles_to_target_rad.y = atan2(z, target_distance*cos(ang_diff));
                 
                 // roll calcs
-                angles_to_target_rad.x = atan2f(z, target_distance*sinf(ang_diff)) + M_PI_2;
+                angles_to_target_rad.x = atan2(z, target_distance*sin(ang_diff)) + M_PI_2;
 
                 // pan is set to a fixed value defined by user
                 angles_to_target_rad.z = fixed_yaw;
