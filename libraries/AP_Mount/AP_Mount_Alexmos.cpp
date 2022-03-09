@@ -177,7 +177,7 @@ void AP_Mount_Alexmos::control_axis_d(const Vector3d& angle , bool targets_in_de
     outgoing_buffer.angle_speed.mode_pitch = AP_MOUNT_ALEXMOS_MODE_ANGLE;
     outgoing_buffer.angle_speed.mode_yaw = AP_MOUNT_ALEXMOS_MODE_ANGLE_REL_FRAME;
     outgoing_buffer.angle_speed.speed_roll = DEGREE_PER_SEC_TO_VALUE_D(AP_MOUNT_ALEXMOS_SPEED);
-    outgoing_buffer.angle_speed.angle_roll = DEGREE_TO_VALUE_D(target_deg.x);
+    outgoing_buffer.angle_speed.angle_roll = DEGREE_TO_VALUE_D(-1*target_deg.x);
     outgoing_buffer.angle_speed.speed_pitch = DEGREE_PER_SEC_TO_VALUE_D(AP_MOUNT_ALEXMOS_SPEED);
     outgoing_buffer.angle_speed.angle_pitch = DEGREE_TO_VALUE_D(-1*target_deg.y);
     outgoing_buffer.angle_speed.speed_yaw = DEGREE_PER_SEC_TO_VALUE_D(AP_MOUNT_ALEXMOS_SPEED);
