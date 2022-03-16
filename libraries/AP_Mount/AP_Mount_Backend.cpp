@@ -294,15 +294,16 @@ bool AP_Mount_Backend::calc_angle_to_location_d(const struct Location &target, V
     // Compute height difference
     double z = target_alt_cm - current_alt_cm;
 
-    float dist2target = fabsf(current_loc.get_distance(target)) + fabsf((float)z/100.0f);
-
-    float slope = fabsf((float)z/(100.0f*dist2target));
+    //Compute distance and slope wrt target
+    float horzdist2target = current_loc.get_distance(target);
+    float dist2target = sqrtf(horzdist2target*horzdist2target + (float)z*z/10000.0f);
+    float slope = fabsf((float)z/(100.0f*horzdist2target));
 
     // initialise all angles to zero
     angles_to_target_rad.zero();
 
     if(dist2target > 10){
-        if(_state._pitch_stb_lead < 0.5f || slope < 0.55f){
+        if(_state._pitch_stb_lead < 0.5f || slope < 0.5f){
                 // tilt calcs
                 angles_to_target_rad.y = atan2(z, target_distance);
 
