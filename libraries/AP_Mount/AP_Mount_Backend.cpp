@@ -302,7 +302,7 @@ bool AP_Mount_Backend::calc_angle_to_location_d(const struct Location &target, V
     angles_to_target_rad.zero();
 
     if(dist2target > 10){
-        if(_state._pitch_stb_lead < 0.5f || slope < 1.5f){
+        if(_state._pitch_stb_lead < 0.5f || slope < 0.55f){
                 // tilt calcs
                 angles_to_target_rad.y = atan2(z, target_distance);
 
