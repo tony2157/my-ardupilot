@@ -18,6 +18,7 @@ uint32_t wvane_now;
 //Declare digital LPF
 LPFrdFloat filt_thrvec_x;
 LPFrdFloat filt_thrvec_y;
+LPFrdFloat filt_windspd;
 //g.wind_vane_wsA -> Coefficient A of the linear wind speed equation, from calibration
 //g.wind_vane_wsB -> Coefficient B of the linear wind speed equation, from calibration
 //g.wind_vane_min_roll -> Minimum roll angle that the wind vane will correct (too low and the copter will oscilate)
@@ -64,11 +65,13 @@ void Copter::userhook_init()
         //Min Fc = 0.05 for stable yaw
         filt_thrvec_x.set_cutoff_frequency(Fss,0.05);
         filt_thrvec_y.set_cutoff_frequency(Fss,0.05);
+        filt_windspd.set_cutoff_frequency(Fss,0.5);
     }
     else{
         //Initialize Butterworth filter
         filt_thrvec_x.set_cutoff_frequency(Fss,g2.user_parameters.get_wvane_cutoff());
         filt_thrvec_y.set_cutoff_frequency(Fss,g2.user_parameters.get_wvane_cutoff());
+        filt_windspd.set_cutoff_frequency(Fss,0.5);
     }
 
     //VPBatt_monitor initilize
@@ -336,6 +339,7 @@ void Copter::user_wind_vane()
             float R_xy = safe_sqrt(R13*R13 + R23*R23);
             _wind_speed = g2.user_parameters.get_wvane_wsA() * fabsf(R_xy/R33) + g2.user_parameters.get_wvane_wsB()*safe_sqrt(fabsf(R_xy/R33));
             _wind_speed = _wind_speed < 0 ? 0.0f : _wind_speed;
+            _wind_speed = filt_windspd.apply(_wind_speed);
 
             //Get current velocity
             Vector3f vel_xyz = copter.inertial_nav.get_velocity(); // NEU convention
@@ -405,6 +409,7 @@ void Copter::user_wind_vane()
         _fan_status = false;
         filt_thrvec_x.reset();
         filt_thrvec_y.reset();
+        filt_windspd.reset();
     }
 
     // Wind Data Logger ///////////////////////////////////////////////////////////////////////////////////////////
