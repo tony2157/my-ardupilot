@@ -73,6 +73,9 @@
 #include <AC_CASS_IMET/AC_CASS_Imet.h>
 #include <AC_CASS_HYT271/AC_CASS_HYT271.h>
 
+// ARRC libraries declaration
+#include <AP_ARRC_LB5900/AP_ARRC_LB5900.h>
+
 // Configuration
 #include "defines.h"
 #include "config.h"

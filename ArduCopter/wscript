@@ -33,6 +33,7 @@ def build(bld):
             'AP_KDECAN',
             'AC_CASS_IMET',
             'AC_CASS_HYT271',
+            'AP_ARRC_LB5900',
         ],
     )
 
