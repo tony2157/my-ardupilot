@@ -1,6 +1,7 @@
 #include "AP_ARRC_LB5900.h"
 #include <utility>
 #include <stdio.h>
+#include <string.h>
 #include <AP_HAL/AP_HAL.h>
 #include <AP_Math/AP_Math.h>
 
@@ -8,13 +9,12 @@ extern const AP_HAL::HAL &hal;
 
 AP_ARRC_LB5900::AP_ARRC_LB5900() :
     _dev(nullptr),
-    //_temperature(0),
     _power(0),
-    _healthy(false)
+    _ready(false)
 {
 }
 
-bool AP_ARRC_LB5900::init(uint8_t busId, uint8_t i2cAddr)
+bool AP_ARRC_LB5900::init(uint8_t busId, uint8_t i2cAddr, uint16_t freq, uint8_t avg_cnt)
 {
     commandNumber = 0;
     Sensor_TimeOut = 200;
@@ -27,27 +27,25 @@ bool AP_ARRC_LB5900::init(uint8_t busId, uint8_t i2cAddr)
     }
     _dev->get_semaphore()->take_blocking();
 
-    _dev->set_retries(10);
+    _dev->set_retries(1);
 
     // Start the first measurement
-    if (!_measure()) {
+    if (!configSensor(freq, avg_cnt)) {
         _dev->get_semaphore()->give();
         return false;
     }
 
-    // lower retries for run
-    _dev->set_retries(3);
-
     _dev->get_semaphore()->give();
 
-    /* Request 20Hz update */
+    /* Request 10Hz update */
     // Max conversion time is 12 ms
     _dev->register_periodic_callback(100000,
                                      FUNCTOR_BIND_MEMBER(&AP_ARRC_LB5900::_timer, void));
     return true;
 }
 
-void AP_ARRC_LB5900::set_i2c_addr(uint8_t addr){
+void AP_ARRC_LB5900::set_i2c_addr(uint8_t addr)
+{
     if (_dev) {
         _dev->set_address(addr);
     }
@@ -56,17 +54,38 @@ void AP_ARRC_LB5900::set_i2c_addr(uint8_t addr){
 
 bool AP_ARRC_LB5900::configSensor(uint16_t freq, uint8_t avg_cnt)
 {
+    char FREQ[10 + sizeof(char)] = "FREQ ";
+    char AVG_CNT[12 + sizeof(char)] = "AVER:COUN ";
+    char temp[5];
+
+    sprintf(temp, "%d", freq);
+    strcat(FREQ, temp);
+    strcat(FREQ, " MHZ");
+
+    sprintf(temp, "%d", avg_cnt);
+    strcat(AVG_CNT, temp);
+
+    char* (cmd[1])[10] = 
+    {
+        "SYST:PRES DEF",
+        FREQ,
+        "INIT:CONT 0",
+        "AVER:COUN:AUTO 0",
+        AVG_CNT,
+        "\0" // STOP LIST
+    };
+
     while(1){
-        if(strlen(example[0][commandNumber])  != 0 ){
+        if(strlen(cmd[0][commandNumber])  != 0 ){
             // Build header
             memset(write_sensor_buffer.byte, 0x00, 5000);
             write_sensor_buffer.field.commandAndLength[0] = (uint8_t)nextReadIsStatusAndLength;
-            header.ui = strlen(example[0][commandNumber]) + 5; // Add one for terminator and 4 for header
+            header.ui = strlen(cmd[0][commandNumber]) + 5; // Add one for terminator and 4 for header
             write_sensor_buffer.field.commandAndLength[3] = header.c[0];
             write_sensor_buffer.field.commandAndLength[2] = header.c[1];
             write_sensor_buffer.field.commandAndLength[1] = header.c[2];
             // Add command to buffer
-            strcpy((char*)write_sensor_buffer.field.buffer, example[0][commandNumber]);
+            strcpy((char*)write_sensor_buffer.field.buffer, cmd[0][commandNumber]);
             // Send Command with "nextReadIsStatusAndLength" header
             while(!_dev->transfer(write_sensor_buffer.byte, header.ui, nullptr, 0)) {
                 hal.scheduler->delay(1);
@@ -90,15 +109,67 @@ bool AP_ARRC_LB5900::configSensor(uint16_t freq, uint8_t avg_cnt)
     }
 }
 
-
-
-bool AP_ARRC_LB5900::_measure()
+bool AP_ARRC_LB5900::_status_length(void)
 {
-    uint8_t cmd = 0x00;
-        if (!_dev->transfer(&cmd, 1, nullptr, 0)) {
+    bufLength.ui = 0;
+
+    memset(write_sensor_buffer.byte, 0x00, 5000);
+    write_sensor_buffer.field.commandAndLength[0] = (uint8_t)nextReadIsStatusAndLength;
+    header.ui = 4; // Ont 4 bytes are sent (without command)
+    write_sensor_buffer.field.commandAndLength[3] = header.c[0];
+    write_sensor_buffer.field.commandAndLength[2] = header.c[1];
+    write_sensor_buffer.field.commandAndLength[1] = header.c[2];
+    while(!_dev->transfer(write_sensor_buffer.byte, header.ui, nullptr, 0)) {
+        hal.scheduler->delay(1);
+        if (Sensor_TimeOut-- == 0)
+        {
+            Sensor_TimeOut = 200;
             return false;
         }
-        return true;
+    }
+
+}
+
+bool AP_ARRC_LB5900::_measure(void)
+{
+    char* (cmd[1])[10] = 
+    {
+        "READ?",
+        "\0" // STOP LIST
+    };
+
+    while(1){
+        if(strlen(cmd[0][commandNumber])  != 0 ){
+            // Build header
+            memset(write_sensor_buffer.byte, 0x00, 5000);
+            write_sensor_buffer.field.commandAndLength[0] = (uint8_t)nextReadIsStatusAndLength;
+            header.ui = strlen(cmd[0][commandNumber]) + 5; // Add one for terminator and 4 for header
+            write_sensor_buffer.field.commandAndLength[3] = header.c[0];
+            write_sensor_buffer.field.commandAndLength[2] = header.c[1];
+            write_sensor_buffer.field.commandAndLength[1] = header.c[2];
+            // Add command to buffer
+            strcpy((char*)write_sensor_buffer.field.buffer, cmd[0][commandNumber]);
+            // Send Command with "nextReadIsStatusAndLength" header
+            while(!_dev->transfer(write_sensor_buffer.byte, header.ui, nullptr, 0)) {
+                hal.scheduler->delay(1);
+                if (Sensor_TimeOut-- == 0)
+                {
+                    Sensor_TimeOut = 200;
+                    return false;
+                }
+            }
+        }
+        else{
+            commandNumber = 0;
+            return true;
+        }
+
+        if(commandNumber++ >= 9)
+        {
+            commandNumber = 0;
+            return false;
+        }
+    }
 }
 
 bool AP_ARRC_LB5900::_collect(float &hum, float &temp)

@@ -14,40 +14,19 @@ public:
     AP_ARRC_LB5900(void);
     ~AP_ARRC_LB5900(void){}
 
-    bool init(uint8_t busId, uint8_t i2cAddr);
+    bool init(uint8_t busId, uint8_t i2cAddr, uint16_t freq, uint8_t avg_cnt);
     float power_measure(void) { return _power; } // temperature in kelvin
-    //float temperature(void) { return _temperature; }   // voltage read by the ADCS
     bool healthy(void) { return _healthy; } // do we have a valid temperature reading?
     void set_i2c_addr(uint8_t addr);
 
 private:
     AP_HAL::OwnPtr<AP_HAL::I2CDevice> _dev;
     HAL_Semaphore _sem; // semaphore for access to shared frontend data
-    //float _temperature; // degrees K
     float _power; //voltage read by the ADC
     bool _ready; // we have a valid temperature reading to report
     uint32_t Sensor_TimeOut; // Value of Timeout when I2C communication fails
 
     static unsigned int commandNumber;
-
-    char*  (example[2])[10] =
-    {
-		{
-				"SYST:PRES",
-				"freq 5000MHz",
-				"AVER:COUN:AUTO 0",
-				"AVER:COUN 50",
-				"aver:sdet 0",
-				"init:cont 0",
-                "\0" // STOP LIST
-
-		},
-		{
-				"READ?",
-				"\0" // STOP LIST
-		}
-    };
-
 
     union{
         uint8_t byte[5000];
@@ -86,7 +65,6 @@ private:
         nextReadIsPartialOutputBuffer 	= 0x18, // Not implemented yet
         nextReadIsNULL					= 0xF0
     }nextReadType_t;
-
 
     bool configSensor(uint16_t freq, uint8_t avg_cnt);
     bool _measure(void);
