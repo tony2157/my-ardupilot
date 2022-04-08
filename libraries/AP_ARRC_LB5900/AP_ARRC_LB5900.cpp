@@ -67,11 +67,12 @@ bool AP_ARRC_LB5900::configSensor(uint16_t freq, uint8_t avg_cnt)
 
     char* (cmd[1])[10] = 
     {
-        "SYST:PRES DEF",
+        "SYST:PRES",
         FREQ,
-        "INIT:CONT 0",
         "AVER:COUN:AUTO 0",
         AVG_CNT,
+        "AVER:SDET 0",
+        "INIT:CONT 1",
         "\0" // STOP LIST
     };
 
@@ -91,7 +92,7 @@ bool AP_ARRC_LB5900::configSensor(uint16_t freq, uint8_t avg_cnt)
                 hal.scheduler->delay(1);
                 if (Sensor_TimeOut-- == 0)
                 {
-                    Sensor_TimeOut = 200;
+                    Sensor_TimeOut = 2;
                     return false;
                 }
             }
@@ -109,13 +110,16 @@ bool AP_ARRC_LB5900::configSensor(uint16_t freq, uint8_t avg_cnt)
     }
 }
 
-bool AP_ARRC_LB5900::_status_length(void)
-{
+bool AP_ARRC_LB5900::_read(void)
+{   
+    // Clear headers
     bufLength.ui = 0;
+    header.ui = 0;
 
+    // Send Prepare Status & Length (no command) using header O6h
     memset(write_sensor_buffer.byte, 0x00, 5000);
     write_sensor_buffer.field.commandAndLength[0] = (uint8_t)nextReadIsStatusAndLength;
-    header.ui = 4; // Ont 4 bytes are sent (without command)
+    header.ui = 4; // Only 4 bytes are sent (without command)
     write_sensor_buffer.field.commandAndLength[3] = header.c[0];
     write_sensor_buffer.field.commandAndLength[2] = header.c[1];
     write_sensor_buffer.field.commandAndLength[1] = header.c[2];
@@ -123,10 +127,62 @@ bool AP_ARRC_LB5900::_status_length(void)
         hal.scheduler->delay(1);
         if (Sensor_TimeOut-- == 0)
         {
+            Sensor_TimeOut = 2;
+            return false;
+        }
+    }
+
+    // Read 4 bytes from the sensor. This contains the status byte and 3 length bytes.
+    // header.c is used as temp variable
+    while(!_dev->transfer(nullptr, 0, header.c, 4)) {
+        hal.scheduler->delay(50);
+        if (Sensor_TimeOut-- == 0)
+        {
             Sensor_TimeOut = 200;
             return false;
         }
     }
+
+    // Transfer status&length to read_buffer
+    bufLength.c[0] = header.c[3];
+    bufLength.c[1] = header.c[2];
+    bufLength.c[2] = header.c[1];
+
+    // If status is good, get the data!
+    if(bufLength.ui != 0)
+    {
+        // Write the number of bytes to the sensor that are to be read back using header 0Ch
+        write_sensor_buffer.field.commandAndLength[0] = (uint8_t)nextReadIsCompleteOutputBuffer;
+        write_sensor_buffer.field.commandAndLength[1] = 0;
+        write_sensor_buffer.field.commandAndLength[2] = 0;
+        write_sensor_buffer.field.commandAndLength[3] = 4;
+
+        while(!_dev->transfer(write_sensor_buffer.byte, 4, nullptr, 0)) {
+            hal.scheduler->delay(1);
+            if (Sensor_TimeOut-- == 0)
+            {
+                Sensor_TimeOut = 2;
+                return false;
+            }
+        }
+
+        // Read back the measurement
+        memset(read_sensor_buffer.byte, 0x00, 5000);
+        while(!_dev->transfer(nullptr, 0, read_sensor_buffer.byte, bufLength.ui)) {
+            hal.scheduler->delay(50);
+            if (Sensor_TimeOut-- == 0)
+            {
+                Sensor_TimeOut = 200;
+                return false;
+            }
+        }
+
+        return true;
+    }
+    else{
+        return false;
+    }
+    
 
 }
 
@@ -134,7 +190,7 @@ bool AP_ARRC_LB5900::_measure(void)
 {
     char* (cmd[1])[10] = 
     {
-        "READ?",
+        "FETCH?",
         "\0" // STOP LIST
     };
 
@@ -172,7 +228,7 @@ bool AP_ARRC_LB5900::_measure(void)
     }
 }
 
-bool AP_ARRC_LB5900::_collect(float &hum, float &temp)
+bool AP_ARRC_LB5900::_compute(void)
 {
     uint8_t data[4];
     int16_t raw;

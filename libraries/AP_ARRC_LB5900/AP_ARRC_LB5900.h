@@ -68,7 +68,7 @@ private:
 
     bool configSensor(uint16_t freq, uint8_t avg_cnt);
     bool _measure(void);
-    bool _status_length(void);
-    bool _collect(float &_power);
+    bool _read(void);
+    bool _compute(void);
     void _timer(void); // update the temperature, called at 20Hz
 };
