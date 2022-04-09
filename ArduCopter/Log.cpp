@@ -563,6 +563,9 @@ const struct LogStructure Copter::log_structure[] = {
       "RHUM", "QBBBBffffffff","TimeUS,Hth1,Hth2,Hth3,Hth4,H1,H2,H3,H4,T1,T2,T3,T4","s------------","F000000000000"},
     { LOG_WIND_MSG, sizeof(log_WIND),
       "WIND", "Qfffff","TimeUS,wdir,wspeed,R13,R23,R33","s-----","F00000"},
+    //ARRC LB5900 data logging  
+    { LOG_LB5900_MSG, sizeof(log_LB5900),
+      "WIND", "Qff","TimeUS,Hth,Pwe","s--","F00"},
 };
 
 void Copter::Log_Write_Vehicle_Startup_Messages()
