@@ -6,8 +6,8 @@
 #include <AP_HAL/utility/sparse-endian.h>
 #include <AP_Vehicle/AP_Vehicle.h>
 
-#define SENSOR_I2C_BASE_ADDRESS		0x4C
-#define SENSOR_TIMEOUT_MAX		0x6000
+#define LADYBUG_I2C_BASE_ADDRESS		0x4C
+#define LADYBUG_TIMEOUT_MAX		0x6000
 
 class AP_ARRC_LB5900 {
 public:
@@ -23,26 +23,27 @@ private:
     AP_HAL::OwnPtr<AP_HAL::I2CDevice> _dev;
     HAL_Semaphore _sem; // semaphore for access to shared frontend data
     float _power; //voltage read by the ADC
-    bool _ready; // we have a valid temperature reading to report
+    bool _healthy; // we have a valid temperature reading to report
     uint32_t Sensor_TimeOut; // Value of Timeout when I2C communication fails
 
     static unsigned int commandNumber;
 
     union{
-        uint8_t byte[5000];
+        uint8_t byte[50];
         struct
         {
             uint8_t commandAndLength[4];
-            uint8_t buffer[4096];
+            uint8_t buffer[46];
         }field;
     }write_sensor_buffer;
 
     union{
-        uint8_t byte[5000];
+        uint8_t byte[50];
+        char string[50];
         struct
         {
             uint8_t statusAndLength[4];
-            uint8_t buffer[4096];
+            uint8_t buffer[46];
         }field;
     }read_sensor_buffer;
 
@@ -69,6 +70,5 @@ private:
     bool configSensor(uint16_t freq, uint8_t avg_cnt);
     bool _measure(void);
     bool _read(void);
-    bool _compute(void);
     void _timer(void); // update the temperature, called at 20Hz
 };

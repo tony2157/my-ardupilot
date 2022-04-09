@@ -10,7 +10,7 @@ extern const AP_HAL::HAL &hal;
 AP_ARRC_LB5900::AP_ARRC_LB5900() :
     _dev(nullptr),
     _power(0),
-    _ready(false)
+    _healthy(false)
 {
 }
 
@@ -79,7 +79,7 @@ bool AP_ARRC_LB5900::configSensor(uint16_t freq, uint8_t avg_cnt)
     while(1){
         if(strlen(cmd[0][commandNumber])  != 0 ){
             // Build header
-            memset(write_sensor_buffer.byte, 0x00, 5000);
+            memset(write_sensor_buffer.byte, 0x00, 50);
             write_sensor_buffer.field.commandAndLength[0] = (uint8_t)nextReadIsStatusAndLength;
             header.ui = strlen(cmd[0][commandNumber]) + 5; // Add one for terminator and 4 for header
             write_sensor_buffer.field.commandAndLength[3] = header.c[0];
@@ -99,6 +99,7 @@ bool AP_ARRC_LB5900::configSensor(uint16_t freq, uint8_t avg_cnt)
         }
         else{
             commandNumber = 0;
+            _measure();     // Initialize measurement
             return true;
         }
 
@@ -115,9 +116,10 @@ bool AP_ARRC_LB5900::_read(void)
     // Clear headers
     bufLength.ui = 0;
     header.ui = 0;
+    char *stopstring;
 
     // Send Prepare Status & Length (no command) using header O6h
-    memset(write_sensor_buffer.byte, 0x00, 5000);
+    memset(write_sensor_buffer.byte, 0x00, 50);
     write_sensor_buffer.field.commandAndLength[0] = (uint8_t)nextReadIsStatusAndLength;
     header.ui = 4; // Only 4 bytes are sent (without command)
     write_sensor_buffer.field.commandAndLength[3] = header.c[0];
@@ -167,7 +169,7 @@ bool AP_ARRC_LB5900::_read(void)
         }
 
         // Read back the measurement
-        memset(read_sensor_buffer.byte, 0x00, 5000);
+        memset(read_sensor_buffer.byte, 0x00, 50);
         while(!_dev->transfer(nullptr, 0, read_sensor_buffer.byte, bufLength.ui)) {
             hal.scheduler->delay(50);
             if (Sensor_TimeOut-- == 0)
@@ -176,6 +178,10 @@ bool AP_ARRC_LB5900::_read(void)
                 return false;
             }
         }
+
+        // Convert received bytes to number
+        WITH_SEMAPHORE(_sem);
+        _power = strtof(read_sensor_buffer.string, &stopstring);
 
         return true;
     }
@@ -228,36 +234,8 @@ bool AP_ARRC_LB5900::_measure(void)
     }
 }
 
-bool AP_ARRC_LB5900::_compute(void)
-{
-    uint8_t data[4];
-    int16_t raw;
-    // Read sensors
-    if (!_dev->transfer(nullptr, 0, data, sizeof(data))) {
-        return false;
-    }
-
-    // Verify data with the checksum
-    if ((data[0] & 0x40) == 0x40){
-        return false;
-    }
-
-    WITH_SEMAPHORE(_sem);                           // semaphore for access to shared frontend data
-    // Bit shift and convert to floating point number
-    raw = (data[0] << 8) | data[1];
-    raw = raw & 0x3FFF;
-
-    hum = (100.0 / (powf(2,14) - 1)) * (float)raw;
-
-    data[3] = (data[3] >> 2);
-    raw = (data[2] << 6) | data[3];
-    temp = (165.0 / (powf(2,14) - 1)) * (float)raw + 233.15f;
-
-    return true;  
-}
-
 void AP_ARRC_LB5900::_timer(void)
 {
-    _healthy = _collect(_humidity, _temperature);   // Retreive data from the sensor
-    _measure();                                     // Request a new measurement to the sensor
+    _healthy = _read();        // Retreive data from the sensor
+    _healthy = _measure();     // Request a new measurement to the sensor
 }
