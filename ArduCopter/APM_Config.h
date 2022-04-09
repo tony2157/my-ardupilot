@@ -63,6 +63,7 @@
     #define USERHOOK_FASTLOOP userhook_FastLoop();            // for code to be run at 100hz
 #endif
 #define USER_VPBATT_MNTR_LOOP user_vpbatt_monitor();                  // for code to be run at 50hz
+#define USER_ARRCLB5900_LOOP user_LB5900_logger();
 #define USER_TEMPERATURE_LOOP user_temperature_logger();        // CASS iMet sensors logged at 20Hz 
 #define USER_HUMIDITY_LOOP user_humidity_logger();            // CASS HYT271 sensors logged at 10Hz
 #define USER_WIND_LOOP user_wind_vane();                    // CASS wind vane mode
