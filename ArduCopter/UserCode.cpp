@@ -239,6 +239,22 @@ void Copter::user_vpbatt_monitor()
 }
 #endif
 
+#ifdef USER_ARRCLB5900_LOOP
+void Copter::user_LB5900_logger()
+{
+    // Read Power in dBm. Write sensors packet into the SD card
+    // Temperature Data Logger ///////////////////////////////////////////////////////////////////////////////////////////
+    struct log_LB5900 pkt_temp = {
+        LOG_PACKET_HEADER_INIT(LOG_LB5900_MSG),
+        time_stamp              : AP_HAL::micros64(),                   //Store time in microseconds
+        healthy                 : copter.ARRC_LB5900.healthy(),         //Store sensor health
+        power                   : copter.ARRC_LB5900.power_measure(),   //Store power in dBm
+    }; 
+    logger.WriteBlock(&pkt_temp, sizeof(pkt_temp));   //Send package to SD card
+}
+
+#endif
+
 #ifdef USER_TEMPERATURE_LOOP
 void Copter::user_temperature_logger()
 {
