@@ -41,6 +41,11 @@ public:
     // GPS-based Lidar activation
     AP_Float get_gpslidar_alt() const{return gpslidar_alt; }
     AP_Float get_gpslidar_hum() const{return gpslidar_hum; }
+    // ARRC LB5900
+    AP_Int8 get_lb5900_address() const{return lb5900_addr; }
+    AP_Int16 get_lb5900_freq() const{return lb5900_freq; }
+    AP_Int8 get_lb5900_avg_cnt() const{return lb5900_avg_cnt; }
+    
     
 private:
     // Put your parameter variable definitions here
@@ -78,5 +83,10 @@ private:
     // GPS-based Lidar activation
     AP_Float    gpslidar_alt;
     AP_Float    gpslidar_hum;
+
+    //ARRC LB5900
+    AP_Int8 lb5900_addr;
+    AP_Int16 lb5900_freq;
+    AP_Int8 lb5900_avg_cnt;
 
 };
