@@ -926,6 +926,9 @@ private:
     void send_cass_imet(mavlink_channel_t chan);
     void send_cass_hyt271(mavlink_channel_t chan);
 
+    //ARRC Mavlink message
+    void send_arrc_lb5900(mavlink_channel_t chan);
+
     // CASS Libraries sensor code initializer
     void init_CASS_imet(void);
     void init_CASS_hyt271(void);
