@@ -56,16 +56,17 @@ bool AP_ARRC_LB5900::configSensor(uint16_t freq, uint8_t avg_cnt)
 {
     char FREQ[10 + sizeof(char)] = "FREQ ";
     char AVG_CNT[12 + sizeof(char)] = "AVER:COUN ";
-    char temp[5];
+    char temp[5 + sizeof(char)];
 
-    sprintf(temp, "%d", freq);
+    // Convert user params freq and avg_cnt to strings
+    snprintf(temp,6,"%d",freq);
     strcat(FREQ, temp);
     strcat(FREQ, " MHZ");
-
-    sprintf(temp, "%d", avg_cnt);
+    snprintf(temp,6,"%d",avg_cnt);
     strcat(AVG_CNT, temp);
 
-    char* (cmd[1])[10] = 
+    // List of initial commands to configure the LB5900
+    const char* (cmd[1])[10] = 
     {
         "SYST:PRES",
         FREQ,
@@ -76,6 +77,7 @@ bool AP_ARRC_LB5900::configSensor(uint16_t freq, uint8_t avg_cnt)
         "\0" // STOP LIST
     };
 
+    // Send initial commands through I2C
     while(1){
         if(strlen(cmd[0][commandNumber])  != 0 ){
             // Build header
@@ -194,7 +196,7 @@ bool AP_ARRC_LB5900::_read(void)
 
 bool AP_ARRC_LB5900::_measure(void)
 {
-    char* (cmd[1])[10] = 
+    const char* (cmd[1])[5] = 
     {
         "FETCH?",
         "\0" // STOP LIST

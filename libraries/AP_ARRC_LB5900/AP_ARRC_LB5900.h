@@ -25,8 +25,7 @@ private:
     float _power; //voltage read by the ADC
     bool _healthy; // we have a valid temperature reading to report
     uint32_t Sensor_TimeOut; // Value of Timeout when I2C communication fails
-
-    static unsigned int commandNumber;
+    uint8_t commandNumber;
 
     union{
         uint8_t byte[50];
