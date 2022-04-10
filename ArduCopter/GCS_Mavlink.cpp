@@ -327,6 +327,13 @@ void Copter::send_arrc_lb5900(mavlink_channel_t chan) {
     // Send LB5900 power dBm
     raw_sensor[0] = copter.ARRC_LB5900.power_measure();
 
+    #if CONFIG_HAL_BOARD == HAL_BOARD_SITL
+        // Variables simulation for HYT271 humidity sensors
+        uint32_t m = AP_HAL::millis();
+        raw_sensor[0] = sinf(0.001f*float(m));
+        //printf("LB5900 power (dBm): %5.2f \n",raw_sensor[0]);     
+    #endif
+
     // Call Mavlink function and send CASS data
     mavlink_msg_cass_sensor_raw_send(
         chan,
