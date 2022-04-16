@@ -265,11 +265,11 @@ bool AP_Mount_Backend::calc_angle_to_location_d(const struct Location &target, V
     }
 
     // Haversine formula
-    double curr_lat = current_loc.lat*1.0e-7*M_PI/180.0;
-    double tar_lat = target.lat*1.0e-7*M_PI/180.0;
+    double curr_lat = ((double)current_loc.lat)*1.0e-7*M_PI/180.0;
+    double tar_lat = ((double)target.lat)*1.0e-7*M_PI/180.0;
     double delta_lat = tar_lat - curr_lat;
-    double delta_lng = Location::diff_longitude(target.lng,current_loc.lng)*1.0e-7*M_PI/180.0;
-    double a = sin(delta_lat/2)*sin(delta_lat/2) + cos(curr_lat)*cos(tar_lat)*sin(delta_lng/2)*sin(delta_lng/2);\
+    double delta_lng = ((double)Location::diff_longitude(target.lng,current_loc.lng))*1.0e-7*M_PI/180.0;
+    double a = sin(delta_lat/2)*sin(delta_lat/2) + cos(curr_lat)*cos(tar_lat)*sin(delta_lng/2)*sin(delta_lng/2);
 
     // Compute distance to target
     double target_distance = 2*RADIUS_OF_EARTH*atan2(sqrt(a),sqrt(1-a))*100.0; // in cm
