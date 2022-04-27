@@ -117,7 +117,7 @@ void Copter::user_vpbatt_monitor()
             }
 
             // Calculate the Descent-Energy-consumption per meter height (function of wind speed)
-            float Whm = 1.5e-6f*int_wvspd + 7.1e-3f;
+            float Whm = 2.0e-6f*int_wvspd + 8.0e-3f;
             // Constrain lower values
             Whm = Whm > 0.0105f ? Whm : 0.0105f;
             
