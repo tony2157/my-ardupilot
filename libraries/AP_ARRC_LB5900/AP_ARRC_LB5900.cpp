@@ -27,13 +27,15 @@ bool AP_ARRC_LB5900::init(uint8_t busId, uint8_t i2cAddr, uint16_t freq, uint8_t
     }
     _dev->get_semaphore()->take_blocking();
 
-    _dev->set_retries(1);
+    _dev->set_retries(10);
 
     // Start the first measurement
     if (!configSensor(freq, avg_cnt)) {
         _dev->get_semaphore()->give();
         return false;
     }
+
+    _dev->set_retries(3);
 
     _dev->get_semaphore()->give();
 
