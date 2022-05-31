@@ -21,7 +21,7 @@ bool AP_ARRC_LB5900::init(uint8_t busId, uint8_t i2cAddr, uint16_t freq, uint8_t
 
     // Bus 0 is for Pixhawk 2.1 I2C and Bus 1 is for Pixhawk 1 and PixRacer I2C
     // Check if device exists
-    _dev = std::move(hal.i2c_mgr->get_device(busId, i2cAddr));
+    _dev = std::move(hal.i2c_mgr->get_device(busId, i2cAddr << 1));
     if (!_dev) {
         return false;
     }
