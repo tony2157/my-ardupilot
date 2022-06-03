@@ -28,27 +28,24 @@ bool AP_ARRC_LB5900::init(uint8_t busId, uint8_t i2cAddr, uint16_t freq, uint8_t
     }
     _healthy = true;
 
-    hal.scheduler->delay(6000);
+    hal.scheduler->delay(200);
     
     _dev->get_semaphore()->take_blocking();
 
-    _dev->set_retries(20);
+    _dev->set_retries(0);
 
     // Start the first measurement
-    //uint16_t iter = 0;
+    uint16_t iter = 0;
     while(!configSensor(freq, avg_cnt)) {
-        // hal.scheduler->delay(20);
-        // if (iter == 100){
-        //     _healthy = false;
-        //     _dev->get_semaphore()->give();
-        //     return false;
-        // }
-        // iter++;
-        return false;
+        hal.scheduler->delay(50);
+        if (iter == 100){
+            _healthy = false;
+            _dev->get_semaphore()->give();
+            return false;
+        }
+        iter++;
     }
     _healthy = true;
-
-    _dev->set_retries(3);
 
     _dev->get_semaphore()->give();
 
