@@ -27,25 +27,28 @@ bool AP_ARRC_LB5900::init(uint8_t busId, uint8_t i2cAddr, uint16_t freq, uint8_t
         return false;
     }
     _healthy = true;
+
+    hal.scheduler->delay(6000);
     
     _dev->get_semaphore()->take_blocking();
 
-    _dev->set_retries(0);
+    _dev->set_retries(20);
 
     // Start the first measurement
-    uint16_t iter = 0;
+    //uint16_t iter = 0;
     while(!configSensor(freq, avg_cnt)) {
-        hal.scheduler->delay(20);
-        if (iter == 100){
-            _healthy = false;
-            _dev->get_semaphore()->give();
-            return false;
-        }
-        iter++;
+        // hal.scheduler->delay(20);
+        // if (iter == 100){
+        //     _healthy = false;
+        //     _dev->get_semaphore()->give();
+        //     return false;
+        // }
+        // iter++;
+        return false;
     }
     _healthy = true;
 
-    //_dev->set_retries(3);
+    _dev->set_retries(3);
 
     _dev->get_semaphore()->give();
 
@@ -109,15 +112,17 @@ bool AP_ARRC_LB5900::configSensor(uint16_t freq, uint8_t avg_cnt)
             // Add command to buffer
             strcpy((char*)write_sensor_buffer.field.buffer, cmd[0][commandNumber]);
             // Send Command with "nextReadIsStatusAndLength" header
-            uint16_t iter = 0;
+            //uint16_t iter = 0;
             while(!_dev->transfer(write_sensor_buffer.byte, header.ui, nullptr, 0)) {
 
-                hal.scheduler->delay(5);
-                if(iter == 20){
-                    _power = 4;
-                    return false;
-                }
-                iter++;
+                return false;
+
+                // hal.scheduler->delay(5);
+                // if(iter == 20){
+                //     _power = 4;
+                //     return false;
+                // }
+                // iter++;
 
                 // hal.scheduler->delay(1);
                 // if (Sensor_TimeOut-- == 0)
