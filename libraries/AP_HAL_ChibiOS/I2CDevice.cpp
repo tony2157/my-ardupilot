@@ -61,7 +61,7 @@ I2CBus I2CDeviceManager::businfo[ARRAY_SIZE(I2CD)];
 #endif
 
 #ifndef HAL_I2C_H7_100_TIMINGR
-#define HAL_I2C_H7_100_TIMINGR 0x00707CBB
+#define HAL_I2C_H7_100_TIMINGR 0x2050293A // ARRC
 #endif
 #ifndef HAL_I2C_H7_400_TIMINGR
 #define HAL_I2C_H7_400_TIMINGR 0x00300F38
@@ -155,7 +155,7 @@ I2CDeviceManager::I2CDeviceManager(void)
 #elif defined(STM32H7)
         if (businfo[i].busclock <= 100000) {
             businfo[i].i2ccfg.timingr = HAL_I2C_H7_100_TIMINGR;
-            businfo[i].busclock = 100000;
+            businfo[i].busclock = 100000; // ARRC
         } else {
             businfo[i].i2ccfg.timingr = HAL_I2C_H7_400_TIMINGR;
             businfo[i].busclock = 400000;
