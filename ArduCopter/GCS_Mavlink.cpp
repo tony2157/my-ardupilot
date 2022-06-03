@@ -463,13 +463,13 @@ bool GCS_MAVLINK_Copter::try_send_message(enum ap_message id)
     }
 
     case MSG_CASS_IMET:
-        //CHECK_PAYLOAD_SIZE(CASS_SENSOR_RAW);
-        //copter.send_cass_imet(chan);
+        CHECK_PAYLOAD_SIZE(CASS_SENSOR_RAW);
+        copter.send_cass_imet(chan);
         break;
     
     case MSG_CASS_HYT271:
-        //CHECK_PAYLOAD_SIZE(CASS_SENSOR_RAW);
-        //copter.send_cass_hyt271(chan);
+        CHECK_PAYLOAD_SIZE(CASS_SENSOR_RAW);
+        copter.send_cass_hyt271(chan);
         break;
 
     case MSG_ARRC_LB5900:
@@ -640,9 +640,9 @@ static const ap_message STREAM_EXTRA3_msgs[] = {
     MSG_ESC_TELEMETRY,
     MSG_GENERATOR_STATUS,
     MSG_WINCH_STATUS,
-    MSG_ARRC_LB5900
-    //MSG_CASS_IMET,
-    //MSG_CASS_HYT271
+    //MSG_ARRC_LB5900,
+    MSG_CASS_IMET,
+    MSG_CASS_HYT271
 };
 static const ap_message STREAM_PARAMS_msgs[] = {
     MSG_NEXT_PARAM
