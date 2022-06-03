@@ -34,6 +34,9 @@ uint32_t vpbatt_now;
 bool batt_home_ok;
 bool batt_warning_flag;
 
+//LB5900 global params
+uint32_t LB_now;
+
 //AutoVP mission generation
 uint32_t mission_now;
 
@@ -52,6 +55,9 @@ void Copter::userhook_init()
 
     //AutoVP initialize
     mission_now = AP_HAL::millis();
+
+    //LB5900 initialize
+    LB_now = AP_HAL::millis();
 
     //Wind filter initialization
     float Fss;
@@ -249,8 +255,26 @@ void Copter::user_LB5900_logger()
         time_stamp              : AP_HAL::micros64(),                   //Store time in microseconds
         healthy                 : copter.ARRC_LB5900.healthy(),         //Store sensor health
         power                   : copter.ARRC_LB5900.power_measure(),   //Store power in dBm
-    }; 
+    };
     logger.WriteBlock(&pkt_temp, sizeof(pkt_temp));   //Send package to SD card
+
+    // Print desired params for Debugging
+    if (AP_HAL::millis() - LB_now > 2000){
+
+        gcs().send_text(MAV_SEVERITY_INFO,"LB health: %d",(uint8_t)copter.ARRC_LB5900.healthy());
+        gcs().send_text(MAV_SEVERITY_INFO,"LB power: %d",(uint8_t)copter.ARRC_LB5900.power_measure());
+
+        uint16_t freq = g2.user_parameters.get_lb5900_freq();
+        char FREQ[10 + sizeof(char)] = "FREQ ";
+        char temp[5 + sizeof(char)];
+        snprintf(temp,6,"%d",freq);
+        strcat(FREQ, temp);
+        strcat(FREQ, " MHZ");
+
+        gcs().send_text(MAV_SEVERITY_INFO,"%s",FREQ);
+
+        LB_now = AP_HAL::millis();
+    }
 }
 
 #endif
