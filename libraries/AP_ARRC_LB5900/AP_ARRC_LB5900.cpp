@@ -23,19 +23,29 @@ bool AP_ARRC_LB5900::init(uint8_t busId, uint8_t i2cAddr, uint16_t freq, uint8_t
     // Check if device exists
     _dev = std::move(hal.i2c_mgr->get_device(busId, i2cAddr));
     if (!_dev) {
+        _healthy = false;
         return false;
     }
+    _healthy = true;
+    
     _dev->get_semaphore()->take_blocking();
 
-    _dev->set_retries(10);
+    _dev->set_retries(0);
 
     // Start the first measurement
-    if (!configSensor(freq, avg_cnt)) {
-        _dev->get_semaphore()->give();
-        return false;
+    uint16_t iter = 0;
+    while(!configSensor(freq, avg_cnt)) {
+        hal.scheduler->delay(20);
+        if (iter == 100){
+            _healthy = false;
+            _dev->get_semaphore()->give();
+            return false;
+        }
+        iter++;
     }
+    _healthy = true;
 
-    _dev->set_retries(3);
+    //_dev->set_retries(3);
 
     _dev->get_semaphore()->give();
 
@@ -56,6 +66,7 @@ void AP_ARRC_LB5900::set_i2c_addr(uint8_t addr)
 
 bool AP_ARRC_LB5900::configSensor(uint16_t freq, uint8_t avg_cnt)
 {
+    _power = 1;
     char FREQ[10 + sizeof(char)] = "FREQ ";
     char AVG_CNT[12 + sizeof(char)] = "AVER:COUN ";
     char temp[5 + sizeof(char)];
@@ -79,9 +90,15 @@ bool AP_ARRC_LB5900::configSensor(uint16_t freq, uint8_t avg_cnt)
         "\0" // STOP LIST
     };
 
+    _power = 2;
+
     // Send initial commands through I2C
     while(1){
         if(strlen(cmd[0][commandNumber])  != 0 ){
+
+            _power = 3;
+
+            hal.scheduler->delay(2);
             // Build header
             memset(write_sensor_buffer.byte, 0x00, 50);
             write_sensor_buffer.field.commandAndLength[0] = (uint8_t)nextReadIsStatusAndLength;
@@ -92,16 +109,28 @@ bool AP_ARRC_LB5900::configSensor(uint16_t freq, uint8_t avg_cnt)
             // Add command to buffer
             strcpy((char*)write_sensor_buffer.field.buffer, cmd[0][commandNumber]);
             // Send Command with "nextReadIsStatusAndLength" header
+            uint16_t iter = 0;
             while(!_dev->transfer(write_sensor_buffer.byte, header.ui, nullptr, 0)) {
-                hal.scheduler->delay(1);
-                if (Sensor_TimeOut-- == 0)
-                {
-                    Sensor_TimeOut = 2;
+
+                hal.scheduler->delay(5);
+                if(iter == 20){
+                    _power = 4;
                     return false;
                 }
+                iter++;
+
+                // hal.scheduler->delay(1);
+                // if (Sensor_TimeOut-- == 0)
+                // {
+                //     Sensor_TimeOut = 2;
+                //     return false;
+                // }
             }
         }
         else{
+
+            _power = 5;
+
             commandNumber = 0;
             _measure();     // Initialize measurement
             return true;
@@ -109,6 +138,9 @@ bool AP_ARRC_LB5900::configSensor(uint16_t freq, uint8_t avg_cnt)
 
         if(commandNumber++ >= 9)
         {
+
+            _power = 6;
+
             commandNumber = 0;
             return false;
         }
