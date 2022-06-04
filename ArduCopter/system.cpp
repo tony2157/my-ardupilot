@@ -15,6 +15,8 @@ static void failsafe_check_static()
 
 void Copter::init_ardupilot()
 {
+    // initialize ARRC LB5900 sensor
+    init_ARRC_lb5900();
 
 #if STATS_ENABLED == ENABLED
     // initialise stats module
@@ -88,9 +90,6 @@ void Copter::init_ardupilot()
     // initialize CASS_Imet sensors
     init_CASS_imet();
     init_CASS_hyt271();
-
-    // initialize ARRC LB5900 sensor
-    init_ARRC_lb5900();
 
     // check if we should enter esc calibration mode
     esc_calibration_startup_check();
