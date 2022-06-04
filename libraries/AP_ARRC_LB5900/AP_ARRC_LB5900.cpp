@@ -28,7 +28,7 @@ bool AP_ARRC_LB5900::init(uint8_t busId, uint8_t i2cAddr, uint16_t freq, uint8_t
     }
     _healthy = true;
 
-    hal.scheduler->delay(200);
+    hal.scheduler->delay(500);
     
     _dev->get_semaphore()->take_blocking();
 
@@ -37,7 +37,7 @@ bool AP_ARRC_LB5900::init(uint8_t busId, uint8_t i2cAddr, uint16_t freq, uint8_t
     // Start the first measurement
     uint16_t iter = 0;
     while(!configSensor(freq, avg_cnt)) {
-        hal.scheduler->delay(50);
+        hal.scheduler->delay(5);
         if (iter == 100){
             _healthy = false;
             _dev->get_semaphore()->give();
@@ -51,7 +51,7 @@ bool AP_ARRC_LB5900::init(uint8_t busId, uint8_t i2cAddr, uint16_t freq, uint8_t
 
     /* Request 10Hz update */
     // Max conversion time is 12 ms
-    _dev->register_periodic_callback(100000,
+    _dev->register_periodic_callback(1000000,
                                      FUNCTOR_BIND_MEMBER(&AP_ARRC_LB5900::_timer, void));
     return true;
 }
@@ -66,7 +66,6 @@ void AP_ARRC_LB5900::set_i2c_addr(uint8_t addr)
 
 bool AP_ARRC_LB5900::configSensor(uint16_t freq, uint8_t avg_cnt)
 {
-    _power = 1;
     char FREQ[10 + sizeof(char)] = "FREQ ";
     char AVG_CNT[12 + sizeof(char)] = "AVER:COUN ";
     char temp[5 + sizeof(char)];
@@ -81,22 +80,18 @@ bool AP_ARRC_LB5900::configSensor(uint16_t freq, uint8_t avg_cnt)
     // List of initial commands to configure the LB5900
     const char* (cmd[1])[10] = 
     {
-        "SYST:PRES",
+        "SYST:PRES DEF",
         FREQ,
         "AVER:COUN:AUTO 0",
         AVG_CNT,
-        "AVER:SDET 0",
-        "INIT:CONT 1",
+        //"AVER:SDET 0",
+        //"INIT:CONT 1",
         "\0" // STOP LIST
     };
-
-    _power = 2;
 
     // Send initial commands through I2C
     while(1){
         if(strlen(cmd[0][commandNumber])  != 0 ){
-
-            _power = 3;
 
             hal.scheduler->delay(2);
             // Build header
@@ -110,39 +105,20 @@ bool AP_ARRC_LB5900::configSensor(uint16_t freq, uint8_t avg_cnt)
             strcpy((char*)write_sensor_buffer.field.buffer, cmd[0][commandNumber]);
             // Send Command with "nextReadIsStatusAndLength" header
             //uint16_t iter = 0;
-            while(!_dev->transfer(write_sensor_buffer.byte, header.ui, nullptr, 0)) {
-
+            if(!_dev->transfer(write_sensor_buffer.byte, header.ui, nullptr, 0)) {
                 return false;
-
-                // hal.scheduler->delay(5);
-                // if(iter == 20){
-                //     _power = 4;
-                //     return false;
-                // }
-                // iter++;
-
-                // hal.scheduler->delay(1);
-                // if (Sensor_TimeOut-- == 0)
-                // {
-                //     Sensor_TimeOut = 2;
-                //     return false;
-                // }
             }
         }
         else{
-
-            _power = 5;
-
             commandNumber = 0;
+            hal.scheduler->delay(2);
             _measure();     // Initialize measurement
+            hal.scheduler->delay(50);
             return true;
         }
 
         if(commandNumber++ >= 9)
         {
-
-            _power = 6;
-
             commandNumber = 0;
             return false;
         }
@@ -163,25 +139,19 @@ bool AP_ARRC_LB5900::_read(void)
     write_sensor_buffer.field.commandAndLength[3] = header.c[0];
     write_sensor_buffer.field.commandAndLength[2] = header.c[1];
     write_sensor_buffer.field.commandAndLength[1] = header.c[2];
-    while(!_dev->transfer(write_sensor_buffer.byte, header.ui, nullptr, 0)) {
-        hal.scheduler->delay(1);
-        if (Sensor_TimeOut-- == 0)
-        {
-            Sensor_TimeOut = 2;
-            return false;
-        }
+    
+    if(!_dev->transfer(write_sensor_buffer.byte, header.ui, nullptr, 0)) {
+        return false;
     }
+    hal.scheduler->delay(10);
 
     // Read 4 bytes from the sensor. This contains the status byte and 3 length bytes.
     // header.c is used as temp variable
-    while(!_dev->transfer(nullptr, 0, header.c, 4)) {
-        hal.scheduler->delay(50);
-        if (Sensor_TimeOut-- == 0)
-        {
-            Sensor_TimeOut = 200;
-            return false;
-        }
+    header.ui = 0; // Clear header
+    if(!_dev->transfer(nullptr, 0, header.c, 4)) {
+        return false;
     }
+    hal.scheduler->delay(2);
 
     // Transfer status&length to read_buffer
     bufLength.c[0] = header.c[3];
@@ -191,31 +161,27 @@ bool AP_ARRC_LB5900::_read(void)
     // If status is good, get the data!
     if(bufLength.ui != 0)
     {
+        _power = 100;
         // Write the number of bytes to the sensor that are to be read back using header 0Ch
         write_sensor_buffer.field.commandAndLength[0] = (uint8_t)nextReadIsCompleteOutputBuffer;
         write_sensor_buffer.field.commandAndLength[1] = 0;
         write_sensor_buffer.field.commandAndLength[2] = 0;
         write_sensor_buffer.field.commandAndLength[3] = 4;
 
-        while(!_dev->transfer(write_sensor_buffer.byte, 4, nullptr, 0)) {
-            hal.scheduler->delay(1);
-            if (Sensor_TimeOut-- == 0)
-            {
-                Sensor_TimeOut = 2;
-                return false;
-            }
+        if(!_dev->transfer(write_sensor_buffer.byte, 4, nullptr, 0)) {
+            return false;
         }
+        hal.scheduler->delay(10);
+
+        _power = 101;
 
         // Read back the measurement
         memset(read_sensor_buffer.byte, 0x00, 50);
-        while(!_dev->transfer(nullptr, 0, read_sensor_buffer.byte, bufLength.ui)) {
-            hal.scheduler->delay(50);
-            if (Sensor_TimeOut-- == 0)
-            {
-                Sensor_TimeOut = 200;
-                return false;
-            }
+        if(!_dev->transfer(nullptr, 0, read_sensor_buffer.byte, bufLength.ui)) {
+            return false;
         }
+
+        _power = 102;
 
         // Convert received bytes to number
         WITH_SEMAPHORE(_sem);
@@ -224,6 +190,7 @@ bool AP_ARRC_LB5900::_read(void)
         return true;
     }
     else{
+        _power = 69;
         return false;
     }
     
@@ -234,14 +201,15 @@ bool AP_ARRC_LB5900::_measure(void)
 {
     const char* (cmd[1])[5] = 
     {
-        "FETCH?",
+        //"FETCH?",
+        "READ?",
         "\0" // STOP LIST
     };
 
     while(1){
         if(strlen(cmd[0][commandNumber])  != 0 ){
             // Build header
-            memset(write_sensor_buffer.byte, 0x00, 5000);
+            memset(write_sensor_buffer.byte, 0x00, 50);
             write_sensor_buffer.field.commandAndLength[0] = (uint8_t)nextReadIsStatusAndLength;
             header.ui = strlen(cmd[0][commandNumber]) + 5; // Add one for terminator and 4 for header
             write_sensor_buffer.field.commandAndLength[3] = header.c[0];
@@ -250,13 +218,9 @@ bool AP_ARRC_LB5900::_measure(void)
             // Add command to buffer
             strcpy((char*)write_sensor_buffer.field.buffer, cmd[0][commandNumber]);
             // Send Command with "nextReadIsStatusAndLength" header
-            while(!_dev->transfer(write_sensor_buffer.byte, header.ui, nullptr, 0)) {
-                hal.scheduler->delay(1);
-                if (Sensor_TimeOut-- == 0)
-                {
-                    Sensor_TimeOut = 200;
-                    return false;
-                }
+            if(!_dev->transfer(write_sensor_buffer.byte, header.ui, nullptr, 0)) {
+                commandNumber = 0;
+                return false;
             }
         }
         else{
@@ -264,7 +228,7 @@ bool AP_ARRC_LB5900::_measure(void)
             return true;
         }
 
-        if(commandNumber++ >= 9)
+        if(commandNumber++ >= 3)
         {
             commandNumber = 0;
             return false;
@@ -274,6 +238,8 @@ bool AP_ARRC_LB5900::_measure(void)
 
 void AP_ARRC_LB5900::_timer(void)
 {
-    _healthy = _read();        // Retreive data from the sensor
-    _healthy = _measure();     // Request a new measurement to the sensor
+    if(_read()){      // Retreive data from the sensor
+        hal.scheduler->delay(2);
+        _healthy = _measure();     // Request a new measurement to the sensor
+    }
 }
