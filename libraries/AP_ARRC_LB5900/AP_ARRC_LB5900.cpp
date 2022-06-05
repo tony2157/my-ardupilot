@@ -64,7 +64,7 @@ void AP_ARRC_LB5900::set_i2c_addr(uint8_t addr)
 bool AP_ARRC_LB5900::configSensor(uint16_t freq, uint8_t avg_cnt)
 {
     char FREQ[10 + sizeof(char)] = "FREQ ";
-    char AVG_CNT[12 + sizeof(char)] = "AVER:COUN ";
+    char AVG_CNT[17 + sizeof(char)] = "SENS:AVER:COUN ";
     char temp[5 + sizeof(char)];
 
     // Convert user params freq and avg_cnt to strings
@@ -78,11 +78,11 @@ bool AP_ARRC_LB5900::configSensor(uint16_t freq, uint8_t avg_cnt)
     const char* (cmd[1])[10] = 
     {
         "SYST:PRES DEF",
-        FREQ,
-        "AVER:COUN:AUTO 0",
+        "AVER:COUN:AUTO OFF",
+        "SENS:AVER:SDET OFF",
+        "INIT:CONT ON",
         AVG_CNT,
-        "AVER:SDET 0",
-        //"INIT:CONT 1",
+        FREQ,
         "\0" // STOP LIST
     };
 
@@ -196,8 +196,7 @@ bool AP_ARRC_LB5900::_measure(void)
 {
     const char* (cmd[1])[10] = 
     {
-        //"FETCH?",
-        "READ?",
+        "FETCh?",
         "\0" // STOP LIST
     };
 
@@ -229,7 +228,7 @@ bool AP_ARRC_LB5900::_measure(void)
 void AP_ARRC_LB5900::_timer(void)
 {
     WITH_SEMAPHORE(_sem);
-    _healthy = _read();         // Read previous measurement request
-    hal.scheduler->delay(3);
-    _healthy &= _measure();      // Request a new measurement to the sensor
+    _healthy = _measure();      // Request a new measurement to the sensor
+    hal.scheduler->delay(5);
+    _healthy &= _read();        // Read previous measurement request
 }
