@@ -259,27 +259,27 @@ void Copter::user_LB5900_logger()
     logger.WriteBlock(&pkt_temp, sizeof(pkt_temp));   //Send package to SD card
 
     // Print desired params for Debugging
-    if (AP_HAL::millis() - LB_now > 2000){
+    // if (AP_HAL::millis() - LB_now > 2000){
 
-        gcs().send_text(MAV_SEVERITY_INFO,"LB health: %d",(uint8_t)copter.ARRC_LB5900.healthy());
-        gcs().send_text(MAV_SEVERITY_INFO,"LB power: %d",(uint8_t)copter.ARRC_LB5900.power_measure());
+    //     gcs().send_text(MAV_SEVERITY_INFO,"LB health: %d",(uint8_t)copter.ARRC_LB5900.healthy());
+    //     gcs().send_text(MAV_SEVERITY_INFO,"LB power: %d",(uint8_t)copter.ARRC_LB5900.power_measure());
 
-        uint16_t freq = g2.user_parameters.get_lb5900_freq();
-        uint16_t avg_cnt = g2.user_parameters.get_lb5900_avg_cnt();
-        char FREQ[10 + sizeof(char)] = "FREQ ";
-        char AVG_CNT[17 + sizeof(char)] = "SENS:AVER:COUN ";
-        char temp[5 + sizeof(char)];
-        snprintf(temp,6,"%d",freq);
-        strcat(FREQ, temp);
-        strcat(FREQ, " MHZ");
-        snprintf(temp,6,"%d",avg_cnt);
-        strcat(AVG_CNT, temp);
+    //     uint16_t freq = g2.user_parameters.get_lb5900_freq();
+    //     uint16_t avg_cnt = g2.user_parameters.get_lb5900_avg_cnt();
+    //     char FREQ[10 + sizeof(char)] = "FREQ ";
+    //     char AVG_CNT[17 + sizeof(char)] = "SENS:AVER:COUN ";
+    //     char temp[5 + sizeof(char)];
+    //     snprintf(temp,6,"%d",freq);
+    //     strcat(FREQ, temp);
+    //     strcat(FREQ, " MHZ");
+    //     snprintf(temp,6,"%d",avg_cnt);
+    //     strcat(AVG_CNT, temp);
 
-        gcs().send_text(MAV_SEVERITY_INFO,"%s",FREQ);
-        gcs().send_text(MAV_SEVERITY_INFO,"%s",AVG_CNT);
+    //     gcs().send_text(MAV_SEVERITY_INFO,"%s",FREQ);
+    //     gcs().send_text(MAV_SEVERITY_INFO,"%s",AVG_CNT);
 
-        LB_now = AP_HAL::millis();
-    }
+    //     LB_now = AP_HAL::millis();
+    // }
 }
 
 #endif
