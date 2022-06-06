@@ -149,7 +149,7 @@ bool AP_ARRC_LB5900::_read(void)
         bufLength.c[2] = header.c[1];
 
         // If status bit is good, get the data!
-        if(header.c[0] && 0x10 == 1) // bufLength.ui != 0
+        if(header.c[0] && 0x10 == 0x10) // bufLength.ui != 0
         {
             _power = 100;
             // Write the number of bytes to the sensor that are to be read back using header 0Ch
