@@ -194,7 +194,7 @@ const AP_Scheduler::Task Copter::scheduler_tasks[] = {
     SCHED_TASK(user_temperature_logger,   10,     75),
 #endif
 #ifdef USER_ARRCLB5900_LOOP
-    SCHED_TASK(user_LB5900_logger,   8,     75),
+    SCHED_TASK(user_LB5900_logger,   10,     75),
 #endif
 #ifdef USER_HUMIDITY_LOOP
     SCHED_TASK(user_humidity_logger,     10,    75),

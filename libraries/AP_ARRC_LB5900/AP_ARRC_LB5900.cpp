@@ -48,7 +48,7 @@ bool AP_ARRC_LB5900::init(uint8_t busId, uint8_t i2cAddr, uint16_t freq, uint8_t
 
     _dev->get_semaphore()->give();
 
-    _dev->register_periodic_callback(125000, FUNCTOR_BIND_MEMBER(&AP_ARRC_LB5900::_timer, void));
+    _dev->register_periodic_callback(100000, FUNCTOR_BIND_MEMBER(&AP_ARRC_LB5900::_timer, void));
 
     return true;
 }
@@ -132,13 +132,12 @@ bool AP_ARRC_LB5900::_read(void)
     uint8_t iter = 0;
     if(!_dev->transfer(write_sensor_buffer.byte, header.ui, nullptr, 0)) {
         if(iter == 10){
-            _power = 1005;
             return false;
         }
         hal.scheduler->delay(1);
         iter++;
     }
-    hal.scheduler->delay(3);
+    hal.scheduler->delay(6);
 
     // Read 4 bytes from the sensor. This contains the status byte and 3 length bytes.
     // header.c is used as temp variable
@@ -146,7 +145,6 @@ bool AP_ARRC_LB5900::_read(void)
     fail:
         header.ui = 0; // Clear header
         if(!_dev->transfer(nullptr, 0, header.c, 4)) {
-            _power = 1001;
             return false;
         }
 
@@ -156,7 +154,7 @@ bool AP_ARRC_LB5900::_read(void)
         bufLength.c[2] = header.c[1];
 
         // If status bit is good, get the data!
-        if(header.c[0] && 0x10 == 0x10) // bufLength.ui != 0
+        if((header.c[0] && 0x10 == 0x10) && (bufLength.ui != 0)) // bufLength.ui != 0
         {
             // Write the number of bytes to the sensor that are to be read back using header 0Ch
             memset(write_sensor_buffer.byte, 0x00, 50);
@@ -168,7 +166,6 @@ bool AP_ARRC_LB5900::_read(void)
             hal.scheduler->delay(1);
 
             if(!_dev->transfer(write_sensor_buffer.byte, 4, nullptr, 0)) {
-                _power = 1002;
                 return false;
             }
             hal.scheduler->delay(3);
@@ -176,7 +173,6 @@ bool AP_ARRC_LB5900::_read(void)
             // Read back the measurement
             memset(read_sensor_buffer.byte, 0x00, 50);
             if(!_dev->transfer(nullptr, 0, read_sensor_buffer.byte, bufLength.ui)) {
-                _power = 1003;
                 return false;
             }
 
@@ -186,12 +182,11 @@ bool AP_ARRC_LB5900::_read(void)
             return true;
         }
         else if(repeat < 1){
-            hal.scheduler->delay(30);
+            hal.scheduler->delay(20);
             repeat++;
             goto fail;
         }
         else{
-            _power = 1004;
             return false;
         }
 }
@@ -220,7 +215,6 @@ bool AP_ARRC_LB5900::_measure(void)
             while(!_dev->transfer(write_sensor_buffer.byte, header.ui, nullptr, 0)) {
                 if(iter == 10){
                     commandNumber = 0;
-                    _power = 1005;
                     return false;
                 }
                 hal.scheduler->delay(1);
@@ -240,5 +234,5 @@ void AP_ARRC_LB5900::_timer(void)
     WITH_SEMAPHORE(_sem);
     _healthy = _read();        // Read previous measurement request
     hal.scheduler->delay(10);
-    _healthy |= _measure();      // Request a new measurement to the sensor
+    _healthy &= _measure();      // Request a new measurement to the sensor
 }
