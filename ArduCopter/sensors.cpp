@@ -56,8 +56,9 @@ void Copter::init_ARRC_lb5900(){
     uint8_t i2cAddr = g2.user_parameters.get_lb5900_address();
     uint16_t freq = g2.user_parameters.get_lb5900_freq();
     uint8_t avg_cnt = g2.user_parameters.get_lb5900_avg_cnt();
+    uint8_t rate = g2.user_parameters.get_lb5900_mrate();
     uint8_t busId = 0;
-    ARRC_LB5900.init(busId,i2cAddr,freq,avg_cnt);
+    ARRC_LB5900.init(busId,i2cAddr,freq,avg_cnt,rate);
 }
 
 // return barometric altitude in centimeters

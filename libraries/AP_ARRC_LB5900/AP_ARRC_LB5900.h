@@ -14,7 +14,7 @@ public:
     AP_ARRC_LB5900(void);
     ~AP_ARRC_LB5900(void){}
 
-    bool init(uint8_t busId, uint8_t i2cAddr, uint16_t freq, uint8_t avg_cnt);
+    bool init(uint8_t busId, uint8_t i2cAddr, uint16_t freq, uint8_t avg_cnt, uint8_t rate);
     float power_measure(void) { return _power; } // temperature in kelvin
     bool healthy(void) { return _healthy; } // do we have a valid temperature reading?
     void set_i2c_addr(uint8_t addr);
@@ -66,7 +66,7 @@ private:
         nextReadIsNULL					= 0xF0
     }nextReadType_t;
 
-    bool configSensor(uint16_t freq, uint8_t avg_cnt);
+    bool configSensor(uint16_t freq, uint8_t avg_cnt, uint8_t rate);
     bool _measure(void);
     bool _read(void);
     void _timer(void); // update the temperature, called at 20Hz

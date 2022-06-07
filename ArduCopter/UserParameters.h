@@ -45,6 +45,7 @@ public:
     AP_Int8 get_lb5900_address() const{return lb5900_addr; }
     AP_Int16 get_lb5900_freq() const{return lb5900_freq; }
     AP_Int8 get_lb5900_avg_cnt() const{return lb5900_avg_cnt; }
+    AP_Int8 get_lb5900_mrate() const{return lb5900_mrate; }
     
     
 private:
@@ -88,5 +89,6 @@ private:
     AP_Int8 lb5900_addr;
     AP_Int16 lb5900_freq;
     AP_Int8 lb5900_avg_cnt;
+    AP_Int8 lb5900_mrate;
 
 };

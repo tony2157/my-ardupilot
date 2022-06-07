@@ -14,7 +14,7 @@ AP_ARRC_LB5900::AP_ARRC_LB5900() :
 {
 }
 
-bool AP_ARRC_LB5900::init(uint8_t busId, uint8_t i2cAddr, uint16_t freq, uint8_t avg_cnt)
+bool AP_ARRC_LB5900::init(uint8_t busId, uint8_t i2cAddr, uint16_t freq, uint8_t avg_cnt, uint8_t rate)
 {
     commandNumber = 0;
     Sensor_TimeOut = 200;
@@ -36,7 +36,7 @@ bool AP_ARRC_LB5900::init(uint8_t busId, uint8_t i2cAddr, uint16_t freq, uint8_t
 
     // Start the first measurement
     uint16_t iter = 0;
-    while(!configSensor(freq, avg_cnt)) {
+    while(!configSensor(freq, avg_cnt, rate)) {
         hal.scheduler->delay(5);
         if (iter == 100){
             _healthy = false;
@@ -61,18 +61,32 @@ void AP_ARRC_LB5900::set_i2c_addr(uint8_t addr)
 }
 
 
-bool AP_ARRC_LB5900::configSensor(uint16_t freq, uint8_t avg_cnt)
+bool AP_ARRC_LB5900::configSensor(uint16_t freq, uint8_t avg_cnt, uint8_t rate)
 {
+    // Available sensor reading rate
+    const char* (mrate[1])[4] = 
+    {
+        "NORMAL",   // 20 readings per sec
+        "DOUBLE",   // 40 readings per sec
+        "FAST",     // 110 readings per sec (disallows average count)
+        "SUPER"     // 110 readings per sec (allows average count)
+    };
+    if (rate > 3) rate = 3;
+    if (rate == 2) avg_cnt = 1;
+    if (freq > 18000) freq = 18000;
+
     char FREQ[10 + sizeof(char)] = "FREQ ";
     char AVG_CNT[17 + sizeof(char)] = "SENS:AVER:COUN ";
+    char MRATE[16 + sizeof(char)] = "SENS:MRAT ";
     char temp[5 + sizeof(char)];
 
-    // Convert user params freq and avg_cnt to strings
+    // Convert user params freq, avg_cnt and mrate to strings
     snprintf(temp,6,"%d",freq);
     strcat(FREQ, temp);
     strcat(FREQ, " MHZ");
     snprintf(temp,6,"%d",avg_cnt);
     strcat(AVG_CNT, temp);
+    strcat(MRATE, mrate[0][rate]);
 
     // List of initial commands to configure the LB5900
     const char* (cmd[1])[10] = 
@@ -81,6 +95,7 @@ bool AP_ARRC_LB5900::configSensor(uint16_t freq, uint8_t avg_cnt)
         "AVER:COUN:AUTO OFF",
         "SENS:AVER:SDET OFF",
         "INIT:CONT ON",
+        MRATE,
         AVG_CNT,
         FREQ,
         "\0" // STOP LIST
