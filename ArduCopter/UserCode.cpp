@@ -656,6 +656,7 @@ void Copter::userhook_auxSwitch1()
 void Copter::userhook_auxSwitch2()
 {
     // put your aux switch #2 handler here (CHx_OPT = 48)
+    copter.camera_mount.set_angle_targets(0, -90, -30);
 }
 
 void Copter::userhook_auxSwitch3()

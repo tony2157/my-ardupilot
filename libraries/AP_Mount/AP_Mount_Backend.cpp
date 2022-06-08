@@ -9,9 +9,9 @@ extern const AP_HAL::HAL& hal;
 void AP_Mount_Backend::set_angle_targets(float roll, float tilt, float pan)
 {
     // set angle targets
-    _angle_ef_target_rad.x = radians(roll);
-    _angle_ef_target_rad.y = radians(tilt);
-    _angle_ef_target_rad.z = radians(pan);
+    _angle_ef_target_rad_d.x = radians(roll);
+    _angle_ef_target_rad_d.y = radians(tilt);
+    _angle_ef_target_rad_d.z = radians(pan);
 
     // set the mode to mavlink targeting
     _frontend.set_mode(_instance, MAV_MOUNT_MODE_MAVLINK_TARGETING);
