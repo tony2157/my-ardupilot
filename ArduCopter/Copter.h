@@ -912,11 +912,11 @@ private:
 
     // UserCode.cpp
     void userhook_init();
-    void userhook_FastLoop();
+    void user_ARRC_gimbal_sim();
     void user_vpbatt_monitor();
-    void user_temperature_logger();
+    void user_thermohygrometer_logger();
     void user_LB5900_logger();
-    void user_humidity_logger();
+    void user_ARRC_gimbal();
     void user_wind_vane();
     void userhook_auxSwitch1();
     void userhook_auxSwitch2();

@@ -184,20 +184,20 @@ const AP_Scheduler::Task Copter::scheduler_tasks[] = {
 #if WINCH_ENABLED == ENABLED
     SCHED_TASK_CLASS(AP_Winch,             &copter.g2.winch,            update,          50,  50),
 #endif
-#ifdef USERHOOK_FASTLOOP
-    SCHED_TASK(userhook_FastLoop,    1,     75),
+#ifdef USER_GIMBAL_SIM_LOOP
+    SCHED_TASK(user_ARRC_gimbal_sim,    1,     75),
 #endif
 #ifdef USER_VPBATT_MNTR_LOOP
     SCHED_TASK(user_vpbatt_monitor,         10,     75),
 #endif
-#ifdef USER_TEMPERATURE_LOOP
-    SCHED_TASK(user_temperature_logger,   10,     75),
+#ifdef USER_THERMOHYGROMETER_LOOP
+    SCHED_TASK(user_thermohygrometer_logger,   10,     75),
 #endif
 #ifdef USER_ARRCLB5900_LOOP
     SCHED_TASK(user_LB5900_logger,   10,     75),
 #endif
-#ifdef USER_HUMIDITY_LOOP
-    SCHED_TASK(user_humidity_logger,     10,    75),
+#ifdef USER_GIMBAL_LOOP
+    SCHED_TASK(user_ARRC_gimbal,     10,    75),
 #endif
 #ifdef USER_WIND_LOOP
     SCHED_TASK(user_wind_vane, 10,   75),

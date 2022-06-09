@@ -37,6 +37,14 @@ bool batt_warning_flag;
 //LB5900 global params
 uint32_t LB_now;
 
+//ARRC Gimbal function global params
+uint32_t gimbal_now;
+bool gimbal_execute;
+uint8_t gimbal_iter;
+const uint8_t gimbal_angle_span = 15;
+float gimbal_probe_samples[2*gimbal_angle_span + 1];
+uint8_t gimbal_num_samples;
+
 //AutoVP mission generation
 uint32_t mission_now;
 
@@ -58,6 +66,13 @@ void Copter::userhook_init()
 
     //LB5900 initialize
     LB_now = AP_HAL::millis();
+
+    //ARRC Gimbal params init
+    gimbal_now = AP_HAL::millis();
+    gimbal_execute = false;
+    gimbal_iter = 0;
+    gimbal_num_samples = 0;
+    memset(gimbal_probe_samples, 0, (2*gimbal_angle_span + 1) * sizeof(float));
 
     //Wind filter initialization
     float Fss;
@@ -92,8 +107,157 @@ void Copter::userhook_init()
 }
 #endif
 
-#ifdef USERHOOK_FASTLOOP
-void Copter::userhook_FastLoop()
+#ifdef USER_ARRCLB5900_LOOP
+void Copter::user_LB5900_logger()
+{
+    // Read Power in dBm. Write sensors packet into the SD card
+    // LB5900 Power Data Logger ///////////////////////////////////////////////////////////////////////////////////////////
+    struct log_LB5900 pkt_temp = {
+        LOG_PACKET_HEADER_INIT(LOG_LB5900_MSG),
+        time_stamp              : AP_HAL::micros64(),                   //Store time in microseconds
+        healthy                 : copter.ARRC_LB5900.healthy(),         //Store sensor health
+        power                   : copter.ARRC_LB5900.power_measure(),   //Store power in dBm
+    };
+    logger.WriteBlock(&pkt_temp, sizeof(pkt_temp));   //Send package to SD card
+
+    // Print desired params for Debugging
+    // if (AP_HAL::millis() - LB_now > 2000){
+
+    //     const char* (mrate[1])[4] = 
+    //     {
+    //         "NORMAL",   // 20 readings per sec
+    //         "DOUBLE",   // 40 readings per sec
+    //         "FAST",     // 110 readings per sec (disallows average count)
+    //         "SUPER"     // 110 readings per sec (allows average count)
+    //     };
+
+    //     gcs().send_text(MAV_SEVERITY_INFO,"LB health: %d",(uint8_t)copter.ARRC_LB5900.healthy());
+    //     gcs().send_text(MAV_SEVERITY_INFO,"LB power: %d",(uint8_t)copter.ARRC_LB5900.power_measure());
+
+    //     uint16_t freq = g2.user_parameters.get_lb5900_freq();
+    //     uint16_t avg_cnt = g2.user_parameters.get_lb5900_avg_cnt();
+    //     uint8_t rate = g2.user_parameters.get_lb5900_mrate();
+
+    //     char FREQ[10 + sizeof(char)] = "FREQ ";
+    //     char AVG_CNT[17 + sizeof(char)] = "SENS:AVER:COUN ";
+    //     char MRATE[16 + sizeof(char)] = "SENS:MRAT ";
+    //     char temp[5 + sizeof(char)];
+
+    //     snprintf(temp,6,"%d",freq);
+    //     strcat(FREQ, temp);
+    //     strcat(FREQ, " MHZ");
+    //     snprintf(temp,6,"%d",avg_cnt);
+    //     strcat(AVG_CNT, temp);
+    //     strcat(MRATE, mrate[0][rate]);
+
+    //     gcs().send_text(MAV_SEVERITY_INFO,"%s",FREQ);
+    //     gcs().send_text(MAV_SEVERITY_INFO,"%s",AVG_CNT);
+    //     gcs().send_text(MAV_SEVERITY_INFO,"%s",MRATE);
+
+    //     LB_now = AP_HAL::millis();
+    // }
+}
+
+#endif
+
+#ifdef USER_GIMBAL_LOOP
+void Copter::user_ARRC_gimbal()
+{
+    uint8_t N = gimbal_angle_span;
+    if(gimbal_execute == true){
+        copter.camera_mount.set_angle_targets(0, -90, -N);
+
+        if((AP_HAL::millis() - gimbal_now) < 4000){ return;}
+
+        repeat:
+        if(gimbal_iter <= 2*N){
+            copter.camera_mount.set_angle_targets(0, -90, (float)(-N+gimbal_iter));
+            if((AP_HAL::millis() - gimbal_now) < (4000 + 500*(gimbal_iter+1))){ 
+                gimbal_probe_samples[gimbal_iter] = gimbal_probe_samples[gimbal_iter] + copter.ARRC_LB5900.power_measure();
+                gimbal_num_samples++;
+                return;
+            }
+            gimbal_probe_samples[gimbal_iter] /= gimbal_num_samples;
+            gimbal_num_samples = 0;
+            gimbal_iter++;
+            goto repeat;
+        }
+
+        float y[31] = {16.85, 17.2, 17.53, 17.84, 18.13, 18.4, 18.65, 
+                        18.88, 19.09, 19.28, 19.45, 19.6, 19.73, 19.84, 
+                        19.93, 20, 20.05, 20.08, 20.09, 20.08, 20.05, 20,
+                        19.93, 19.84, 19.73, 19.6, 19.45, 19.28, 19.09,
+                        18.88, 18.65};
+
+        int8_t i,j,k;
+        float x[2*N+1];
+        for(i = 0; i<=2*N; i++){
+            x[i] = i - N;
+        }
+
+        float X[5];                        //Array that will store the values of sigma(xi),sigma(xi^2),sigma(xi^3)....sigma(xi^2n)
+        for (i=0;i<5;i++)
+        {
+            X[i]=0;
+            for (j=0;j<2*N+1;j++)
+                X[i]=X[i]+pow(x[j],i);        //consecutive positions of the array will store N,sigma(xi),sigma(xi^2),sigma(xi^3)....sigma(xi^2n)
+        }
+        float B[3][4],a[3];            //B is the Normal matrix(augmented) that will store the equations, 'a' is for value of the final coefficients
+        for (i=0;i<=2;i++)
+            for (j=0;j<=2;j++)
+                B[i][j]=X[i+j];
+
+        float Y[3];                    //Array to store the values of sigma(yi),sigma(xi*yi),sigma(xi^2*yi)...sigma(xi^n*yi)
+        for (i=0;i<3;i++)
+        {    
+            Y[i]=0;
+            for (j=0;j<2*N+1;j++)
+            Y[i]=Y[i]+pow(x[j],i)*y[j];        //consecutive positions will store sigma(yi),sigma(xi*yi),sigma(xi^2*yi)...sigma(xi^n*yi)
+        }
+
+        for (i=0;i<=2;i++)
+            B[i][3]=Y[i];                //load the values of Y as the last column of B(Normal Matrix but augmented) 
+        
+        for (i=0;i<3;i++)                    //From now Gaussian Elimination starts(can be ignored) to solve the set of linear equations (Pivotisation)
+            for (k=i+1;k<3;k++)
+                if (B[i][i]<B[k][i])
+                    for (j=0;j<=3;j++)
+                    {
+                        float temp=B[i][j];
+                        B[i][j]=B[k][j];
+                        B[k][j]=temp;
+                    }
+
+        for (i=0;i<2;i++)            //loop to perform the gauss elimination
+            for (k=i+1;k<3;k++)
+                {
+                    float t=B[k][i]/B[i][i];
+                    for (j=0;j<=3;j++)
+                        B[k][j]=B[k][j]-t*B[i][j];    //make the elements below the pivot elements equal to zero or elimnate the variables
+                }
+
+        for (i=2;i>=0;i--)                //back-substitution
+        {                        //x is an array whose values correspond to the values of x,y,z..
+            a[i]=B[i][3];                //make the variable to be calculated equal to the rhs of the last equation
+            for (j=0;j<3;j++)
+                if (j!=i)            //then subtract all the lhs values except the coefficient of the variable whose value                                   is being calculated
+                    a[i]=a[i]-B[i][j]*a[j];
+            a[i]=a[i]/B[i][i];            //now finally divide the rhs by the coefficient of the variable to be calculated
+        }
+
+        float aligned_yaw = -a[1]/(2*a[2]);
+
+        gcs().send_text(MAV_SEVERITY_INFO, "Target gimbal yaw: %f deg",aligned_yaw);
+
+        copter.camera_mount.set_angle_targets(0, -90, aligned_yaw);
+
+        gimbal_execute = false;
+    }
+}
+#endif
+
+#ifdef USER_GIMBAL_SIM_LOOP
+void Copter::user_ARRC_gimbal_sim()
 {
     Location this_loc;
     Location target;
@@ -245,63 +409,9 @@ void Copter::user_vpbatt_monitor()
 }
 #endif
 
-#ifdef USER_ARRCLB5900_LOOP
-void Copter::user_LB5900_logger()
+#ifdef USER_THERMOHYGROMETER_LOOP
+void Copter::user_thermohygrometer_logger()
 {
-    // Read Power in dBm. Write sensors packet into the SD card
-    // LB5900 Power Data Logger ///////////////////////////////////////////////////////////////////////////////////////////
-    struct log_LB5900 pkt_temp = {
-        LOG_PACKET_HEADER_INIT(LOG_LB5900_MSG),
-        time_stamp              : AP_HAL::micros64(),                   //Store time in microseconds
-        healthy                 : copter.ARRC_LB5900.healthy(),         //Store sensor health
-        power                   : copter.ARRC_LB5900.power_measure(),   //Store power in dBm
-    };
-    logger.WriteBlock(&pkt_temp, sizeof(pkt_temp));   //Send package to SD card
-
-    // Print desired params for Debugging
-    // if (AP_HAL::millis() - LB_now > 2000){
-
-    //     const char* (mrate[1])[4] = 
-    //     {
-    //         "NORMAL",   // 20 readings per sec
-    //         "DOUBLE",   // 40 readings per sec
-    //         "FAST",     // 110 readings per sec (disallows average count)
-    //         "SUPER"     // 110 readings per sec (allows average count)
-    //     };
-
-    //     gcs().send_text(MAV_SEVERITY_INFO,"LB health: %d",(uint8_t)copter.ARRC_LB5900.healthy());
-    //     gcs().send_text(MAV_SEVERITY_INFO,"LB power: %d",(uint8_t)copter.ARRC_LB5900.power_measure());
-
-    //     uint16_t freq = g2.user_parameters.get_lb5900_freq();
-    //     uint16_t avg_cnt = g2.user_parameters.get_lb5900_avg_cnt();
-    //     uint8_t rate = g2.user_parameters.get_lb5900_mrate();
-
-    //     char FREQ[10 + sizeof(char)] = "FREQ ";
-    //     char AVG_CNT[17 + sizeof(char)] = "SENS:AVER:COUN ";
-    //     char MRATE[16 + sizeof(char)] = "SENS:MRAT ";
-    //     char temp[5 + sizeof(char)];
-
-    //     snprintf(temp,6,"%d",freq);
-    //     strcat(FREQ, temp);
-    //     strcat(FREQ, " MHZ");
-    //     snprintf(temp,6,"%d",avg_cnt);
-    //     strcat(AVG_CNT, temp);
-    //     strcat(MRATE, mrate[0][rate]);
-
-    //     gcs().send_text(MAV_SEVERITY_INFO,"%s",FREQ);
-    //     gcs().send_text(MAV_SEVERITY_INFO,"%s",AVG_CNT);
-    //     gcs().send_text(MAV_SEVERITY_INFO,"%s",MRATE);
-
-    //     LB_now = AP_HAL::millis();
-    // }
-}
-
-#endif
-
-#ifdef USER_TEMPERATURE_LOOP
-void Copter::user_temperature_logger()
-{
-    #if CONFIG_HAL_BOARD != HAL_BOARD_SITL
     // Read Temperature, Resistance and Health. Write sensors packet into the SD card
     // Temperature Data Logger ///////////////////////////////////////////////////////////////////////////////////////////
     struct log_IMET pkt_temp = {
@@ -321,91 +431,26 @@ void Copter::user_temperature_logger()
         resist3                : copter.CASS_Imet[2].resistance(),
         resist4                : copter.CASS_Imet[3].resistance()
     }; 
-    #else
-        float alt; float simT;
-        copter.ahrs.get_relative_position_D_home(alt);
-        alt = -1*alt;  
-        if(alt < 900){
-            simT = 2.99e-11f*powf(alt,4) - 3.70454e-8*powf(alt,3) - 3.86806e-6*powf(alt,2) + 1.388511e-2*alt + 287.66;
-        }
-        else{
-            simT = 289.64f;
-        }
-        uint32_t m = AP_HAL::millis();
-        // Write simulated sensors packet into the SD card
-        struct log_IMET pkt_temp = {
-            LOG_PACKET_HEADER_INIT(LOG_IMET_MSG),
-            time_stamp             : AP_HAL::micros64(),
-            fan_status             : _fan_status,
-            healthy1               : copter.CASS_Imet[0].healthy(),
-            healthy2               : copter.CASS_Imet[1].healthy(),
-            healthy3               : copter.CASS_Imet[2].healthy(),
-            healthy4               : copter.CASS_Imet[3].healthy(),
-            temperature1           : simT + sinf(0.001f*float(m)) * 0.002f,
-            temperature2           : simT + sinf(0.0007f*float(m)) * 0.003f,
-            temperature3           : simT + sinf(0.0003f*float(m)) * 0.0025f,
-            temperature4           : simT + sinf(0.0005f*float(m)) * 0.0028f,
-            resist1                : -356.9892f*simT + 110935.3763f + sinf(0.001f*float(m)) * 0.002f,
-            resist2                : -356.9892f*simT + 110935.3763f + sinf(0.0007f*float(m)) * 0.003f,
-            resist3                : -356.9892f*simT + 110935.3763f + sinf(0.0003f*float(m)) * 0.0025f,
-            resist4                : -356.9892f*simT + 110935.3763f + sinf(0.0005f*float(m)) * 0.0028f
-        };
-    #endif
     logger.WriteBlock(&pkt_temp, sizeof(pkt_temp));   //Send package to SD card
-}
-#endif
 
-#ifdef USER_HUMIDITY_LOOP
-void Copter::user_humidity_logger()
-{
-    #if CONFIG_HAL_BOARD != HAL_BOARD_SITL
-        // Read Rel. Humidity, Temperature and Health. Write sensors packet into the SD card
-        // Relative Humidity Data Logger ///////////////////////////////////////////////////////////////////////////////////////////
-        struct log_RH pkt_RH = {
-            LOG_PACKET_HEADER_INIT(LOG_RH_MSG),
-            time_stamp             : AP_HAL::micros64(),                        //Store time in microseconds
-            healthy1               : copter.CASS_HYT271[0].healthy(),           //Store senors health
-            healthy2               : copter.CASS_HYT271[1].healthy(),
-            healthy3               : copter.CASS_HYT271[2].healthy(),
-            healthy4               : copter.CASS_HYT271[3].healthy(),
-            humidity1              : copter.CASS_HYT271[0].relative_humidity(), //Store Rel. humidity
-            humidity2              : copter.CASS_HYT271[1].relative_humidity(),
-            humidity3              : copter.CASS_HYT271[2].relative_humidity(),
-            humidity4              : copter.CASS_HYT271[3].relative_humidity(),
-            RHtemp1                : copter.CASS_HYT271[0].temperature(),       //Store temperature
-            RHtemp2                : copter.CASS_HYT271[1].temperature(),
-            RHtemp3                : copter.CASS_HYT271[2].temperature(),
-            RHtemp4                : copter.CASS_HYT271[3].temperature()
-        };
-    #else
-        float alt; float simH;
-        copter.ahrs.get_relative_position_D_home(alt);
-        alt = -1*alt; 
-        if(alt < 900){
-            simH = -2.44407e-10f*powf(alt,4) + 3.88881064e-7*powf(alt,3) - 1.41943e-4*powf(alt,2) - 2.81895e-2*alt + 51.63;
-        }
-        else{
-            simH = 34.44f;
-        }
-        uint32_t m = AP_HAL::millis();
-        // Write sensors packet into the SD card
-        struct log_RH pkt_RH = {
-            LOG_PACKET_HEADER_INIT(LOG_RH_MSG),
-            time_stamp             : AP_HAL::micros64(),
-            healthy1               : copter.CASS_HYT271[0].healthy(),
-            healthy2               : copter.CASS_HYT271[1].healthy(),
-            healthy3               : copter.CASS_HYT271[2].healthy(),
-            healthy4               : copter.CASS_HYT271[3].healthy(),
-            humidity1              : simH + sinf(0.1f*float(m)) * 0.02f,
-            humidity2              : simH + sinf(0.3f*float(m)) * 0.03f,
-            humidity3              : simH + sinf(0.5f*float(m)) * 0.025f,
-            humidity4              : simH + sinf(0.7f*float(m)) * 0.035f,
-            RHtemp1                : 298.15f + sinf(0.0003f*m) * 2.0f,
-            RHtemp2                : 298.15f + sinf(0.0004f*m) * 2.0f,
-            RHtemp3                : 298.15f + sinf(0.0005f*m) * 2.0f,
-            RHtemp4                : 298.15f + sinf(0.0006f*m) * 2.0f
-        };
-    #endif
+    // Read Rel. Humidity, Temperature and Health. Write sensors packet into the SD card
+    // Relative Humidity Data Logger ///////////////////////////////////////////////////////////////////////////////////////////
+    struct log_RH pkt_RH = {
+        LOG_PACKET_HEADER_INIT(LOG_RH_MSG),
+        time_stamp             : AP_HAL::micros64(),                        //Store time in microseconds
+        healthy1               : copter.CASS_HYT271[0].healthy(),           //Store senors health
+        healthy2               : copter.CASS_HYT271[1].healthy(),
+        healthy3               : copter.CASS_HYT271[2].healthy(),
+        healthy4               : copter.CASS_HYT271[3].healthy(),
+        humidity1              : copter.CASS_HYT271[0].relative_humidity(), //Store Rel. humidity
+        humidity2              : copter.CASS_HYT271[1].relative_humidity(),
+        humidity3              : copter.CASS_HYT271[2].relative_humidity(),
+        humidity4              : copter.CASS_HYT271[3].relative_humidity(),
+        RHtemp1                : copter.CASS_HYT271[0].temperature(),       //Store temperature
+        RHtemp2                : copter.CASS_HYT271[1].temperature(),
+        RHtemp3                : copter.CASS_HYT271[2].temperature(),
+        RHtemp4                : copter.CASS_HYT271[3].temperature()
+    };
     logger.WriteBlock(&pkt_RH, sizeof(pkt_RH));   //Send package to SD card
 }
 #endif
@@ -655,8 +700,14 @@ void Copter::userhook_auxSwitch1()
 
 void Copter::userhook_auxSwitch2()
 {
+    // Execution of the ARRC gimbal movement
     // put your aux switch #2 handler here (CHx_OPT = 48)
-    copter.camera_mount.set_angle_targets(0, -90, -30);
+    gcs().send_text(MAV_SEVERITY_INFO, "Executing antenna alignment");
+    memset(gimbal_probe_samples, 0, 31 * sizeof(float));
+    gimbal_num_samples = 0;
+    gimbal_iter = 0;
+    gimbal_now = AP_HAL::millis();
+    gimbal_execute = true;
 }
 
 void Copter::userhook_auxSwitch3()
