@@ -56,6 +56,9 @@ public:
     // set_angle_targets - sets angle targets in degrees
     void set_angle_targets(float roll, float tilt, float pan);
 
+    // ARRC set fixed yaw angle after antenna alignment
+    void set_fixed_yaw_angle(float fixed_yaw);
+
     // set_roi_target - sets target location that mount should attempt to point towards
     void set_roi_target(const struct Location &target_loc);
 

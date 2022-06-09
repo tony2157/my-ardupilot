@@ -565,6 +565,17 @@ void AP_Mount::set_angle_targets(uint8_t instance, float roll, float tilt, float
     _backends[instance]->set_angle_targets(roll, tilt, pan);
 }
 
+// ARRC set fixed yaw angle after antenna alignment
+void AP_Mount::set_fixed_yaw_angle(uint8_t instance, float fixed_yaw)
+{
+    if (!check_instance(instance)) {
+        return;
+    }
+
+    // send command to backend
+    _backends[instance]->set_fixed_yaw_angle(fixed_yaw);
+}
+
 MAV_RESULT AP_Mount::handle_command_do_mount_configure(const mavlink_command_long_t &packet)
 {
     if (!check_primary()) {
