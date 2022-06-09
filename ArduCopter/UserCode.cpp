@@ -183,17 +183,19 @@ void Copter::user_ARRC_gimbal()
             goto repeat;
         }
 
-        float y[31] = {16.85, 17.2, 17.53, 17.84, 18.13, 18.4, 18.65, 
-                        18.88, 19.09, 19.28, 19.45, 19.6, 19.73, 19.84, 
-                        19.93, 20, 20.05, 20.08, 20.09, 20.08, 20.05, 20,
-                        19.93, 19.84, 19.73, 19.6, 19.45, 19.28, 19.09,
-                        18.88, 18.65};
+        // float y[31] = {16.85, 17.2, 17.53, 17.84, 18.13, 18.4, 18.65, 
+        //                 18.88, 19.09, 19.28, 19.45, 19.6, 19.73, 19.84, 
+        //                 19.93, 20, 20.05, 20.08, 20.09, 20.08, 20.05, 20,
+        //                 19.93, 19.84, 19.73, 19.6, 19.45, 19.28, 19.09,
+        //                 18.88, 18.65};
 
         int8_t i,j,k;
         float x[2*N+1];
         for(i = 0; i<=2*N; i++){
             x[i] = i - N;
         }
+
+        // Polynomial Fit using Least Squares
 
         float X[5];                        //Array that will store the values of sigma(xi),sigma(xi^2),sigma(xi^3)....sigma(xi^2n)
         for (i=0;i<5;i++)
@@ -212,7 +214,7 @@ void Copter::user_ARRC_gimbal()
         {    
             Y[i]=0;
             for (j=0;j<2*N+1;j++)
-            Y[i]=Y[i]+pow(x[j],i)*y[j];        //consecutive positions will store sigma(yi),sigma(xi*yi),sigma(xi^2*yi)...sigma(xi^n*yi)
+            Y[i]=Y[i]+pow(x[j],i)*gimbal_probe_samples[j];        //consecutive positions will store sigma(yi),sigma(xi*yi),sigma(xi^2*yi)...sigma(xi^n*yi)
         }
 
         for (i=0;i<=2;i++)
@@ -245,10 +247,12 @@ void Copter::user_ARRC_gimbal()
             a[i]=a[i]/B[i][i];            //now finally divide the rhs by the coefficient of the variable to be calculated
         }
 
+        // Resulting yaw angle
         float aligned_yaw = -a[1]/(2*a[2]);
 
         gcs().send_text(MAV_SEVERITY_INFO, "Target gimbal yaw: %f deg",aligned_yaw);
 
+        // Send result to ground station and gimbal
         copter.camera_mount.set_angle_targets(0, -90, aligned_yaw);
 
         gimbal_execute = false;
@@ -703,7 +707,7 @@ void Copter::userhook_auxSwitch2()
     // Execution of the ARRC gimbal movement
     // put your aux switch #2 handler here (CHx_OPT = 48)
     gcs().send_text(MAV_SEVERITY_INFO, "Executing antenna alignment");
-    memset(gimbal_probe_samples, 0, 31 * sizeof(float));
+    memset(gimbal_probe_samples, 0, (2*gimbal_angle_span + 1) * sizeof(float));
     gimbal_num_samples = 0;
     gimbal_iter = 0;
     gimbal_now = AP_HAL::millis();
