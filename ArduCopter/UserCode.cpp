@@ -41,9 +41,9 @@ uint32_t LB_now;
 uint32_t gimbal_now;
 bool gimbal_execute;
 uint8_t gimbal_iter;
-const uint8_t gimbal_angle_span = 15;
+const uint8_t gimbal_angle_span = 30;       // Must be an even number
 const uint16_t gimbal_sample_time = 500;    // Sampling time at each angle step in milliseconds
-float gimbal_probe_samples[2*gimbal_angle_span + 1];
+float gimbal_probe_samples[gimbal_angle_span + 1];
 uint8_t gimbal_num_samples;
 
 //AutoVP mission generation
@@ -73,7 +73,7 @@ void Copter::userhook_init()
     gimbal_execute = false;
     gimbal_iter = 0;
     gimbal_num_samples = 0;
-    memset(gimbal_probe_samples, 0, (2*gimbal_angle_span + 1) * sizeof(float));
+    memset(gimbal_probe_samples, 0, (gimbal_angle_span + 1) * sizeof(float));
 
     //Wind filter initialization
     float Fss;
@@ -164,7 +164,7 @@ void Copter::user_LB5900_logger()
 #ifdef USER_GIMBAL_LOOP
 void Copter::user_ARRC_gimbal()
 {
-    uint8_t N = gimbal_angle_span;
+    uint8_t N = gimbal_angle_span/2;
     if(gimbal_execute == true){
         copter.camera_mount.set_angle_targets(0, -90, -N);
 
@@ -713,7 +713,7 @@ void Copter::userhook_auxSwitch2()
     // Execution of the ARRC gimbal movement
     // put your aux switch #2 handler here (CHx_OPT = 48)
     gcs().send_text(MAV_SEVERITY_INFO, "Executing antenna alignment");
-    memset(gimbal_probe_samples, 0, (2*gimbal_angle_span + 1) * sizeof(float));
+    memset(gimbal_probe_samples, 0, (gimbal_angle_span + 1) * sizeof(float));
     gimbal_num_samples = 0;
     gimbal_iter = 0;
     gimbal_now = AP_HAL::millis();
