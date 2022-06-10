@@ -249,12 +249,16 @@ void Copter::user_ARRC_gimbal()
         }
 
         // Resulting yaw angle
-        float aligned_yaw = -a[1]/(2*a[2]);
+        float aligned_yaw = 0;
+        if(!is_zero(a[2])) aligned_yaw = -a[1]/(2*a[2]);
 
-        gcs().send_text(MAV_SEVERITY_INFO, "Target gimbal yaw: %f deg",aligned_yaw);
+        gcs().send_text(MAV_SEVERITY_INFO, "Gimbal alignment correction: %f deg",aligned_yaw);
 
         // Send result to ground station and gimbal
         copter.camera_mount.set_angle_targets(0, -90, aligned_yaw);
+
+        // Compute absolute yaw angle
+        aligned_yaw = wrap_180(AP::ahrs().yaw*RAD_TO_DEG + aligned_yaw);
         copter.camera_mount.set_fixed_yaw_angle(aligned_yaw);
 
         gimbal_execute = false;
