@@ -42,7 +42,8 @@ uint32_t gimbal_now;
 bool gimbal_execute;
 uint8_t gimbal_iter;
 const uint8_t gimbal_angle_span = 30;       // Must be an even number
-const uint16_t gimbal_sample_time = 500;    // Sampling time at each angle step in milliseconds
+const uint16_t gimbal_wait = 300;           // Waiting time while gimbal is rotating
+const uint16_t gimbal_sample_time = 700;    // Sampling time at each angle step in milliseconds
 float gimbal_probe_samples[gimbal_angle_span + 1];
 uint8_t gimbal_num_samples;
 
@@ -173,7 +174,10 @@ void Copter::user_ARRC_gimbal()
         repeat:
         if(gimbal_iter <= 2*N){
             copter.camera_mount.set_angle_targets(0, -90, (float)(-N+gimbal_iter));
-            if((AP_HAL::millis() - gimbal_now) < (4000 + gimbal_sample_time*(gimbal_iter+1))){ 
+            if((AP_HAL::millis() - gimbal_now) < (4000 + gimbal_wait*(gimbal_iter+1))){ 
+                return;
+            }
+            if((AP_HAL::millis() - gimbal_now) < (4000 + (gimbal_sample_time+gimbal_wait)*(gimbal_iter+1))){ 
                 gimbal_probe_samples[gimbal_iter] = gimbal_probe_samples[gimbal_iter] + copter.ARRC_LB5900.power_measure();
                 gimbal_num_samples++;
                 return;
@@ -184,6 +188,7 @@ void Copter::user_ARRC_gimbal()
             goto repeat;
         }
 
+        // Fake input for debugging
         // float y[31] = {16.85, 17.2, 17.53, 17.84, 18.13, 18.4, 18.65, 
         //                 18.88, 19.09, 19.28, 19.45, 19.6, 19.73, 19.84, 
         //                 19.93, 20, 20.05, 20.08, 20.09, 20.08, 20.05, 20,
