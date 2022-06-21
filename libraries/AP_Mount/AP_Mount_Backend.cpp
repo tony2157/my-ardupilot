@@ -23,7 +23,7 @@ void AP_Mount_Backend::set_fixed_yaw_angle(float fixed_yaw)
     // set angle targets
     _state._roll_stb_lead = fixed_yaw;
     // set the mode to mavlink targeting
-    _frontend.set_mode(_instance, MAV_MOUNT_MODE_GPS_POINT);
+    //_frontend.set_mode(_instance, MAV_MOUNT_MODE_GPS_POINT);
 }
 
 // set_roi_target - sets target location that mount should attempt to point towards
