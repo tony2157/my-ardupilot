@@ -203,19 +203,19 @@ void Copter::user_ARRC_gimbal()
 
         // Polynomial Fit using Least Squares
 
-        float X[5];                        //Array that will store the values of sigma(xi),sigma(xi^2),sigma(xi^3)....sigma(xi^2n)
+        float X[5];                             //Array that will store the values of sigma(xi),sigma(xi^2),sigma(xi^3)....sigma(xi^2n)
         for (i=0;i<5;i++)
         {
             X[i]=0;
             for (j=0;j<2*N+1;j++)
-                X[i]=X[i]+pow(x[j],i);        //consecutive positions of the array will store N,sigma(xi),sigma(xi^2),sigma(xi^3)....sigma(xi^2n)
+                X[i]=X[i]+pow(x[j],i);          //consecutive positions of the array will store N,sigma(xi),sigma(xi^2),sigma(xi^3)....sigma(xi^2n)
         }
-        float B[3][4],a[3];            //B is the Normal matrix(augmented) that will store the equations, 'a' is for value of the final coefficients
+        float B[3][4],a[3];                     //B is the Normal matrix(augmented) that will store the equations, 'a' is for value of the final coefficients
         for (i=0;i<=2;i++)
             for (j=0;j<=2;j++)
                 B[i][j]=X[i+j];
 
-        float Y[3];                    //Array to store the values of sigma(yi),sigma(xi*yi),sigma(xi^2*yi)...sigma(xi^n*yi)
+        float Y[3];                             //Array to store the values of sigma(yi),sigma(xi*yi),sigma(xi^2*yi)...sigma(xi^n*yi)
         for (i=0;i<3;i++)
         {    
             Y[i]=0;
@@ -224,9 +224,9 @@ void Copter::user_ARRC_gimbal()
         }
 
         for (i=0;i<=2;i++)
-            B[i][3]=Y[i];                //load the values of Y as the last column of B(Normal Matrix but augmented) 
+            B[i][3]=Y[i];                       //load the values of Y as the last column of B(Normal Matrix but augmented) 
         
-        for (i=0;i<3;i++)                    //From now Gaussian Elimination starts(can be ignored) to solve the set of linear equations (Pivotisation)
+        for (i=0;i<3;i++)                       //From now Gaussian Elimination starts(can be ignored) to solve the set of linear equations (Pivotisation)
             for (k=i+1;k<3;k++)
                 if (B[i][i]<B[k][i])
                     for (j=0;j<=3;j++)
@@ -236,7 +236,7 @@ void Copter::user_ARRC_gimbal()
                         B[k][j]=temp;
                     }
 
-        for (i=0;i<2;i++)            //loop to perform the gauss elimination
+        for (i=0;i<2;i++)                       //loop to perform the gauss elimination
             for (k=i+1;k<3;k++)
                 {
                     float t=B[k][i]/B[i][i];
@@ -244,13 +244,13 @@ void Copter::user_ARRC_gimbal()
                         B[k][j]=B[k][j]-t*B[i][j];    //make the elements below the pivot elements equal to zero or elimnate the variables
                 }
 
-        for (i=2;i>=0;i--)                //back-substitution
-        {                        //x is an array whose values correspond to the values of x,y,z..
-            a[i]=B[i][3];                //make the variable to be calculated equal to the rhs of the last equation
+        for (i=2;i>=0;i--)                      //back-substitution
+        {                                       //x is an array whose values correspond to the values of x,y,z..
+            a[i]=B[i][3];                       //make the variable to be calculated equal to the rhs of the last equation
             for (j=0;j<3;j++)
-                if (j!=i)            //then subtract all the lhs values except the coefficient of the variable whose value                                   is being calculated
+                if (j!=i)                       //then subtract all the lhs values except the coefficient of the variable whose value                                   is being calculated
                     a[i]=a[i]-B[i][j]*a[j];
-            a[i]=a[i]/B[i][i];            //now finally divide the rhs by the coefficient of the variable to be calculated
+            a[i]=a[i]/B[i][i];                  //now finally divide the rhs by the coefficient of the variable to be calculated
         }
 
         // Resulting yaw angle
