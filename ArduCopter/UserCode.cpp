@@ -174,10 +174,10 @@ void Copter::user_ARRC_gimbal()
         repeat:
         if(gimbal_iter <= 2*N){
             copter.camera_mount.set_angle_targets(0, -90, (float)(-N+gimbal_iter));
-            if((AP_HAL::millis() - gimbal_now) < (4000 + gimbal_wait*(gimbal_iter+1))){ 
+            if((AP_HAL::millis() - gimbal_now) < (uint32_t)(4000 + gimbal_wait*(gimbal_iter+1))){ 
                 return;
             }
-            if((AP_HAL::millis() - gimbal_now) < (4000 + (gimbal_sample_time+gimbal_wait)*(gimbal_iter+1))){ 
+            if((AP_HAL::millis() - gimbal_now) < (uint32_t)(4000 + (gimbal_sample_time+gimbal_wait)*(gimbal_iter+1))){ 
                 gimbal_probe_samples[gimbal_iter] = gimbal_probe_samples[gimbal_iter] + copter.ARRC_LB5900.power_measure();
                 gimbal_num_samples++;
                 return;
@@ -295,7 +295,7 @@ void Copter::user_ARRC_gimbal_sim()
     float a = sinf(delta_lat/2)*sinf(delta_lat/2) + cosf(curr_lat)*cosf(tar_lat)*sinf(delta_lng/2)*sinf(delta_lng/2);
 
     // Compute distance to target
-    float target_distance = 2.0f*RADIUS_OF_EARTH*atan2f(sqrtf(a),sqrtf(1-a))*100.0f; // in cm
+    float target_distance = 2.0f*RADIUS_OF_EARTH*atan2f(sqrtf(a),sqrtf(1-a)); // in meters
 
     // Compute bearing to target
     float y = sinf(delta_lng)*cosf(tar_lat);
@@ -304,6 +304,10 @@ void Copter::user_ARRC_gimbal_sim()
 
     float fixed_yaw = g2.user_parameters.get_user_sensor1()*DEG_TO_RAD;
     float ang_diff = wrap_PI(bearing - fixed_yaw);
+
+    // Compute target vector x-y components in the target's reference frame (NWU)
+    y = target_distance*(sinf(bearing)*cosf(fixed_yaw) - cosf(bearing)*sinf(fixed_yaw)); // Aligned with West when fixed_yaw = 0
+    x = -target_distance*(sinf(bearing)*sinf(fixed_yaw) + cosf(bearing)*cosf(fixed_yaw)); // Aligned with North when fixed_yaw = 0
 
     int32_t target_alt_cm = 0;
     if (!target.get_alt_cm(Location::AltFrame::ABOVE_HOME, target_alt_cm)) {
@@ -315,28 +319,88 @@ void Copter::user_ARRC_gimbal_sim()
     }
 
     // Compute height difference
-    float z = target_alt_cm - current_alt_cm;
+    float z = -(target_alt_cm - current_alt_cm)/100; // in meters
 
-    float dist2target = fabsf(current_loc.get_distance(target)) + fabsf(z/100.0f);
+    //Compute distance and slope wrt target
+    float horzdist2target = current_loc.get_distance(target);
+    float dist2target = sqrtf(horzdist2target*horzdist2target + (float)(z*z));
+    float slope = 0;
+    if(!is_zero(horzdist2target)) slope = fabsf((float)z/horzdist2target);
 
     // initialise all angles to zero
     Vector3f angles_to_target_rad;
     angles_to_target_rad.zero();
 
     if(dist2target > 10){
-        // tilt calcs
-        angles_to_target_rad.y = atan2f(z, target_distance*cosf(ang_diff));
-        
-        // roll calcs
-        angles_to_target_rad.x = atan2f(z, target_distance*sinf(ang_diff)) + M_PI_2;
+        if(g2.user_parameters.get_user_sensor2() == 0 || slope < 0.38f){
 
-        // pan is set to a fixed value defined by user
-        angles_to_target_rad.z = fixed_yaw;
-        angles_to_target_rad.z =  wrap_PI(angles_to_target_rad.z - AP::ahrs().yaw);
+            // Original ArduPilot mode
+
+            // tilt calcs
+            angles_to_target_rad.y = atan2f(-z, target_distance);
+
+            // roll is leveled to the ground
+
+            // pan calcs
+            angles_to_target_rad.z = bearing;
+            angles_to_target_rad.z = wrap_PI((angles_to_target_rad.z - (double)AP::ahrs().yaw));
+        }
+        else if(g2.user_parameters.get_user_sensor2() == 1){
+
+            // Old Technique (less accurate)
+
+            // tilt calcs
+            angles_to_target_rad.y = atan2f(z, target_distance*cosf(ang_diff));
+            
+            // roll calcs
+            angles_to_target_rad.x = atan2f(z, target_distance*sinf(ang_diff)) + M_PI_2;
+
+            // pan is set to a fixed value defined by user
+            angles_to_target_rad.z = fixed_yaw;
+            angles_to_target_rad.z =  wrap_PI(angles_to_target_rad.z - AP::ahrs().yaw);
+        }
+        else if(g2.user_parameters.get_user_sensor2() == 2){
+
+            // Hpol aligned mode
+
+            float D = sqrtf(x*x + y*y + z*z);
+            float A = sqrtf(x*x*x*x + x*x*y*y + 2*x*x*z*z + y*y*z*z + z*z*z*z);
+
+            // tilt calcs = atan2(Reb(1,3),Reb(3,3))
+            angles_to_target_rad.y = atan2f(-z/D, -x/sqrtf(x*x+z*z));
+            
+            // roll calcs = atan2(-Reb(2,3),sqrt(1-Reb(2,3)^2))
+            float aux = -y*z*A/((x*x+z*z)*D*D);
+            angles_to_target_rad.x = atan2f(-aux, sqrtf(1 - aux*aux));
+
+            // pan calcs = atan2(Reb(2,1),Reb(2,2))
+            angles_to_target_rad.z = atan2f(-x*y/(x*x+z*z),1) + fixed_yaw;
+            angles_to_target_rad.z = wrap_PI((angles_to_target_rad.z - (double)AP::ahrs().yaw));
+        }
+        else if(g2.user_parameters.get_user_sensor2() == 3){
+
+            // Vpol aligned mode
+
+            float D = sqrtf(x*x + y*y + z*z);
+            float A = sqrtf(y*y*y*y + x*x*y*y + 2*y*y*z*z + x*x*z*z + z*z*z*z);
+
+            // tilt calcs = atan2(Reb(1,3),Reb(3,3))
+            angles_to_target_rad.y = atan2f(-z/D, -x*z*A/((y*y+z*z)*D*D));
+            
+            // roll calcs = atan2(-Reb(2,3),sqrt(1-Reb(2,3)^2))
+            float aux = -y/(sqrtf(y*y+z*z));
+            angles_to_target_rad.x = atan2f(-aux, sqrtf(1 - aux*aux));
+
+            // pan calcs = atan2(Reb(2,1),Reb(2,2))
+            angles_to_target_rad.z = atan2f(0,z/sqrtf(y*y+z*z)) + fixed_yaw;
+            angles_to_target_rad.z = wrap_PI((angles_to_target_rad.z - (double)AP::ahrs().yaw));
+        }
     }
     
     printf("targer_dist: %5.2f \n",target_distance);
-    printf("Target_Height: %5.2f \n",z);
+    printf("Target_Z: %5.2f \n",z);
+    printf("Target_X: %5.2f \n",x);
+    printf("Target_Y: %5.2f \n",y);
     printf("Ang_diff: %5.2f \n",ang_diff);
     printf("Gimbal_Roll: %5.2f \n",((float)angles_to_target_rad.x)*RAD_TO_DEG);
     printf("Gimbal_Pitch: %5.2f \n",((float)angles_to_target_rad.y)*RAD_TO_DEG);

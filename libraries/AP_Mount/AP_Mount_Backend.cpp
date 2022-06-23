@@ -278,10 +278,10 @@ bool AP_Mount_Backend::calc_angle_to_location_d(const struct Location &target, V
     double tar_lat = ((double)target.lat)*1.0e-7*M_PI/180.0;
     double delta_lat = tar_lat - curr_lat;
     double delta_lng = ((double)Location::diff_longitude(target.lng,current_loc.lng))*1.0e-7*M_PI/180.0;
-    double a = sin(delta_lat/2)*sin(delta_lat/2) + cos(curr_lat)*cos(tar_lat)*sin(delta_lng/2)*sin(delta_lng/2);
+    double target_distance = sin(delta_lat/2)*sin(delta_lat/2) + cos(curr_lat)*cos(tar_lat)*sin(delta_lng/2)*sin(delta_lng/2);
 
     // Compute distance to target
-    double target_distance = 2*RADIUS_OF_EARTH*atan2(sqrt(a),sqrt(1-a))*100.0; // in cm
+    target_distance = 2*RADIUS_OF_EARTH*atan2(sqrt(target_distance),sqrt(1-target_distance)); // in meters
 
     // Compute bearing to target
     double y = sin(delta_lng)*cos(tar_lat);
@@ -290,9 +290,9 @@ bool AP_Mount_Backend::calc_angle_to_location_d(const struct Location &target, V
 
     double fixed_yaw = (double)_state._roll_stb_lead*DEG_TO_RAD;
 
-    // Compute target vector x-y components in the target's reference frame
-    x = target_distance*(sin(bearing)*cos(fixed_yaw) - cos(bearing)*sin(fixed_yaw)); // Aligned with East when fixed_yaw = 0
-    y = target_distance*(sin(bearing)*sin(fixed_yaw) + cos(bearing)*cos(fixed_yaw)); // Aligned with North when fixed_yaw = 0
+    // Compute target vector x-y components in the target's reference frame (NWU)
+    y = target_distance*(sin(bearing)*cos(fixed_yaw) - cos(bearing)*sin(fixed_yaw)); // Aligned with West when fixed_yaw = 0
+    x = -target_distance*(sin(bearing)*sin(fixed_yaw) + cos(bearing)*cos(fixed_yaw)); // Aligned with North when fixed_yaw = 0
 
     int32_t target_alt_cm = 0;
     if (!target.get_alt_cm(Location::AltFrame::ABOVE_HOME, target_alt_cm)) {
@@ -304,12 +304,13 @@ bool AP_Mount_Backend::calc_angle_to_location_d(const struct Location &target, V
     }
 
     // Compute height difference
-    double z = target_alt_cm - current_alt_cm;
+    double z = -(target_alt_cm - current_alt_cm)/100; // in meters
 
     //Compute distance and slope wrt target
     float horzdist2target = current_loc.get_distance(target);
-    float dist2target = sqrtf(horzdist2target*horzdist2target + (float)(z*z)/10000.0f);
-    float slope = fabsf((float)z/(100.0f*horzdist2target));
+    float dist2target = sqrtf(horzdist2target*horzdist2target + (float)(z*z));
+    float slope = 0;
+    if(!is_zero(horzdist2target)) slope = fabsf((float)z/horzdist2target);
 
     // initialise all angles to zero
     angles_to_target_rad.zero();
@@ -320,7 +321,7 @@ bool AP_Mount_Backend::calc_angle_to_location_d(const struct Location &target, V
             // Original ArduPilot mode
 
             // tilt calcs
-            angles_to_target_rad.y = atan2(z, target_distance);
+            angles_to_target_rad.y = atan2(-z, target_distance);
 
             // roll is leveled to the ground
 
@@ -336,7 +337,7 @@ bool AP_Mount_Backend::calc_angle_to_location_d(const struct Location &target, V
             // Point gimbal straight down without corrections
 
             // tilt calcs. Fixed 
-            angles_to_target_rad.y = -90;
+            angles_to_target_rad.y = -M_PI_2;
             
             // roll calcs. Fixed
             angles_to_target_rad.x = 0;
