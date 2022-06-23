@@ -289,7 +289,10 @@ bool AP_Mount_Backend::calc_angle_to_location_d(const struct Location &target, V
     double bearing = atan2(y, x);
 
     double fixed_yaw = (double)_state._roll_stb_lead*DEG_TO_RAD;
-    double ang_diff = wrap_2PI(bearing - fixed_yaw);
+
+    // Compute target vector x-y components in the target's reference frame
+    x = target_distance*(sin(bearing)*cos(fixed_yaw) - cos(bearing)*sin(fixed_yaw)); // Aligned with East when fixed_yaw = 0
+    y = target_distance*(sin(bearing)*sin(fixed_yaw) + cos(bearing)*cos(fixed_yaw)); // Aligned with North when fixed_yaw = 0
 
     int32_t target_alt_cm = 0;
     if (!target.get_alt_cm(Location::AltFrame::ABOVE_HOME, target_alt_cm)) {
@@ -305,39 +308,85 @@ bool AP_Mount_Backend::calc_angle_to_location_d(const struct Location &target, V
 
     //Compute distance and slope wrt target
     float horzdist2target = current_loc.get_distance(target);
-    float dist2target = sqrtf(horzdist2target*horzdist2target + (float)z*z/10000.0f);
+    float dist2target = sqrtf(horzdist2target*horzdist2target + (float)(z*z)/10000.0f);
     float slope = fabsf((float)z/(100.0f*horzdist2target));
 
     // initialise all angles to zero
     angles_to_target_rad.zero();
 
     if(dist2target > 10){
-        if(_state._pitch_stb_lead < 0.5f || slope < 0.38f){
-                // tilt calcs
-                angles_to_target_rad.y = atan2(z, target_distance);
+        if(is_zero(_state._pitch_stb_lead) || slope < 0.38f){
 
-                // roll is leveled to the ground
+            // Original ArduPilot mode
 
-                // pan calcs
-                angles_to_target_rad.z = bearing;
-                if (relative_pan) {
-                    // Convert to vehicle relative yaw
-                    angles_to_target_rad.z = wrap_180((angles_to_target_rad.z - (double)AP::ahrs().yaw)*RAD_TO_DEG)*DEG_TO_RAD;
-                }
+            // tilt calcs
+            angles_to_target_rad.y = atan2(z, target_distance);
+
+            // roll is leveled to the ground
+
+            // pan calcs
+            angles_to_target_rad.z = bearing;
+            if (relative_pan) {
+                // Convert to vehicle relative yaw
+                angles_to_target_rad.z = wrap_180((angles_to_target_rad.z - (double)AP::ahrs().yaw)*RAD_TO_DEG)*DEG_TO_RAD;
             }
-        else {
-                // tilt calcs
-                angles_to_target_rad.y = atan2(z, target_distance*cos(ang_diff));
-                
-                // roll calcs
-                angles_to_target_rad.x = atan2(z, target_distance*sin(ang_diff)) + M_PI_2;
+        }
+        else if(is_zero(_state._pitch_stb_lead - 1)){
 
-                // pan is set to a fixed value defined by user
-                angles_to_target_rad.z = fixed_yaw;
-                if (relative_pan) {
-                    angles_to_target_rad.z = wrap_180((angles_to_target_rad.z - (double)AP::ahrs().yaw)*RAD_TO_DEG)*DEG_TO_RAD;
-                }
+            // Point gimbal straight down without corrections
+
+            // tilt calcs. Fixed 
+            angles_to_target_rad.y = -90;
+            
+            // roll calcs. Fixed
+            angles_to_target_rad.x = 0;
+
+            // pan calcs. Fixed and equal to user param
+            angles_to_target_rad.z = fixed_yaw;
+            if (relative_pan) {
+                angles_to_target_rad.z = wrap_180((angles_to_target_rad.z - (double)AP::ahrs().yaw)*RAD_TO_DEG)*DEG_TO_RAD;
             }
+        }
+        else if(is_zero(_state._pitch_stb_lead - 2)){
+
+            // Hpol aligned mode
+
+            double D = sqrt(x*x + y*y + z*z);
+            double A = sqrt(x*x*x*x + x*x*y*y + 2*x*x*z*z + y*y*z*z + z*z*z*z);
+
+            // tilt calcs = atan2(Reb(1,3),Reb(3,3))
+            angles_to_target_rad.y = atan2(-z/D, -x/sqrt(x*x+z*z));
+            
+            // roll calcs = atan2(-Reb(2,3),sqrt(1-Reb(2,3)^2))
+            double aux = -y*z*A/((x*x+z*z)*D*D);
+            angles_to_target_rad.x = atan2(-aux, sqrt(1 - aux*aux));
+
+            // pan calcs = atan2(Reb(2,1),Reb(2,2))
+            angles_to_target_rad.z = atan2(-x*y/(x*x+z*z),1) + fixed_yaw;
+            if (relative_pan) {
+                angles_to_target_rad.z = wrap_180((angles_to_target_rad.z - (double)AP::ahrs().yaw)*RAD_TO_DEG)*DEG_TO_RAD;
+            }
+        }
+        else if(is_zero(_state._pitch_stb_lead - 3)){
+
+            // Vpol aligned mode
+
+            double D = sqrt(x*x + y*y + z*z);
+            double A = sqrt(y*y*y*y + x*x*y*y + 2*y*y*z*z + x*x*z*z + z*z*z*z);
+
+            // tilt calcs = atan2(Reb(1,3),Reb(3,3))
+            angles_to_target_rad.y = atan2(-z/D, -x*z*A/((y*y+z*z)*D*D));
+            
+            // roll calcs = atan2(-Reb(2,3),sqrt(1-Reb(2,3)^2))
+            double aux = -y/(sqrt(y*y+z*z));
+            angles_to_target_rad.x = atan2(-aux, sqrt(1 - aux*aux));
+
+            // pan calcs = atan2(Reb(2,1),Reb(2,2))
+            angles_to_target_rad.z = atan2(0,z/sqrt(y*y+z*z)) + fixed_yaw;
+            if (relative_pan) {
+                angles_to_target_rad.z = wrap_180((angles_to_target_rad.z - (double)AP::ahrs().yaw)*RAD_TO_DEG)*DEG_TO_RAD;
+            }
+        }
     }
 
     return true;
