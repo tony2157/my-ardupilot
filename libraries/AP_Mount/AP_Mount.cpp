@@ -193,7 +193,7 @@ const AP_Param::GroupInfo AP_Mount::var_info[] = {
     // @Increment: .005
     // @User: Standard
     //AP_GROUPINFO("_LEAD_RLL", 17, AP_Mount, state[0]._roll_stb_lead, 0.0f),
-    AP_GROUPINFO("_NADIR_YAW", 17, AP_Mount, state[0]._roll_stb_lead, 0.0f),
+    AP_GROUPINFO("_ARRC_YAW", 17, AP_Mount, state[0]._roll_stb_lead, 0.0f),
 
     // @Param: _LEAD_PTCH
     // @DisplayName: Pitch stabilization lead time
@@ -203,7 +203,7 @@ const AP_Param::GroupInfo AP_Mount::var_info[] = {
     // @Increment: .005
     // @User: Standard
     //AP_GROUPINFO("_LEAD_PTCH", 18, AP_Mount, state[0]._pitch_stb_lead, 0.0f),
-    AP_GROUPINFO("_NADIR_MODE", 18, AP_Mount, state[0]._pitch_stb_lead, 0.0f),
+    AP_GROUPINFO("_ARRC_MODE", 18, AP_Mount, state[0]._pitch_stb_lead, 0.0f),
 
     // 19 _TYPE, now at top with enable flag
 
