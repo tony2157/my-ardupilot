@@ -337,7 +337,7 @@ bool AP_Mount_Backend::calc_angle_to_location_d(const struct Location &target, V
             // Point gimbal straight down without corrections
 
             // tilt calcs. Fixed 
-            angles_to_target_rad.y = -M_PI_2;
+            angles_to_target_rad.y = M_PI_2;
             
             // roll calcs. Fixed
             angles_to_target_rad.x = 0;
@@ -372,6 +372,8 @@ bool AP_Mount_Backend::calc_angle_to_location_d(const struct Location &target, V
 
             // Vpol aligned mode
 
+            x = -x; y = -y; // For some reason the x-y axis are inverted in this mode
+
             double D = sqrt(x*x + y*y + z*z);
             double A = sqrt(y*y*y*y + x*x*y*y + 2*y*y*z*z + x*x*z*z + z*z*z*z);
 
@@ -382,8 +384,8 @@ bool AP_Mount_Backend::calc_angle_to_location_d(const struct Location &target, V
             double aux = -y/(sqrt(y*y+z*z));
             angles_to_target_rad.x = atan2(-aux, sqrt(1 - aux*aux));
 
-            // pan calcs = atan2(Reb(2,1),Reb(2,2))
-            angles_to_target_rad.z = atan2(0,z/sqrt(y*y+z*z)) + fixed_yaw;
+            // pan calcs = atan2(Reb(2,1),Reb(2,2)) = atan2(0,z/sqrt(y*y+z*z)) = 0
+            angles_to_target_rad.z = fixed_yaw;
             if (relative_pan) {
                 angles_to_target_rad.z = wrap_180((angles_to_target_rad.z - (double)AP::ahrs().yaw)*RAD_TO_DEG)*DEG_TO_RAD;
             }

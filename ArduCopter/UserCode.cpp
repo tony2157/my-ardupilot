@@ -41,8 +41,8 @@ uint32_t LB_now;
 uint32_t gimbal_now;
 bool gimbal_execute;
 uint8_t gimbal_iter;
-const uint8_t gimbal_angle_span = 30;       // Must be an even number
-const uint16_t gimbal_wait = 300;           // Waiting time while gimbal is rotating
+const uint8_t gimbal_angle_span = 40;       // Must be an even number
+const uint16_t gimbal_wait = 400;           // Waiting time while gimbal is rotating
 const uint16_t gimbal_sample_time = 700;    // Sampling time at each angle step in milliseconds
 float gimbal_probe_samples[gimbal_angle_span + 1];
 uint8_t gimbal_num_samples;
@@ -167,13 +167,13 @@ void Copter::user_ARRC_gimbal()
 {
     uint8_t N = gimbal_angle_span/2;
     if(gimbal_execute == true){
-        copter.camera_mount.set_angle_targets(0, -90, -N);
+        copter.camera_mount.set_angle_targets(0, 90, -N);
 
         if((AP_HAL::millis() - gimbal_now) < 4000){ return;}
 
         repeat:
         if(gimbal_iter <= 2*N){
-            copter.camera_mount.set_angle_targets(0, -90, (float)(-N+gimbal_iter));
+            copter.camera_mount.set_angle_targets(0, 90, (float)(-N+gimbal_iter));
             if((AP_HAL::millis() - gimbal_now) < (uint32_t)(4000 + gimbal_wait*(gimbal_iter+1))){ 
                 return;
             }
@@ -260,7 +260,7 @@ void Copter::user_ARRC_gimbal()
         gcs().send_text(MAV_SEVERITY_INFO, "Gimbal alignment correction: %f deg",aligned_yaw);
 
         // Send result to ground station and gimbal
-        copter.camera_mount.set_angle_targets(0, -90, aligned_yaw);
+        copter.camera_mount.set_angle_targets(0, 90, aligned_yaw);
 
         // Compute absolute yaw angle
         aligned_yaw = wrap_180(AP::ahrs().yaw*RAD_TO_DEG + aligned_yaw);
