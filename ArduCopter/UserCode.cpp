@@ -396,6 +396,20 @@ void Copter::user_ARRC_gimbal_sim()
         }
         else if(g2.user_parameters.get_user_sensor2() == 1){
 
+            // Point gimbal straight down without corrections
+
+            // tilt calcs. Fixed 
+            angles_to_target_rad.y = M_PI_2;
+            
+            // roll calcs. Fixed
+            angles_to_target_rad.x = 0;
+
+            // pan calcs. Fixed and equal to user param
+            angles_to_target_rad.z = fixed_yaw;
+            angles_to_target_rad.z = wrap_PI(angles_to_target_rad.z - AP::ahrs().yaw);
+        }
+        else if(g2.user_parameters.get_user_sensor2() == 2){
+
             // Old Technique (less accurate)
 
             // tilt calcs
@@ -408,7 +422,7 @@ void Copter::user_ARRC_gimbal_sim()
             angles_to_target_rad.z = fixed_yaw;
             angles_to_target_rad.z =  wrap_PI(angles_to_target_rad.z - AP::ahrs().yaw);
         }
-        else if(g2.user_parameters.get_user_sensor2() == 2){
+        else if(g2.user_parameters.get_user_sensor2() == 3){
 
             // Hpol aligned mode
 
@@ -426,7 +440,7 @@ void Copter::user_ARRC_gimbal_sim()
             angles_to_target_rad.z = atan2f(-x*y/(x*x+z*z),1) + fixed_yaw;
             angles_to_target_rad.z = wrap_PI((angles_to_target_rad.z - (double)AP::ahrs().yaw));
         }
-        else if(g2.user_parameters.get_user_sensor2() == 3){
+        else if(g2.user_parameters.get_user_sensor2() == 4){
 
             // Vpol aligned mode
 
