@@ -41,10 +41,11 @@ uint32_t LB_now;
 uint32_t gimbal_now;
 bool gimbal_execute;
 uint8_t gimbal_iter;
-const uint8_t gimbal_angle_span = 40;       // Must be an even number
-const uint16_t gimbal_wait = 400;           // Waiting time while gimbal is rotating
-const uint16_t gimbal_sample_time = 700;    // Sampling time at each angle step in milliseconds
-float gimbal_probe_samples[gimbal_angle_span + 1];
+const uint8_t gimbal_angle_span = 40;        // Must be an even number
+const uint8_t gimbal_step = 10;              // Angle steps
+const uint16_t gimbal_wait = 2000;           // Waiting time while gimbal is rotating
+const uint16_t gimbal_sample_time = 1000;    // Sampling time at each angle step in milliseconds
+float gimbal_probe_samples[gimbal_angle_span/gimbal_step + 1];
 uint8_t gimbal_num_samples;
 
 //AutoVP mission generation
@@ -74,7 +75,7 @@ void Copter::userhook_init()
     gimbal_execute = false;
     gimbal_iter = 0;
     gimbal_num_samples = 0;
-    memset(gimbal_probe_samples, 0, (gimbal_angle_span + 1) * sizeof(float));
+    memset(gimbal_probe_samples, 0, (gimbal_angle_span/gimbal_step + 1) * sizeof(float));
 
     //Wind filter initialization
     float Fss;
@@ -174,17 +175,17 @@ void Copter::user_ARRC_gimbal()
         repeat:
         if(gimbal_iter <= 2*N){
             copter.camera_mount.set_angle_targets(0, 90, (float)(-N+gimbal_iter));
-            if((AP_HAL::millis() - gimbal_now) < (uint32_t)(4000 + gimbal_wait*(gimbal_iter+1))){ 
+            if((AP_HAL::millis() - gimbal_now) < (uint32_t)(4000 + gimbal_wait*(gimbal_iter/gimbal_step+1))){ 
                 return;
             }
-            if((AP_HAL::millis() - gimbal_now) < (uint32_t)(4000 + (gimbal_sample_time+gimbal_wait)*(gimbal_iter+1))){ 
-                gimbal_probe_samples[gimbal_iter] = gimbal_probe_samples[gimbal_iter] + copter.ARRC_LB5900.power_measure();
+            if((AP_HAL::millis() - gimbal_now) < (uint32_t)(4000 + (gimbal_sample_time+gimbal_wait)*(gimbal_iter/gimbal_step+1))){ 
+                gimbal_probe_samples[gimbal_iter/gimbal_step] = gimbal_probe_samples[gimbal_iter/gimbal_step] + copter.ARRC_LB5900.power_measure();
                 gimbal_num_samples++;
                 return;
             }
-            gimbal_probe_samples[gimbal_iter] /= gimbal_num_samples;
+            gimbal_probe_samples[gimbal_iter/gimbal_step] /= gimbal_num_samples;
             gimbal_num_samples = 0;
-            gimbal_iter++;
+            gimbal_iter = gimbal_iter + gimbal_step;
             goto repeat;
         }
 
@@ -196,9 +197,11 @@ void Copter::user_ARRC_gimbal()
         //                 18.88, 18.65};
 
         int8_t i,j,k;
-        float x[2*N+1];
-        for(i = 0; i<=2*N; i++){
-            x[i] = i - N;
+        int8_t n = gimbal_angle_span/gimbal_step;
+
+        float x[n + 1];
+        for(i = 0; i<=2*N; i=i+gimbal_step){
+            x[i/gimbal_step] = i - N;
         }
 
         // Polynomial Fit using Least Squares
@@ -207,7 +210,7 @@ void Copter::user_ARRC_gimbal()
         for (i=0;i<5;i++)
         {
             X[i]=0;
-            for (j=0;j<2*N+1;j++)
+            for (j=0;j<n+1;j++)
                 X[i]=X[i]+pow(x[j],i);          //consecutive positions of the array will store N,sigma(xi),sigma(xi^2),sigma(xi^3)....sigma(xi^2n)
         }
         float B[3][4],a[3];                     //B is the Normal matrix(augmented) that will store the equations, 'a' is for value of the final coefficients
@@ -219,7 +222,7 @@ void Copter::user_ARRC_gimbal()
         for (i=0;i<3;i++)
         {    
             Y[i]=0;
-            for (j=0;j<2*N+1;j++)
+            for (j=0;j<n+1;j++)
             Y[i]=Y[i]+pow(x[j],i)*gimbal_probe_samples[j];        //consecutive positions will store sigma(yi),sigma(xi*yi),sigma(xi^2*yi)...sigma(xi^n*yi)
         }
 
@@ -253,11 +256,57 @@ void Copter::user_ARRC_gimbal()
             a[i]=a[i]/B[i][i];                  //now finally divide the rhs by the coefficient of the variable to be calculated
         }
 
+        // Check if we got a local maxima. Otherwise, the alignment failed
+        if(a[2] > 0){
+            gcs().send_text(MAV_SEVERITY_INFO, "Gimbal alignment failed: No Maxima");
+            gimbal_execute = false;
+            return;
+        }
+
+        // Evaluate resulting curve fitting at each measured angle
+        float y[n + 1];
+        for(i = 0; i<=n; i++){
+            y[i] = a[2]*x[i]*x[i] + a[1]*x[i] + a[0];
+        }
+
+        // Compute correlation coefficient
+        float sum_X = 0, sum_Y = 0, sum_XY = 0;
+        float squareSum_X = 0, squareSum_Y = 0;
+
+        for (i = 0; i <= n; i++)
+        {
+            // sum of elements of array X (sampled points)
+            sum_X = sum_X + gimbal_probe_samples[i];
+    
+            // sum of elements of array Y (output of the computed curve)
+            sum_Y = sum_Y + y[i];
+    
+            // sum of X[i] * Y[i].
+            sum_XY = sum_XY + gimbal_probe_samples[i] * y[i];
+    
+            // sum of square of array elements.
+            squareSum_X = squareSum_X + gimbal_probe_samples[i] * gimbal_probe_samples[i];
+            squareSum_Y = squareSum_Y + y[i] * y[i];
+        }
+  
+        // use formula for calculating correlation coefficient.
+        float corr = (float)(n * sum_XY - sum_X * sum_Y) 
+                    / sqrtf((n * squareSum_X - sum_X * sum_X) 
+                        * (n * squareSum_Y - sum_Y * sum_Y));
+
+        // Check the correlation coefficient. Alignment failed if corr is too low
+        if(corr < 0.85){
+            gcs().send_text(MAV_SEVERITY_INFO, "Gimbal alignment failed: R = %f",corr);
+            gimbal_execute = false;
+            return;
+        }
+
         // Resulting yaw angle
         float aligned_yaw = 0;
         if(!is_zero(a[2])) aligned_yaw = -a[1]/(2*a[2]);
 
         gcs().send_text(MAV_SEVERITY_INFO, "Gimbal alignment correction: %f deg",aligned_yaw);
+        gcs().send_text(MAV_SEVERITY_INFO, "Gimbal alignment success: R = %f",corr);
 
         // Send result to ground station and gimbal
         copter.camera_mount.set_angle_targets(0, 90, aligned_yaw);
@@ -782,7 +831,7 @@ void Copter::userhook_auxSwitch2()
     // Execution of the ARRC gimbal movement
     // put your aux switch #2 handler here (CHx_OPT = 48)
     gcs().send_text(MAV_SEVERITY_INFO, "Executing antenna alignment");
-    memset(gimbal_probe_samples, 0, (gimbal_angle_span + 1) * sizeof(float));
+    memset(gimbal_probe_samples, 0, (gimbal_angle_span/gimbal_step + 1) * sizeof(float));
     gimbal_num_samples = 0;
     gimbal_iter = 0;
     gimbal_now = AP_HAL::millis();
