@@ -319,7 +319,7 @@ void Copter::user_ARRC_gimbal_sim()
     }
 
     // Compute height difference
-    float z = -(target_alt_cm - current_alt_cm)/100; // in meters
+    float z = (float)(current_alt_cm - target_alt_cm)/100.0f; // in meters
 
     //Compute distance and slope wrt target
     float horzdist2target = current_loc.get_distance(target);
