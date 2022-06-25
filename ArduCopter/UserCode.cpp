@@ -257,7 +257,7 @@ void Copter::user_ARRC_gimbal()
         }
 
         // Check if we got a local maxima. Otherwise, the alignment failed
-        if(a[2] > 0){
+        if(a[2] > 0 || is_zero(a[2])){
             gcs().send_text(MAV_SEVERITY_INFO, "Gimbal alignment failed: No Maxima");
             gimbal_execute = false;
             return;
@@ -302,8 +302,7 @@ void Copter::user_ARRC_gimbal()
         }
 
         // Resulting yaw angle
-        float aligned_yaw = 0;
-        if(!is_zero(a[2])) aligned_yaw = -a[1]/(2*a[2]);
+        float aligned_yaw = -a[1]/(2*a[2]);
 
         gcs().send_text(MAV_SEVERITY_INFO, "Gimbal alignment correction: %f deg",aligned_yaw);
         gcs().send_text(MAV_SEVERITY_INFO, "Gimbal alignment success: R = %f",corr);
