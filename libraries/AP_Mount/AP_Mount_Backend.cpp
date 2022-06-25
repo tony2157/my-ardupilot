@@ -278,10 +278,10 @@ bool AP_Mount_Backend::calc_angle_to_location_d(const struct Location &target, V
     double tar_lat = ((double)target.lat)*1.0e-7*M_PI/180.0;
     double delta_lat = tar_lat - curr_lat;
     double delta_lng = ((double)Location::diff_longitude(target.lng,current_loc.lng))*1.0e-7*M_PI/180.0;
-    double target_distance = sin(delta_lat/2)*sin(delta_lat/2) + cos(curr_lat)*cos(tar_lat)*sin(delta_lng/2)*sin(delta_lng/2);
+    double target_distance = sin(delta_lat/2.0)*sin(delta_lat/2.0) + cos(curr_lat)*cos(tar_lat)*sin(delta_lng/2.0)*sin(delta_lng/2.0);
 
     // Compute distance to target
-    target_distance = 2*RADIUS_OF_EARTH*atan2(sqrt(target_distance),sqrt(1-target_distance)); // in meters
+    target_distance = 2.0*RADIUS_OF_EARTH*atan2(sqrt(target_distance),sqrt(1.0-target_distance)); // in meters
 
     // Compute bearing to target
     double y = sin(delta_lng)*cos(tar_lat);
@@ -303,8 +303,8 @@ bool AP_Mount_Backend::calc_angle_to_location_d(const struct Location &target, V
         return false;
     }
 
-    // Compute height difference
-    double z = -(target_alt_cm - current_alt_cm)/100; // in meters
+    // Compute height difference (NWU)
+    double z = (double)(current_alt_cm - target_alt_cm)/100.0; // in meters
 
     //Compute distance and slope wrt target
     float horzdist2target = current_loc.get_distance(target);
@@ -353,17 +353,17 @@ bool AP_Mount_Backend::calc_angle_to_location_d(const struct Location &target, V
             // Hpol aligned mode
 
             double D = sqrt(x*x + y*y + z*z);
-            double A = sqrt(x*x*x*x + x*x*y*y + 2*x*x*z*z + y*y*z*z + z*z*z*z);
+            double A = sqrt(x*x*x*x + x*x*y*y + 2.0*x*x*z*z + y*y*z*z + z*z*z*z);
 
             // tilt calcs = atan2(Reb(1,3),Reb(3,3))
             angles_to_target_rad.y = atan2(-z/D, -x/sqrt(x*x+z*z));
             
             // roll calcs = atan2(-Reb(2,3),sqrt(1-Reb(2,3)^2))
             double aux = -y*z*A/((x*x+z*z)*D*D);
-            angles_to_target_rad.x = atan2(-aux, sqrt(1 - aux*aux));
+            angles_to_target_rad.x = atan2(-aux, sqrt(1.0 - aux*aux));
 
             // pan calcs = atan2(Reb(2,1),Reb(2,2))
-            angles_to_target_rad.z = atan2(-x*y/(x*x+z*z),1) + fixed_yaw;
+            angles_to_target_rad.z = atan2(-x*y/(x*x+z*z),1.0) + fixed_yaw;
             if (relative_pan) {
                 angles_to_target_rad.z = wrap_180((angles_to_target_rad.z - (double)AP::ahrs().yaw)*RAD_TO_DEG)*DEG_TO_RAD;
             }
@@ -375,14 +375,14 @@ bool AP_Mount_Backend::calc_angle_to_location_d(const struct Location &target, V
             x = -x; y = -y; // For some reason the x-y axis are inverted in this mode
 
             double D = sqrt(x*x + y*y + z*z);
-            double A = sqrt(y*y*y*y + x*x*y*y + 2*y*y*z*z + x*x*z*z + z*z*z*z);
+            double A = sqrt(y*y*y*y + x*x*y*y + 2.0*y*y*z*z + x*x*z*z + z*z*z*z);
 
             // tilt calcs = atan2(Reb(1,3),Reb(3,3))
             angles_to_target_rad.y = atan2(-z/D, -x*z*A/((y*y+z*z)*D*D));
             
             // roll calcs = atan2(-Reb(2,3),sqrt(1-Reb(2,3)^2))
             double aux = -y/(sqrt(y*y+z*z));
-            angles_to_target_rad.x = atan2(-aux, sqrt(1 - aux*aux));
+            angles_to_target_rad.x = atan2(-aux, sqrt(1.0 - aux*aux));
 
             // pan calcs = atan2(Reb(2,1),Reb(2,2)) = atan2(0,z/sqrt(y*y+z*z)) = 0
             angles_to_target_rad.z = fixed_yaw;
