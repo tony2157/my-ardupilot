@@ -64,6 +64,7 @@
 #endif
 #define USER_VPBATT_MNTR_LOOP user_vpbatt_monitor();                  // for code to be run at 50hz
 #define USER_ARRCLB5900_LOOP user_LB5900_logger();
+#define USER_ARRCRFE_LOOP user_RFE_logger();
 #define USER_THERMOHYGROMETER_LOOP user_thermohygrometer_logger();        // CASS iMet sensors logged at 20Hz 
 #define USER_GIMBAL_LOOP user_ARRC_gimbal();            // CASS HYT271 sensors logged at 10Hz
 #define USER_WIND_LOOP user_wind_vane();                    // CASS wind vane mode

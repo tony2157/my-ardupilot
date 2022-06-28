@@ -196,6 +196,9 @@ const AP_Scheduler::Task Copter::scheduler_tasks[] = {
 #ifdef USER_ARRCLB5900_LOOP
     SCHED_TASK(user_LB5900_logger,   10,     75),
 #endif
+#ifdef USER_ARRCRFE_LOOP
+    SCHED_TASK(user_RFE_logger,   10,     75),
+#endif
 #ifdef USER_GIMBAL_LOOP
     SCHED_TASK(user_ARRC_gimbal,     10,    75),
 #endif

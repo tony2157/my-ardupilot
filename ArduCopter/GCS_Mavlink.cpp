@@ -321,6 +321,32 @@ void Copter::send_arrc_lb5900(mavlink_channel_t chan) {
         raw_sensor);
 }
 
+void Copter::send_arrc_rfe(mavlink_channel_t chan) {
+    //mavlink_cass_sensor_raw_t packet;
+    float raw_sensor[5];
+    uint8_t size = 5;
+    memset(raw_sensor, 0, size * sizeof(float));
+
+    // Send LB5900 power dBm
+    raw_sensor[0] = copter.ARRC_RFE.get_freq();
+    raw_sensor[1] = copter.ARRC_RFE.get_power();
+
+    #if CONFIG_HAL_BOARD == HAL_BOARD_SITL
+        // Variables simulation for HYT271 humidity sensors
+        uint32_t m = AP_HAL::millis();
+        raw_sensor[0] = sinf(0.001f*float(m));
+        //printf("LB5900 power (dBm): %5.2f \n",raw_sensor[0]);     
+    #endif
+
+    // Call Mavlink function and send CASS data
+    mavlink_msg_cass_sensor_raw_send(
+        chan,
+        AP_HAL::millis(),
+        3,
+        size,
+        raw_sensor);
+}
+
 /*
   send PID tuning message
  */
@@ -453,6 +479,11 @@ bool GCS_MAVLINK_Copter::try_send_message(enum ap_message id)
     case MSG_ARRC_LB5900:
         CHECK_PAYLOAD_SIZE(CASS_SENSOR_RAW);
         copter.send_arrc_lb5900(chan);
+        break;
+
+    case MSG_ARRC_RFE:
+        CHECK_PAYLOAD_SIZE(CASS_SENSOR_RAW);
+        copter.send_arrc_rfe(chan);
         break;
 
     default:
@@ -620,7 +651,8 @@ static const ap_message STREAM_EXTRA3_msgs[] = {
     MSG_WINCH_STATUS,
     //MSG_CASS_IMET,
     //MSG_CASS_HYT271,
-    MSG_ARRC_LB5900
+    //MSG_ARRC_LB5900,
+    MSG_ARRC_RFE
 };
 static const ap_message STREAM_PARAMS_msgs[] = {
     MSG_NEXT_PARAM
@@ -1136,6 +1168,13 @@ void GCS_MAVLINK_Copter::handleMessage(const mavlink_message_t &msg)
         POSITION_TARGET_TYPEMASK_YAW_RATE_IGNORE;
 
     switch (msg.msgid) {
+
+    // ARRC RFE message handle
+    case MAVLINK_MSG_ID_ARRC_SENSOR_RAW:
+    {
+        copter.ARRC_RFE.handle_message(chan, msg);
+        break;
+    }
 
     case MAVLINK_MSG_ID_MANUAL_CONTROL:
     {
