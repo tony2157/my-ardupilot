@@ -195,7 +195,7 @@ void Copter::user_ARRC_gimbal()
                 return;
             }
             if((AP_HAL::millis() - gimbal_now) < (uint32_t)(4000 + (gimbal_sample_time+gimbal_wait)*(gimbal_iter/gimbal_step+1))){ 
-                gimbal_probe_samples[gimbal_iter/gimbal_step] = gimbal_probe_samples[gimbal_iter/gimbal_step] + copter.ARRC_LB5900.power_measure();
+                gimbal_probe_samples[gimbal_iter/gimbal_step] = gimbal_probe_samples[gimbal_iter/gimbal_step] + copter.ARRC_RFE.get_power();
                 gimbal_num_samples++;
                 return;
             }
