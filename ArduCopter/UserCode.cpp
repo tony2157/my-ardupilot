@@ -213,7 +213,7 @@ void Copter::user_ARRC_gimbal()
             for (j=0;j<n+1;j++)
                 X[i]=X[i]+pow(x[j],i);          //consecutive positions of the array will store N,sigma(xi),sigma(xi^2),sigma(xi^3)....sigma(xi^2n)
         }
-        float B[3][4],a[3];                     //B is the Normal matrix(augmented) that will store the equations, 'a' is for value of the final coefficients
+        float B[3][4];                     //B is the Normal matrix(augmented) that will store the equations, 'a' is for value of the final coefficients
         for (i=0;i<=2;i++)
             for (j=0;j<=2;j++)
                 B[i][j]=X[i+j];
@@ -247,6 +247,7 @@ void Copter::user_ARRC_gimbal()
                         B[k][j]=B[k][j]-t*B[i][j];    //make the elements below the pivot elements equal to zero or elimnate the variables
                 }
 
+        float a[3] = {0,0,0};
         for (i=2;i>=0;i--)                      //back-substitution
         {                                       //x is an array whose values correspond to the values of x,y,z..
             a[i]=B[i][3];                       //make the variable to be calculated equal to the rhs of the last equation
