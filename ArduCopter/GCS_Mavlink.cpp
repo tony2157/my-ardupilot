@@ -1172,7 +1172,10 @@ void GCS_MAVLINK_Copter::handleMessage(const mavlink_message_t &msg)
     // ARRC RFE message handle
     case MAVLINK_MSG_ID_ARRC_SENSOR_RAW:
     {
+        // Recieve message from RPi and handle the RFExplorer data
         copter.ARRC_RFE.handle_message(chan, msg);
+        // Immediately save the data to the SD card
+        copter.user_RFE_logger();
         break;
     }
 
