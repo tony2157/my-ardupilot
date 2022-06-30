@@ -5237,6 +5237,11 @@ bool GCS_MAVLINK::accept_packet(const mavlink_status_t &status,
         return true;
     }
 
+    if (msg.msgid == MAVLINK_MSG_ID_ARRC_SENSOR_RAW) {
+        // ARRC packets are not forwarded, they have their own stream rate
+        return true;
+    }
+
     if (msg.msgid == MAVLINK_MSG_ID_RADIO ||
         msg.msgid == MAVLINK_MSG_ID_RADIO_STATUS) {
         return true;
