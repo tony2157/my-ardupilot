@@ -635,6 +635,7 @@ static const ap_message STREAM_EXTRA3_msgs[] = {
     MSG_ESC_TELEMETRY,
     MSG_GENERATOR_STATUS,
     MSG_WINCH_STATUS,
+    MSG_ARRC_RFE
     //MSG_CASS_IMET,
     //MSG_CASS_HYT271,
     //MSG_ARRC_LB5900
@@ -644,7 +645,6 @@ static const ap_message STREAM_PARAMS_msgs[] = {
 };
 static const ap_message STREAM_ADSB_msgs[] = {
     MSG_ADSB_VEHICLE,
-    MSG_ARRC_RFE
 };
 
 const struct GCS_MAVLINK::stream_entries GCS_MAVLINK::all_stream_entries[] = {
@@ -1116,16 +1116,28 @@ void GCS_MAVLINK_Copter::handle_mount_message(const mavlink_message_t &msg)
     switch (msg.msgid) {
 #if HAL_MOUNT_ENABLED
     case MAVLINK_MSG_ID_MOUNT_CONTROL:
+    {
         // if vehicle has a camera mount but it doesn't do pan control then yaw the entire vehicle instead
         if ((copter.camera_mount.get_mount_type() != copter.camera_mount.MountType::Mount_Type_None) &&
             !copter.camera_mount.has_pan_control()) {
             copter.flightmode->auto_yaw.set_yaw_angle_rate(
                 mavlink_msg_mount_control_get_input_c(&msg) * 0.01f,
                 0.0f);
-
-            break;
         }
+        break;
+    }
 #endif
+
+    // ARRC RFE message handle
+    case MAVLINK_MSG_ID_ARRC_SENSOR_RAW:
+    {
+        // Recieve message from RPi and handle the RFExplorer data
+        copter.ARRC_RFE.handle_message(chan, msg);
+        // Immediately save the data to the SD card
+        copter.user_RFE_logger();
+        break;
+    }
+
     }
     GCS_MAVLINK::handle_mount_message(msg);
 }
@@ -1154,16 +1166,6 @@ void GCS_MAVLINK_Copter::handleMessage(const mavlink_message_t &msg)
         POSITION_TARGET_TYPEMASK_YAW_RATE_IGNORE;
 
     switch (msg.msgid) {
-
-    // ARRC RFE message handle
-    case MAVLINK_MSG_ID_ARRC_SENSOR_RAW:
-    {
-        // Recieve message from RPi and handle the RFExplorer data
-        copter.ARRC_RFE.handle_message(chan, msg);
-        // Immediately save the data to the SD card
-        copter.user_RFE_logger();
-        break;
-    }
 
     case MAVLINK_MSG_ID_MANUAL_CONTROL:
     {
