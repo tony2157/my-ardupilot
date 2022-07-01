@@ -17,14 +17,14 @@ public:
     float get_power(void) { return _power; }
     float get_freq(void) { return _freq; }
     uint64_t get_timestamp(void) { return _timestamp_us; }
-    void handle_message(const mavlink_channel_t chan, const mavlink_message_t &msg);
+    void handle_message(const mavlink_message_t &msg);
 
 private:
     bool _initialised;
     uint8_t _sysid;                 // sysid of onboard computer
     uint8_t _compid;                // component id of onboard computer
     mavlink_channel_t _chan;        // mavlink channel used to communicate with onboard computer
-    uint64_t _timestamp_us; // time since boot when the sample was collected 
-    float _power; //voltage read by the ADC
-    float _freq; //frequency at which the power was measured
+    uint64_t _timestamp_us;         // time when the sample was collected (since boot)
+    float _power;                   // Power measured by the RFExplorer (dBm)
+    float _freq;                    // Frequency at which the power was measured
 };

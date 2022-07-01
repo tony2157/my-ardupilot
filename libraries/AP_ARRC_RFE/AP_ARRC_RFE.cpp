@@ -8,7 +8,7 @@ AP_ARRC_RFE::AP_ARRC_RFE() :
 {
 }
 
-void AP_ARRC_RFE::handle_message(const mavlink_channel_t chan, const mavlink_message_t &msg)
+void AP_ARRC_RFE::handle_message(const mavlink_message_t &msg)
 {
     mavlink_arrc_sensor_raw_t arrc_message;
     mavlink_msg_arrc_sensor_raw_decode(&msg, &arrc_message);
@@ -25,7 +25,7 @@ void AP_ARRC_RFE::find_RPi()
         return;
     }
 
-    // return if search time has has passed
+    // return if search time has passed
     if (AP_HAL::millis() > ARRC_RPI_SEARCH_MS) {
         gcs().send_text(MAV_SEVERITY_INFO,"No RPi found");
         return;
