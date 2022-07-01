@@ -27,6 +27,8 @@ void AP_ARRC_RFE::find_RPi()
 {
     // return immediately if initialised
     if (_initialised) {
+        // Send configuration to RPi
+        mavlink_msg_arrc_sensor_raw_send(_chan, 0, _dfreq, 0, 0);
         return;
     }
 
@@ -38,10 +40,6 @@ void AP_ARRC_RFE::find_RPi()
 
     if (GCS_MAVLINK::find_by_mavtype(MAV_TYPE_ONBOARD_CONTROLLER, _sysid, _compid, _chan)) {
         gcs().send_text(MAV_SEVERITY_INFO,"Found RPi sysID %d compID %d chan %d",_sysid, _compid, _chan);
-
-        // Send configuration to RPi
-        mavlink_msg_arrc_sensor_raw_send(_chan, 0, _dfreq, 0, 0);
-
         _initialised = true;
     }
 }
