@@ -1379,7 +1379,7 @@ void GCS_MAVLINK::packetReceived(const mavlink_status_t &status,
         // the routing code has indicated we should not handle this packet locally
         return;
     }
-    if (msg.msgid == MAVLINK_MSG_ID_GLOBAL_POSITION_INT || msg.msgid == MAVLINK_MSG_ID_ARRC_SENSOR_RAW) {
+    if (msg.msgid == MAVLINK_MSG_ID_GLOBAL_POSITION_INT) {
         handle_mount_message(msg);
     }
     if (!accept_packet(status, msg)) {
@@ -3432,7 +3432,6 @@ void GCS_MAVLINK::handle_common_message(const mavlink_message_t &msg)
         handle_fence_message(msg);
         break;
 
-    case MAVLINK_MSG_ID_ARRC_SENSOR_RAW:
     case MAVLINK_MSG_ID_GIMBAL_REPORT:
         handle_mount_message(msg);
         break;

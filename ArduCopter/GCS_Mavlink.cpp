@@ -1123,21 +1123,10 @@ void GCS_MAVLINK_Copter::handle_mount_message(const mavlink_message_t &msg)
             copter.flightmode->auto_yaw.set_yaw_angle_rate(
                 mavlink_msg_mount_control_get_input_c(&msg) * 0.01f,
                 0.0f);
+            break;
         }
-        break;
     }
 #endif
-
-    // ARRC RFE message handle
-    case MAVLINK_MSG_ID_ARRC_SENSOR_RAW:
-    {
-        // Recieve message from RPi and handle the RFExplorer data
-        copter.ARRC_RFE.handle_message(chan, msg);
-        // Immediately save the data to the SD card
-        copter.user_RFE_logger();
-        break;
-    }
-
     }
     GCS_MAVLINK::handle_mount_message(msg);
 }
@@ -1166,6 +1155,16 @@ void GCS_MAVLINK_Copter::handleMessage(const mavlink_message_t &msg)
         POSITION_TARGET_TYPEMASK_YAW_RATE_IGNORE;
 
     switch (msg.msgid) {
+
+    // ARRC RFE message handle
+    case MAVLINK_MSG_ID_ARRC_SENSOR_RAW:
+    {
+        // Recieve message from RPi and handle the RFExplorer data
+        copter.ARRC_RFE.handle_message(chan, msg);
+        // Immediately save the data to the SD card
+        copter.user_RFE_logger();
+        break;
+    }
 
     case MAVLINK_MSG_ID_MANUAL_CONTROL:
     {

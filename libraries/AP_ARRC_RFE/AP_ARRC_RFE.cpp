@@ -13,8 +13,8 @@ void AP_ARRC_RFE::handle_message(const mavlink_channel_t chan, const mavlink_mes
     mavlink_arrc_sensor_raw_t arrc_message;
     mavlink_msg_arrc_sensor_raw_decode(&msg, &arrc_message);
     _timestamp_us = AP_HAL::micros64();
-    _freq = arrc_message.values[0];
-    _power = arrc_message.values[1];
+    _freq = arrc_message.freq;
+    _power = arrc_message.power;
 }
 
 // search for onboard computer in GCS_MAVLink routing table
