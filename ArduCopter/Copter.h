@@ -939,6 +939,7 @@ private:
 
     //ARRC Libraries sensor code initializer
     void init_ARRC_lb5900(void);
+    void init_ARRC_rfe(void);
 
     // vehicle specific waypoint info helpers
     bool get_wp_distance_m(float &distance) const override;

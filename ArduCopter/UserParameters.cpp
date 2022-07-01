@@ -41,6 +41,8 @@ const AP_Param::GroupInfo UserParameters::var_info[] = {
     AP_GROUPINFO("_LB_FREQ", 22, UserParameters, lb5900_freq, 3000),
     AP_GROUPINFO("_LB_AVG_CNT", 23, UserParameters, lb5900_avg_cnt, 10),
     AP_GROUPINFO("_LB_RATE", 24, UserParameters, lb5900_mrate, 1),
+    // ARRC RFExplorer
+    AP_GROUPINFO("_RFE_DFREQ", 25, UserParameters, RFE_dfreq, 5800),
     
     AP_GROUPEND
 };

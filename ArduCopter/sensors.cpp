@@ -61,6 +61,10 @@ void Copter::init_ARRC_lb5900(){
     ARRC_LB5900.init(busId,i2cAddr,freq,avg_cnt,rate);
 }
 
+void Copter::init_ARRC_rfe(){
+    ARRC_RFE.init(g2.user_parameters.get_RFE_dfreq());
+}
+
 // return barometric altitude in centimeters
 void Copter::read_barometer(void)
 {

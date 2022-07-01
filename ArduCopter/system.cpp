@@ -30,6 +30,9 @@ void Copter::init_ardupilot()
     g2.gripper.init();
 #endif
 
+    // initialize ARRC RFExplorer
+    init_ARRC_rfe();
+
 #if AC_FENCE == ENABLED
     fence.init();
 #endif

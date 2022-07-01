@@ -10,6 +10,8 @@ public:
     AP_ARRC_RFE(void);
     ~AP_ARRC_RFE(void){}
 
+    void init(uint16_t dfreq);
+
     // search for onboard computer in GCS_MAVLink routing table
     void find_RPi();
 
@@ -27,4 +29,5 @@ private:
     uint64_t _timestamp_us;         // time when the sample was collected (since boot)
     float _power;                   // Power measured by the RFExplorer (dBm)
     float _freq;                    // Frequency at which the power was measured
+    uint16_t _dfreq;                 // Desire frequency to sample
 };
