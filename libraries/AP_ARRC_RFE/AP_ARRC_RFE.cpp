@@ -34,7 +34,7 @@ void AP_ARRC_RFE::find_RPi()
 
     // return if search time has passed
     if (AP_HAL::millis() > ARRC_RPI_SEARCH_MS) {
-        gcs().send_text(MAV_SEVERITY_INFO,"No RPi found");
+        //gcs().send_text(MAV_SEVERITY_INFO,"No RPi found");
         return;
     }
 
