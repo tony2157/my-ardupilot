@@ -41,12 +41,13 @@ uint32_t LB_now;
 uint32_t gimbal_now;
 bool gimbal_execute;
 uint8_t gimbal_iter;
-const uint8_t gimbal_angle_span = 40;        // Must be an even number
+const uint8_t gimbal_angle_span = 100;        // Must be an even number
 const uint8_t gimbal_step = 10;              // Angle steps
 const uint16_t gimbal_wait = 2200;           // Waiting time while gimbal is rotating
 const uint16_t gimbal_sample_time = 2000;    // Sampling time at each angle step in milliseconds
 float gimbal_probe_samples[gimbal_angle_span/gimbal_step + 1];
 uint8_t gimbal_num_samples;
+bool alignment_done;
 Matrix3d rotm_step;
 
 //AutoVP mission generation
@@ -76,6 +77,7 @@ void Copter::userhook_init()
     gimbal_execute = false;
     gimbal_iter = 0;
     gimbal_num_samples = 0;
+    alignment_done = false;
     memset(gimbal_probe_samples, 0, (gimbal_angle_span/gimbal_step + 1) * sizeof(float));
 
     //Wind filter initialization
@@ -888,12 +890,23 @@ void Copter::userhook_auxSwitch2()
 {
     // Execution of the ARRC gimbal movement
     // put your aux switch #2 handler here (CHx_OPT = 48)
-    gcs().send_text(MAV_SEVERITY_INFO, "Executing antenna alignment");
-    memset(gimbal_probe_samples, 0, (gimbal_angle_span/gimbal_step + 1) * sizeof(float));
-    gimbal_num_samples = 0;
-    gimbal_iter = 0;
-    gimbal_now = AP_HAL::millis();
-    gimbal_execute = true;
+
+    if(alignment_done == false ){
+        gcs().send_text(MAV_SEVERITY_INFO, "Executing Gimbal alignment");
+        memset(gimbal_probe_samples, 0, (gimbal_angle_span/gimbal_step + 1) * sizeof(float));
+        gimbal_num_samples = 0;
+        gimbal_iter = 0;
+        gimbal_now = AP_HAL::millis();
+        gimbal_execute = true;
+        alignment_done = true;
+    }
+    else{
+        rotm_step.identity();
+        copter.camera_mount.set_RotM_offset(rotm_step);
+        gcs().send_text(MAV_SEVERITY_INFO, "Gimbal RotM offset cleared");
+        alignment_done = false;
+        gimbal_execute = false;
+    }
 }
 
 void Copter::userhook_auxSwitch3()
