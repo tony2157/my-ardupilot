@@ -41,10 +41,10 @@ uint32_t LB_now;
 uint32_t gimbal_now;
 bool gimbal_execute;
 uint8_t gimbal_iter;
-const uint8_t gimbal_angle_span = 40;        // Must be an even number
+const uint8_t gimbal_angle_span = 100;        // Must be an even number
 const uint8_t gimbal_step = 10;              // Angle steps
-const uint16_t gimbal_wait = 2000;           // Waiting time while gimbal is rotating
-const uint16_t gimbal_sample_time = 1000;    // Sampling time at each angle step in milliseconds
+const uint16_t gimbal_wait = 2200;           // Waiting time while gimbal is rotating
+const uint16_t gimbal_sample_time = 2000;    // Sampling time at each angle step in milliseconds
 float gimbal_probe_samples[gimbal_angle_span/gimbal_step + 1];
 uint8_t gimbal_num_samples;
 
@@ -312,7 +312,7 @@ void Copter::user_ARRC_gimbal()
                         * (n * squareSum_Y - sum_Y * sum_Y));
 
         // Check the correlation coefficient. Alignment failed if corr is too low
-        if(corr < 0.85){
+        if(fabsf(corr) < 0.85){
             gcs().send_text(MAV_SEVERITY_INFO, "Gimbal alignment failed: R = %f",corr);
             gimbal_execute = false;
             return;
