@@ -192,7 +192,7 @@ void Copter::user_ARRC_gimbal()
     if(gimbal_execute == true){
 
         // Set Gimbal at initial rotation
-        rotm_step.from_axis_angle(axis, -N);
+        rotm_step.from_axis_angle(axis, -N*DEG_TO_RAD);
         copter.camera_mount.set_RotM_offset(rotm_step);
 
         if((AP_HAL::millis() - gimbal_now) < 4000){ return;}
@@ -201,7 +201,7 @@ void Copter::user_ARRC_gimbal()
         if(gimbal_iter <= 2*N){
 
             // rotate gimbal at predefined angle steps
-            rotm_step.from_axis_angle(axis, -N+gimbal_iter);
+            rotm_step.from_axis_angle(axis, (-N+gimbal_iter)*DEG_TO_RAD);
             copter.camera_mount.set_RotM_offset(rotm_step);
 
             if((AP_HAL::millis() - gimbal_now) < (uint32_t)(4000 + gimbal_wait*(gimbal_iter/gimbal_step+1))){ 
@@ -338,7 +338,7 @@ void Copter::user_ARRC_gimbal()
         gcs().send_text(MAV_SEVERITY_INFO, "Gimbal alignment success: R = %f",corr);
 
         // Send and apply resultant rotation matrix offset to the gimbal
-        rotm_step.from_axis_angle(axis, angle_offset);
+        rotm_step.from_axis_angle(axis, angle_offset*DEG_TO_RAD);
         copter.camera_mount.set_RotM_offset(rotm_step);
 
         gimbal_execute = false;
