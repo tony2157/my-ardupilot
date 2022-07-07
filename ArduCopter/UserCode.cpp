@@ -43,10 +43,11 @@ bool gimbal_execute;
 uint8_t gimbal_iter;
 const uint8_t gimbal_angle_span = 40;        // Must be an even number
 const uint8_t gimbal_step = 10;              // Angle steps
-const uint16_t gimbal_wait = 2000;           // Waiting time while gimbal is rotating
-const uint16_t gimbal_sample_time = 1000;    // Sampling time at each angle step in milliseconds
+const uint16_t gimbal_wait = 2200;           // Waiting time while gimbal is rotating
+const uint16_t gimbal_sample_time = 2000;    // Sampling time at each angle step in milliseconds
 float gimbal_probe_samples[gimbal_angle_span/gimbal_step + 1];
 uint8_t gimbal_num_samples;
+Matrix3d rotm_step;
 
 //AutoVP mission generation
 uint32_t mission_now;
@@ -182,15 +183,25 @@ void Copter::user_RFE_logger()
 #ifdef USER_GIMBAL_LOOP
 void Copter::user_ARRC_gimbal()
 {
+    float elev = copter.camera_mount.get_AUT_elevation();
+    Vector3d axis = {-cosf(elev), 0, sinf(elev)};
     uint8_t N = gimbal_angle_span/2;
+
     if(gimbal_execute == true){
-        copter.camera_mount.set_angle_targets(0, 90, -N);
+
+        // Set Gimbal at initial rotation
+        rotm_step.from_axis_angle(axis, -N);
+        copter.camera_mount.set_RotM_offset(rotm_step);
 
         if((AP_HAL::millis() - gimbal_now) < 4000){ return;}
 
         repeat:
         if(gimbal_iter <= 2*N){
-            copter.camera_mount.set_angle_targets(0, 90, (float)(-N+gimbal_iter));
+
+            // rotate gimbal at predefined angle steps
+            rotm_step.from_axis_angle(axis, -N+gimbal_iter);
+            copter.camera_mount.set_RotM_offset(rotm_step);
+
             if((AP_HAL::millis() - gimbal_now) < (uint32_t)(4000 + gimbal_wait*(gimbal_iter/gimbal_step+1))){ 
                 return;
             }
@@ -318,18 +329,15 @@ void Copter::user_ARRC_gimbal()
             return;
         }
 
-        // Resulting yaw angle
-        float aligned_yaw = -a[1]/(2*a[2]);
+        // Resultant angle offset
+        float angle_offset = -a[1]/(2*a[2]);
 
-        gcs().send_text(MAV_SEVERITY_INFO, "Gimbal alignment correction: %f deg",aligned_yaw);
+        gcs().send_text(MAV_SEVERITY_INFO, "Gimbal alignment correction: %f deg",angle_offset);
         gcs().send_text(MAV_SEVERITY_INFO, "Gimbal alignment success: R = %f",corr);
 
-        // Send result to ground station and gimbal
-        copter.camera_mount.set_angle_targets(0, 90, aligned_yaw);
-
-        // Compute absolute yaw angle
-        aligned_yaw = wrap_180(AP::ahrs().yaw*RAD_TO_DEG + aligned_yaw);
-        copter.camera_mount.set_fixed_yaw_angle(aligned_yaw);
+        // Send and apply resultant rotation matrix offset to the gimbal
+        rotm_step.from_axis_angle(axis, angle_offset);
+        copter.camera_mount.set_RotM_offset(rotm_step);
 
         gimbal_execute = false;
     }
@@ -384,7 +392,7 @@ void Copter::user_ARRC_gimbal_sim()
     }
 
     // Compute height difference
-    float z = (float)(current_alt_cm - target_alt_cm)/100.0f; // in meters
+    float z = (float)(current_alt_cm + target_alt_cm)/100.0f; // in meters
 
     //Compute distance and slope wrt target
     float horzdist2target = current_loc.get_distance(target);
@@ -395,6 +403,9 @@ void Copter::user_ARRC_gimbal_sim()
     // initialise all angles to zero
     Vector3f angles_to_target_rad;
     angles_to_target_rad.zero();
+
+    Matrix3f rotM_offset;
+    rotM_offset.identity();
 
     if(dist2target > 10){
         if(g2.user_parameters.get_user_sensor2() == 0 || slope < 0.38f){
@@ -408,7 +419,7 @@ void Copter::user_ARRC_gimbal_sim()
 
             // pan calcs
             angles_to_target_rad.z = bearing;
-            angles_to_target_rad.z = wrap_PI((angles_to_target_rad.z - (double)AP::ahrs().yaw));
+            angles_to_target_rad.z = wrap_PI((angles_to_target_rad.z - (float)AP::ahrs().yaw));
         }
         else if(g2.user_parameters.get_user_sensor2() == 1){
 
@@ -443,36 +454,49 @@ void Copter::user_ARRC_gimbal_sim()
             // Hpol aligned mode
 
             float D = sqrtf(x*x + y*y + z*z);
-            float A = sqrtf(x*x*x*x + x*x*y*y + 2*x*x*z*z + y*y*z*z + z*z*z*z);
+            float A = sqrtf(x*x+z*z);
+
+            Matrix3f RotM( -x/D,         -y/D,      -z/D,
+                           -x*y/(A*D),   A/D,       -y*z/(A*D),
+                           z/A,          0,         -x/A   );
+
+            RotM = RotM*rotM_offset;
 
             // tilt calcs = atan2(Reb(1,3),Reb(3,3))
-            angles_to_target_rad.y = atan2f(-z/D, -x/sqrtf(x*x+z*z));
+            angles_to_target_rad.y = atan2f(RotM.a.z, RotM.c.z);
             
             // roll calcs = atan2(-Reb(2,3),sqrt(1-Reb(2,3)^2))
-            float aux = -y*z*A/((x*x+z*z)*D*D);
-            angles_to_target_rad.x = atan2f(-aux, sqrtf(1 - aux*aux));
+            angles_to_target_rad.x = atan2f(-RotM.b.z, sqrtf(1.0 - RotM.b.z*RotM.b.z));
 
             // pan calcs = atan2(Reb(2,1),Reb(2,2))
-            angles_to_target_rad.z = atan2f(-x*y/(x*x+z*z),1) + fixed_yaw;
-            angles_to_target_rad.z = wrap_PI((angles_to_target_rad.z - (double)AP::ahrs().yaw));
+            angles_to_target_rad.z = atan2f(-x*y/(x*x+z*z),1.0) + fixed_yaw;
+            angles_to_target_rad.z = wrap_PI((angles_to_target_rad.z - (float)AP::ahrs().yaw));
         }
         else if(g2.user_parameters.get_user_sensor2() == 4){
 
             // Vpol aligned mode
 
+            float el = g2.user_parameters.get_user_sensor3()*DEG_TO_RAD;
+
             float D = sqrtf(x*x + y*y + z*z);
-            float A = sqrtf(y*y*y*y + x*x*y*y + 2*y*y*z*z + x*x*z*z + z*z*z*z);
+            float A = sqrt((x*x - z*z)*cos(el)*cos(el) + y*y + z*z - x*z*sin(2*el));
+            float B = sqrtf((x*x- z*z)*cosf(2*el) + x*x + 2*y*y + z*z - 2*x*z*sinf(2*el));
+
+            Matrix3f RotM( -x/D,                                                        -y/D,                                                   -z/D,
+                           y*cosf(el)/A,                                                -(x*cosf(el)-z*sinf(el))/A,                            -y*sinf(el)/A,
+                           (M_SQRT2*((y*y*+z*z)*sinf(el)-x*z*cosf(el)))/(D*B),         -(M_SQRT2*y*(z*cosf(el)+x*sinf(el)))/(D*B),            M_SQRT2*((x*x+y*y)*cosf(el)-x*z*sinf(el))*B/(2*D*A*A)  );
+
+            RotM = RotM*rotM_offset;
 
             // tilt calcs = atan2(Reb(1,3),Reb(3,3))
-            angles_to_target_rad.y = atan2f(-z/D, -x*z*A/((y*y+z*z)*D*D));
+            angles_to_target_rad.y = atan2f(RotM.a.z, RotM.c.z);
             
             // roll calcs = atan2(-Reb(2,3),sqrt(1-Reb(2,3)^2))
-            float aux = -y/(sqrtf(y*y+z*z));
-            angles_to_target_rad.x = atan2f(-aux, sqrtf(1 - aux*aux));
+            angles_to_target_rad.x = atan2f(-RotM.b.z, sqrtf(1.0 - RotM.b.z*RotM.b.z));
 
             // pan calcs = atan2(Reb(2,1),Reb(2,2))
-            angles_to_target_rad.z = atan2f(0,z/sqrtf(y*y+z*z)) + fixed_yaw;
-            angles_to_target_rad.z = wrap_PI((angles_to_target_rad.z - (double)AP::ahrs().yaw));
+            angles_to_target_rad.z = atan2f(RotM.b.x,RotM.b.y) + fixed_yaw;
+            angles_to_target_rad.z = wrap_PI((angles_to_target_rad.z - (float)AP::ahrs().yaw));
         }
     }
     

@@ -205,6 +205,16 @@ const AP_Param::GroupInfo AP_Mount::var_info[] = {
     //AP_GROUPINFO("_LEAD_PTCH", 18, AP_Mount, state[0]._pitch_stb_lead, 0.0f),
     AP_GROUPINFO("_ARRC_MODE", 18, AP_Mount, state[0]._pitch_stb_lead, 0.0f),
 
+    // @Param: _LEAD_PTCH
+    // @DisplayName: Pitch stabilization lead time
+    // @Description: Causes the servo angle output to lead the current angle of the vehicle by some amount of time based on current angular rate. Increase until the servo is responsive but doesn't overshoot. Does nothing with pan stabilization enabled.
+    // @Units: s
+    // @Range: 0.0 0.2
+    // @Increment: .005
+    // @User: Standard
+    //AP_GROUPINFO("_LEAD_PTCH", 18, AP_Mount, state[0]._pitch_stb_lead, 0.0f),
+    AP_GROUPINFO("_ARRC_ELEV", 20, AP_Mount, state[0]._ARRC_elev, 0.0f),
+
     // 19 _TYPE, now at top with enable flag
 
     // 20 formerly _OFF_JNT
@@ -439,6 +449,7 @@ void AP_Mount::init()
     for (uint8_t instance=0; instance<AP_MOUNT_MAX_INSTANCES; instance++) {
         // default instance's state
         state[instance]._mode = (enum MAV_MOUNT_MODE)state[instance]._default_mode.get();
+        state[instance]._rotM_offset.identity();
 
         MountType mount_type = get_mount_type(instance);
 
@@ -574,6 +585,28 @@ void AP_Mount::set_fixed_yaw_angle(uint8_t instance, float fixed_yaw)
 
     // send command to backend
     _backends[instance]->set_fixed_yaw_angle(fixed_yaw);
+}
+
+// ARRC set Rotation matrix offset after antenna alignment
+void AP_Mount::set_RotM_offset(uint8_t instance, Matrix3d rotm_off)
+{
+    if (!check_instance(instance)) {
+        return;
+    }
+
+    // send command to backend
+    _backends[instance]->set_RotM_offset(rotm_off);
+}
+
+// ARRC get AUT elevation
+float AP_Mount::get_AUT_elevation(uint8_t instance) const
+{
+    if (!check_instance(instance)) {
+        return 0;
+    }
+
+    // send command to backend
+    return _backends[instance]->get_AUT_elevation();
 }
 
 MAV_RESULT AP_Mount::handle_command_do_mount_configure(const mavlink_command_long_t &packet)

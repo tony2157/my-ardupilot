@@ -26,6 +26,13 @@ void AP_Mount_Backend::set_fixed_yaw_angle(float fixed_yaw)
     //_frontend.set_mode(_instance, MAV_MOUNT_MODE_GPS_POINT);
 }
 
+// ARRC set fixed yaw angle after antenna alignment
+void AP_Mount_Backend::set_RotM_offset(Matrix3d rotm_off)
+{
+    // set Rotation matrix offset
+    _state._rotM_offset = rotm_off;
+}
+
 // set_roi_target - sets target location that mount should attempt to point towards
 void AP_Mount_Backend::set_roi_target(const struct Location &target_loc)
 {
@@ -353,14 +360,19 @@ bool AP_Mount_Backend::calc_angle_to_location_d(const struct Location &target, V
             // Hpol aligned mode
 
             double D = sqrt(x*x + y*y + z*z);
-            double A = sqrt(x*x*x*x + x*x*y*y + 2.0*x*x*z*z + y*y*z*z + z*z*z*z);
+            double A = sqrt(x*x+z*z);
+
+            Matrix3d RotM( -x/D,         -y/D,      -z/D,
+                           -x*y/(A*D),   A/D,       -y*z/(A*D),
+                           z/A,          0,         -x/A   );
+
+            RotM = RotM*_state._rotM_offset;
 
             // tilt calcs = atan2(Reb(1,3),Reb(3,3))
-            angles_to_target_rad.y = atan2(-z/D, -x/sqrt(x*x+z*z));
+            angles_to_target_rad.y = atan2(RotM.a.z, RotM.c.z);
             
             // roll calcs = atan2(-Reb(2,3),sqrt(1-Reb(2,3)^2))
-            double aux = -y*z*A/((x*x+z*z)*D*D);
-            angles_to_target_rad.x = atan2(-aux, sqrt(1.0 - aux*aux));
+            angles_to_target_rad.x = atan2(-RotM.b.z, sqrt(1.0 - RotM.b.z*RotM.b.z));
 
             // pan calcs = atan2(Reb(2,1),Reb(2,2))
             angles_to_target_rad.z = atan2(-x*y/(x*x+z*z),1.0) + fixed_yaw;
@@ -373,18 +385,26 @@ bool AP_Mount_Backend::calc_angle_to_location_d(const struct Location &target, V
             // Vpol aligned mode
 
             x = -x; y = -y; // For some reason the x-y axis are inverted in this mode
+            double el = _state._ARRC_elev*DEG_TO_RAD;
 
             double D = sqrt(x*x + y*y + z*z);
-            double A = sqrt(y*y*y*y + x*x*y*y + 2.0*y*y*z*z + x*x*z*z + z*z*z*z);
+            double A = sqrt((x*x - z*z)*cos(el)*cos(el) + y*y + z*z - x*z*sin(2*el));
+            double B = sqrt((x*x - z*z)*cos(2*el) + x*x + 2*y*y + z*z - 2*x*z*sin(2*el));
+
+            Matrix3d RotM( -x/D,                                                    -y/D,                                                   -z/D,
+                           y*cos(el)/A,                                             -(x*cos(el)-z*sin(el))/A,                               -y*sin(el)/A,
+                           (M_SQRT2*((y*y*+z*z)*sin(el)-x*z*cos(el)))/(D*B),        -(M_SQRT2*y*(z*cos(el)+x*sin(el)))/(D*B),                M_SQRT2*((x*x+y*y)*cos(el)-x*z*sin(el))*B/(2*D*A*A)  );
+
+            RotM = RotM*_state._rotM_offset;
 
             // tilt calcs = atan2(Reb(1,3),Reb(3,3))
-            angles_to_target_rad.y = atan2(-z/D, -x*z*A/((y*y+z*z)*D*D));
+            angles_to_target_rad.y = atan2(RotM.a.z, RotM.c.z);
             
             // roll calcs = atan2(-Reb(2,3),sqrt(1-Reb(2,3)^2))
-            double aux = -y/(sqrt(y*y+z*z));
-            angles_to_target_rad.x = atan2(-aux, sqrt(1.0 - aux*aux));
+            angles_to_target_rad.x = atan2(-RotM.b.z, sqrt(1.0 - RotM.b.z*RotM.b.z));
 
-            // pan calcs = atan2(Reb(2,1),Reb(2,2)) = atan2(0,z/sqrt(y*y+z*z)) = 0
+            // pan calcs = atan2(Reb(2,1),Reb(2,2))
+            angles_to_target_rad.z = atan2(RotM.b.x,RotM.b.y) + fixed_yaw;
             angles_to_target_rad.z = fixed_yaw;
             if (relative_pan) {
                 angles_to_target_rad.z = wrap_180((angles_to_target_rad.z - (double)AP::ahrs().yaw)*RAD_TO_DEG)*DEG_TO_RAD;

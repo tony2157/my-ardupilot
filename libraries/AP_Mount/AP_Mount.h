@@ -124,6 +124,14 @@ public:
     void set_fixed_yaw_angle(float fixed_yaw) { set_fixed_yaw_angle(_primary, fixed_yaw); }
     void set_fixed_yaw_angle(uint8_t instance, float fixed_yaw);
 
+    // ARRC set Rotation matrix offset after antenna alignment
+    void set_RotM_offset(Matrix3d rotm_off) { set_RotM_offset(_primary, rotm_off); }
+    void set_RotM_offset(uint8_t instance, Matrix3d rotm_off);
+
+    // ARRC get elevation
+    float get_AUT_elevation() const { return get_AUT_elevation(_primary); }
+    float get_AUT_elevation(uint8_t instance) const;
+
     // set_roi_target - sets target location that mount should attempt to point towards
     void set_roi_target(const struct Location &target_loc) { set_roi_target(_primary,target_loc); }
     void set_roi_target(uint8_t instance, const struct Location &target_loc);
@@ -183,8 +191,9 @@ protected:
         AP_Vector3f     _retract_angles;    // retracted position for mount, vector.x = roll vector.y = tilt, vector.z=pan
         AP_Vector3f     _neutral_angles;    // neutral position for mount, vector.x = roll vector.y = tilt, vector.z=pan
 
-        AP_Float        _roll_stb_lead;     // roll lead control gain
-        AP_Float        _pitch_stb_lead;    // pitch lead control gain
+        AP_Float        _roll_stb_lead;      // hijacked - Heading of the AUT wrt True North
+        AP_Float        _pitch_stb_lead;     // hijacked - Gimbal mode for calibration (): AP Original, 1: Point down, 2: Hpol, 3: Vpol)
+        AP_Float        _ARRC_elev;          // AUT elevation
 
         MAV_MOUNT_MODE  _mode;              // current mode (see MAV_MOUNT_MODE enum)
         struct Location _roi_target;        // roi target location
@@ -193,6 +202,8 @@ protected:
         uint8_t _target_sysid;           // sysid to track
         Location _target_sysid_location; // sysid target location
         bool _target_sysid_location_set;
+
+        Matrix3d        _rotM_offset;       // ARRC Rotation matrix offset applied to the gimbal after calibration
 
     } state[AP_MOUNT_MAX_INSTANCES];
 
