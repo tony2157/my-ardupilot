@@ -407,7 +407,6 @@ bool AP_Mount_Backend::calc_angle_to_location_d(const struct Location &target, V
 
             // pan calcs = atan2(Reb(2,1),Reb(2,2))
             angles_to_target_rad.z = atan2(RotM.b.x,RotM.b.y) + fixed_yaw;
-            angles_to_target_rad.z = fixed_yaw;
             if (relative_pan) {
                 angles_to_target_rad.z = wrap_180((angles_to_target_rad.z - (double)AP::ahrs().yaw)*RAD_TO_DEG)*DEG_TO_RAD;
             }
