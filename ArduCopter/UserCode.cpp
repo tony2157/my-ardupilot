@@ -404,8 +404,12 @@ void Copter::user_ARRC_gimbal_sim()
     Vector3f angles_to_target_rad;
     angles_to_target_rad.zero();
 
-    Matrix3f rotM_offset;
-    rotM_offset.identity();
+    Matrix3f rotM_offset(0.9848, -0.1736, 0.0000,
+                         0.1736, 0.9848, 0.0000,
+                         0.0000, 0.0000, 1.0000);
+
+    //Matrix3f rotM_offset;                
+    //rotM_offset.identity();
 
     if(dist2target > 10){
         if(g2.user_parameters.get_user_sensor2() == 0 || slope < 0.38f){
@@ -469,7 +473,7 @@ void Copter::user_ARRC_gimbal_sim()
             angles_to_target_rad.x = atan2f(-RotM.b.z, sqrtf(1.0 - RotM.b.z*RotM.b.z));
 
             // pan calcs = atan2(Reb(2,1),Reb(2,2))
-            angles_to_target_rad.z = atan2f(-x*y/(x*x+z*z),1.0) + fixed_yaw;
+            angles_to_target_rad.z = atan2f(RotM.b.x,RotM.b.y) + fixed_yaw;
             angles_to_target_rad.z = wrap_PI((angles_to_target_rad.z - (float)AP::ahrs().yaw));
         }
         else if(g2.user_parameters.get_user_sensor2() == 4){
