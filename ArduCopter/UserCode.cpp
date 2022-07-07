@@ -323,7 +323,7 @@ void Copter::user_ARRC_gimbal()
                         * (n * squareSum_Y - sum_Y * sum_Y));
 
         // Check the correlation coefficient. Alignment failed if corr is too low
-        if(corr < 0.85){
+        if(fabsf(corr) < 0.85){
             gcs().send_text(MAV_SEVERITY_INFO, "Gimbal alignment failed: R = %f",corr);
             gimbal_execute = false;
             return;
