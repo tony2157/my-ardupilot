@@ -319,11 +319,14 @@ bool AP_Mount_Backend::calc_angle_to_location_d(const struct Location &target, V
     float slope = 0;
     if(!is_zero(horzdist2target)) slope = fabsf((float)z/horzdist2target);
 
+    // AUT elevation
+    double el = _state._ARRC_elev*DEG_TO_RAD;
+
     // initialise all angles to zero
     angles_to_target_rad.zero();
 
     if(dist2target > 10){
-        if(is_zero(_state._pitch_stb_lead) || slope < 0.38f){
+        if(is_zero(_state._pitch_stb_lead) || (slope < 0.35f && el > 70)){
 
             // Original ArduPilot mode
 
@@ -385,7 +388,6 @@ bool AP_Mount_Backend::calc_angle_to_location_d(const struct Location &target, V
             // Vpol aligned mode
 
             x = -x; y = -y; // For some reason the x-y axis are inverted in this mode
-            double el = _state._ARRC_elev*DEG_TO_RAD;
 
             double D = sqrt(x*x + y*y + z*z);
             double A = sqrt((x*x - z*z)*cos(el)*cos(el) + y*y + z*z - x*z*sin(2*el));
