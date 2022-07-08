@@ -2,8 +2,11 @@
 #include "AP_Mount_Backend.h"
 #if HAL_MOUNT_ENABLED
 #include <AP_AHRS/AP_AHRS.h>
+//#include <GCS_MAVLink/GCS.h> // Enable this for debugging
 
 extern const AP_HAL::HAL& hal;
+
+//uint32_t _now = 0; // Enable this for debugging
 
 // set_angle_targets - sets angle targets in degrees
 void AP_Mount_Backend::set_angle_targets(float roll, float tilt, float pan)
@@ -311,7 +314,7 @@ bool AP_Mount_Backend::calc_angle_to_location_d(const struct Location &target, V
     }
 
     // Compute height difference (NWU)
-    double z = (double)(current_alt_cm + target_alt_cm)/100.0; // in meters
+    double z = (double)(current_alt_cm + target_alt_cm)/(-100.0); // in meters
 
     //Compute distance and slope wrt target
     float horzdist2target = current_loc.get_distance(target);
@@ -372,10 +375,10 @@ bool AP_Mount_Backend::calc_angle_to_location_d(const struct Location &target, V
             RotM = RotM*_state._rotM_offset;
 
             // tilt calcs = atan2(Reb(1,3),Reb(3,3))
-            angles_to_target_rad.y = atan2(RotM.a.z, RotM.c.z);
+            angles_to_target_rad.y = -1*atan2(RotM.a.z, RotM.c.z);
             
             // roll calcs = atan2(-Reb(2,3),sqrt(1-Reb(2,3)^2))
-            angles_to_target_rad.x = atan2(-RotM.b.z, sqrt(1.0 - RotM.b.z*RotM.b.z));
+            angles_to_target_rad.x = -1*atan2(-RotM.b.z, sqrt(1.0 - RotM.b.z*RotM.b.z));
 
             // pan calcs = atan2(Reb(2,1),Reb(2,2))
             angles_to_target_rad.z = atan2f(RotM.b.x,RotM.b.y) + fixed_yaw;
@@ -386,8 +389,6 @@ bool AP_Mount_Backend::calc_angle_to_location_d(const struct Location &target, V
         else if(is_zero(_state._pitch_stb_lead - 3)){
 
             // Vpol aligned mode
-
-            x = -x; y = -y; // For some reason the x-y axis are inverted in this mode
 
             double D = sqrt(x*x + y*y + z*z);
             double A = sqrt((x*x - z*z)*cos(el)*cos(el) + y*y + z*z - x*z*sin(2*el));
@@ -400,18 +401,31 @@ bool AP_Mount_Backend::calc_angle_to_location_d(const struct Location &target, V
             RotM = RotM*_state._rotM_offset;
 
             // tilt calcs = atan2(Reb(1,3),Reb(3,3))
-            angles_to_target_rad.y = atan2(RotM.a.z, RotM.c.z);
+            angles_to_target_rad.y = -1*atan2(RotM.a.z, RotM.c.z);
             
             // roll calcs = atan2(-Reb(2,3),sqrt(1-Reb(2,3)^2))
-            angles_to_target_rad.x = atan2(-RotM.b.z, sqrt(1.0 - RotM.b.z*RotM.b.z));
+            angles_to_target_rad.x = -1*atan2(-RotM.b.z, sqrt(1.0 - RotM.b.z*RotM.b.z));
 
             // pan calcs = atan2(Reb(2,1),Reb(2,2))
-            angles_to_target_rad.z = atan2(RotM.b.x,RotM.b.y) + fixed_yaw + M_PI;
+            angles_to_target_rad.z = atan2(RotM.b.x,RotM.b.y) + fixed_yaw;
             if (relative_pan) {
                 angles_to_target_rad.z = wrap_180((angles_to_target_rad.z - (double)AP::ahrs().yaw)*RAD_TO_DEG)*DEG_TO_RAD;
             }
         }
     }
+
+    // For debugging:
+    // if (AP_HAL::millis() - _now > 3000){
+    //     gcs().send_text(MAV_SEVERITY_INFO,"Target Dist: %5.2f",(float)target_distance);
+    //     gcs().send_text(MAV_SEVERITY_INFO,"Bearing: %5.2f",(float)bearing);
+    //     gcs().send_text(MAV_SEVERITY_INFO,"Target X: %5.2f",(float)x);
+    //     gcs().send_text(MAV_SEVERITY_INFO,"Target Y: %5.2f",(float)y);
+    //     gcs().send_text(MAV_SEVERITY_INFO,"Target Z: %5.2f",(float)z);
+    //     gcs().send_text(MAV_SEVERITY_INFO,"Pitch: %5.2f",(float)angles_to_target_rad.y*RAD_TO_DEG);
+    //     gcs().send_text(MAV_SEVERITY_INFO,"Roll: %5.2f",(float)angles_to_target_rad.x*RAD_TO_DEG);
+    //     gcs().send_text(MAV_SEVERITY_INFO,"Yaw: %5.2f",(float)angles_to_target_rad.z*RAD_TO_DEG);
+    //     _now = AP_HAL::millis();
+    // }
 
     return true;
 }
