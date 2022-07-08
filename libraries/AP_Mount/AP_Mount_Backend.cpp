@@ -328,6 +328,9 @@ bool AP_Mount_Backend::calc_angle_to_location_d(const struct Location &target, V
     // initialise all angles to zero
     angles_to_target_rad.zero();
 
+    // Alexmos gimbal convention: Pitch down (+), Roll right (+), Yaw right (+)
+    // This technique's convention: Pitch down (-), Roll right (-), Yaw right (+)
+    // Position (x,y,z) is NWU convention with the AUT as the origin
     if(dist2target > 10){
         if(is_zero(_state._pitch_stb_lead) || (slope < 0.35f && el > 70)){
 
@@ -375,10 +378,10 @@ bool AP_Mount_Backend::calc_angle_to_location_d(const struct Location &target, V
             RotM = RotM*_state._rotM_offset;
 
             // tilt calcs = atan2(Reb(1,3),Reb(3,3))
-            angles_to_target_rad.y = -1*atan2(RotM.a.z, RotM.c.z);
+            angles_to_target_rad.y = -1.0*atan2(RotM.a.z, RotM.c.z);
             
             // roll calcs = atan2(-Reb(2,3),sqrt(1-Reb(2,3)^2))
-            angles_to_target_rad.x = -1*atan2(-RotM.b.z, sqrt(1.0 - RotM.b.z*RotM.b.z));
+            angles_to_target_rad.x = -1.0*atan2(-RotM.b.z, sqrt(1.0 - RotM.b.z*RotM.b.z));
 
             // pan calcs = atan2(Reb(2,1),Reb(2,2))
             angles_to_target_rad.z = atan2f(RotM.b.x,RotM.b.y) + fixed_yaw;
@@ -401,10 +404,10 @@ bool AP_Mount_Backend::calc_angle_to_location_d(const struct Location &target, V
             RotM = RotM*_state._rotM_offset;
 
             // tilt calcs = atan2(Reb(1,3),Reb(3,3))
-            angles_to_target_rad.y = -1*atan2(RotM.a.z, RotM.c.z);
+            angles_to_target_rad.y = -1.0*atan2(RotM.a.z, RotM.c.z);
             
             // roll calcs = atan2(-Reb(2,3),sqrt(1-Reb(2,3)^2))
-            angles_to_target_rad.x = -1*atan2(-RotM.b.z, sqrt(1.0 - RotM.b.z*RotM.b.z));
+            angles_to_target_rad.x = -1.0*atan2(-RotM.b.z, sqrt(1.0 - RotM.b.z*RotM.b.z));
 
             // pan calcs = atan2(Reb(2,1),Reb(2,2))
             angles_to_target_rad.z = atan2(RotM.b.x,RotM.b.y) + fixed_yaw;
