@@ -375,7 +375,7 @@ bool AP_Mount_Backend::calc_angle_to_location_d(const struct Location &target, V
                            -x*y/(A*D),   A/D,       -y*z/(A*D),
                            z/A,          0,         -x/A   );
 
-            RotM = RotM*_state._rotM_offset;
+            RotM = _state._rotM_offset*RotM;
 
             // tilt calcs = atan2(Reb(1,3),Reb(3,3))
             angles_to_target_rad.y = -1.0*atan2(RotM.a.z, RotM.c.z);
@@ -401,7 +401,7 @@ bool AP_Mount_Backend::calc_angle_to_location_d(const struct Location &target, V
                            y*cos(el)/A,                                             -(x*cos(el)-z*sin(el))/A,                               -y*sin(el)/A,
                            (M_SQRT2*((y*y*+z*z)*sin(el)-x*z*cos(el)))/(D*B),        -(M_SQRT2*y*(z*cos(el)+x*sin(el)))/(D*B),                M_SQRT2*((x*x+y*y)*cos(el)-x*z*sin(el))*B/(2*D*A*A)  );
 
-            RotM = RotM*_state._rotM_offset;
+            RotM =  _state._rotM_offset*RotM;
 
             // tilt calcs = atan2(Reb(1,3),Reb(3,3))
             angles_to_target_rad.y = -1.0*atan2(RotM.a.z, RotM.c.z);
