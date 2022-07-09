@@ -215,6 +215,16 @@ const AP_Param::GroupInfo AP_Mount::var_info[] = {
     //AP_GROUPINFO("_LEAD_PTCH", 18, AP_Mount, state[0]._pitch_stb_lead, 0.0f),
     AP_GROUPINFO("_ARRC_ELEV", 20, AP_Mount, state[0]._ARRC_elev, 0.0f),
 
+    // @Param: _LEAD_PTCH
+    // @DisplayName: Pitch stabilization lead time
+    // @Description: Causes the servo angle output to lead the current angle of the vehicle by some amount of time based on current angular rate. Increase until the servo is responsive but doesn't overshoot. Does nothing with pan stabilization enabled.
+    // @Units: s
+    // @Range: 0.0 0.2
+    // @Increment: .005
+    // @User: Standard
+    //AP_GROUPINFO("_LEAD_PTCH", 18, AP_Mount, state[0]._pitch_stb_lead, 0.0f),
+    AP_GROUPINFO("_ARRC_ZOFF", 21, AP_Mount, state[0]._ARRC_z_offset, 0.0f),
+
     // 19 _TYPE, now at top with enable flag
 
     // 20 formerly _OFF_JNT

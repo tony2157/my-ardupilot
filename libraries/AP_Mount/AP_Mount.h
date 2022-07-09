@@ -194,6 +194,7 @@ protected:
         AP_Float        _roll_stb_lead;      // hijacked - Heading of the AUT wrt True North
         AP_Float        _pitch_stb_lead;     // hijacked - Gimbal mode for calibration (): AP Original, 1: Point down, 2: Hpol, 3: Vpol)
         AP_Float        _ARRC_elev;          // AUT elevation
+        AP_Float        _ARRC_z_offset;      // Gimbal Z offset wrt the CG (down is negative)
 
         MAV_MOUNT_MODE  _mode;              // current mode (see MAV_MOUNT_MODE enum)
         struct Location _roi_target;        // roi target location

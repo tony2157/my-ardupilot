@@ -314,7 +314,7 @@ bool AP_Mount_Backend::calc_angle_to_location_d(const struct Location &target, V
     }
 
     // Compute height difference (NWU)
-    double z = (double)(current_alt_cm + target_alt_cm)/(-100.0); // in meters
+    double z = (double)(current_alt_cm + target_alt_cm)/(-100.0) + (double)_state._ARRC_z_offset; // in meters
 
     //Compute distance and slope wrt target
     float horzdist2target = current_loc.get_distance(target);
