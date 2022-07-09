@@ -185,8 +185,8 @@ void Copter::user_RFE_logger()
 #ifdef USER_GIMBAL_LOOP
 void Copter::user_ARRC_gimbal()
 {
-    float elev = copter.camera_mount.get_AUT_elevation();
-    Vector3d axis = {(double)(-cosf(elev)), 0.0, (double)(sinf(elev))};
+    //float elev = copter.camera_mount.get_AUT_elevation();
+    Vector3d axis = {-1.0, 0.0, 0.0}; // Rotate about the axis that is pointing to the AUT (Gimbal frame)
     uint8_t N = gimbal_angle_span/2;
 
     if(gimbal_execute == true){
