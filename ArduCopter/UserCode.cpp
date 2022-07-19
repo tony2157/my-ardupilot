@@ -406,12 +406,12 @@ void Copter::user_ARRC_gimbal_sim()
     Vector3f angles_to_target_rad;
     angles_to_target_rad.zero();
 
-    Matrix3f rotM_offset(0.9848, -0.1736, 0.0000,
-                         0.1736, 0.9848, 0.0000,
-                         0.0000, 0.0000, 1.0000);
+    // Matrix3f rotM_offset(0.9848, -0.1736, 0.0000,
+    //                      0.1736, 0.9848, 0.0000,
+    //                      0.0000, 0.0000, 1.0000);
 
-    //Matrix3f rotM_offset;                
-    //rotM_offset.identity();
+    Matrix3f rotM_offset;                
+    rotM_offset.identity();
 
     if(dist2target > 10){
         if(g2.user_parameters.get_user_sensor2() == 0 || slope < 0.38f){
