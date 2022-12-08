@@ -56,7 +56,8 @@ struct PACKED log_RFE {
     LOG_PACKET_HEADER;
     uint64_t time_stamp;
     float freq;
-    float power;
+    float pwr_c;
+    float pwr_x;
 };
 
 struct PACKED log_WIND {

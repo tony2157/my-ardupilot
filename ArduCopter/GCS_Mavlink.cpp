@@ -322,7 +322,8 @@ void Copter::send_arrc_rfe(mavlink_channel_t chan) {
 
     // Send LB5900 power dBm
     raw_sensor[0] = copter.ARRC_RFE.get_freq();
-    raw_sensor[1] = copter.ARRC_RFE.get_power();
+    raw_sensor[1] = copter.ARRC_RFE.get_pwr_c();
+    raw_sensor[2] = copter.ARRC_RFE.get_pwr_x();
 
     // Call Mavlink function and send CASS data
     mavlink_msg_cass_sensor_raw_send(

@@ -175,7 +175,8 @@ void Copter::user_RFE_logger()
         LOG_PACKET_HEADER_INIT(LOG_RFE_MSG),
         time_stamp              : copter.ARRC_RFE.get_timestamp(),      //Store time in microseconds
         freq                    : copter.ARRC_RFE.get_freq(),           //Store sampled frequency in Hz
-        power                   : copter.ARRC_RFE.get_power(),          //Store sampled power in dBm
+        pwr_c                   : copter.ARRC_RFE.get_pwr_c(),          //Store sampled power in dBm
+        pwr_x                   : copter.ARRC_RFE.get_pwr_x(),          //Store sampled power in dBm
     };
     logger.WriteBlock(&pkt_temp, sizeof(pkt_temp));   //Send package to SD card
 }
@@ -208,7 +209,7 @@ void Copter::user_ARRC_gimbal()
                 return;
             }
             if((AP_HAL::millis() - gimbal_now) < (uint32_t)(4000 + (gimbal_sample_time+gimbal_wait)*(gimbal_iter/gimbal_step+1))){ 
-                gimbal_probe_samples[gimbal_iter/gimbal_step] = gimbal_probe_samples[gimbal_iter/gimbal_step] + copter.ARRC_RFE.get_power();
+                gimbal_probe_samples[gimbal_iter/gimbal_step] = gimbal_probe_samples[gimbal_iter/gimbal_step] + copter.ARRC_RFE.get_pwr_c();
                 gimbal_num_samples++;
                 return;
             }
