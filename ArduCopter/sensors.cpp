@@ -1,5 +1,56 @@
 #include "Copter.h"
 
+void Copter::init_CASS_imet(){
+
+    float coeff[4][4];
+
+    //CS3D SENSORS (dummy values)
+    //IMET temp number 57560:
+    coeff[0][0] = 9.98873354e-04f;
+    coeff[0][1] = 2.63219974e-04f;
+    coeff[0][2] = 0.0f;
+    coeff[0][3] = 1.47120693e-07f;
+
+    //IMET temp number 57551:
+    coeff[1][0] = 1.02017189e-03f;
+    coeff[1][1] = 2.60496203e-04f;
+    coeff[1][2] = 0.0f;
+    coeff[1][3] = 1.52569843e-07f;
+
+    //IMET temp number 57558:
+    coeff[2][0] = 1.01048989e-03f;
+    coeff[2][1] = 2.62050421e-04f;
+    coeff[2][2] = 0.0f;
+    coeff[2][3] = 1.48891207e-07f;
+
+    //IMET temp number none:
+    coeff[3][0] = 1.0f;
+    coeff[3][1] = 1.0f;
+    coeff[3][2] = 0.0f;
+    coeff[3][3] = 1.0f;
+    
+    // Initialize and set I2C addresses
+    uint8_t deafult_i2cAddr = 0x48;
+    uint8_t busId = 0;
+    for(uint8_t i=0; i<4; i++){
+        CASS_Imet[i].init(busId,deafult_i2cAddr + i);
+    }
+    // Set sensor coefficients
+    CASS_Imet[0].set_sensor_coeff(coeff[0]);
+    CASS_Imet[1].set_sensor_coeff(coeff[1]);
+    CASS_Imet[2].set_sensor_coeff(coeff[2]);
+    CASS_Imet[3].set_sensor_coeff(coeff[3]);
+}
+
+void Copter::init_CASS_hyt271(){
+    // Initialize and set I2C addresses
+    uint8_t deafult_i2cAddr = 0x10;
+    uint8_t busId = 0;
+    for(uint8_t i=0; i<4; i++){
+        CASS_HYT271[i].init(busId,deafult_i2cAddr + i);
+    }
+}
+
 // return barometric altitude in centimeters
 void Copter::read_barometer(void)
 {
