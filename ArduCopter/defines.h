@@ -88,7 +88,11 @@ enum LoggingParameters {
      LOG_GUIDED_POSITION_TARGET_MSG,
      LOG_SYSIDD_MSG,
      LOG_SYSIDS_MSG,
-     LOG_GUIDED_ATTITUDE_TARGET_MSG
+     LOG_GUIDED_ATTITUDE_TARGET_MSG,
+     // BLISS log structure definition
+     LOG_IMET_MSG,
+     LOG_RH_MSG,
+     LOG_WIND_MSG
 };
 
 #define MASK_LOG_ATTITUDE_FAST          (1<<0)

@@ -7,9 +7,9 @@
 // variables
 #ifdef USERHOOK_VARIABLES
 
-#define LOG_IMET_MSG 0x29 // SD Card Memory Direction for Temp sensor
-#define LOG_RH_MSG 0x30 // SD Card Memory Direction for RH sensor
-#define LOG_WIND_MSG 0x31 //SD Card Memory Direction for our Wind estimation
+//#define LOG_IMET_MSG 0x29 // SD Card Memory Direction for Temp sensor
+//#define LOG_RH_MSG 0x30 // SD Card Memory Direction for RH sensor
+//#define LOG_WIND_MSG 0x31 //SD Card Memory Direction for our Wind estimation
 
 struct PACKED log_RH {
     LOG_PACKET_HEADER;
