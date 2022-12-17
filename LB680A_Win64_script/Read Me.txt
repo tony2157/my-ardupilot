@@ -1,0 +1,18 @@
+Python Test Harness demonstrates how to communicate with the LB[4|5|6]xx family of LadyBug Technologies RF power sensors through python.
+
+It identifies the bitness of the python environment, pre / post version 3.8 and if the sensor has been enumerated under the old or new driver to load the correct dll.
+
+Please ensure that at least one application (e.g. Power Meter) is installed first and functions correctly before attempting python communication.  Only one application at a time should be active while controlling the sensor.
+
+Commands demonstrated:
+LB_InitializeSensor_Addr
+LB_GetFrequency
+LB_SetFrequency
+LB_GetAverages
+LB_SetAverages
+LB_MeasureCW
+
+For entire command list, please see documentation.
+https://www.ladybug-tech.com/downloads/documentation/PowerMeter_Programming%20Guide_2_1.pdf
+
+The demo requires the as distributed directory structure to function correctly in any environment.  However, only one version of the dlls is necessary for a given installation, so the user can simplify and rearrange as desired.
