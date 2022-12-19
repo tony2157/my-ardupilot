@@ -7,8 +7,7 @@
 #define LOG_IMET_MSG 0x29 // SD Card Memory Direction for Temp sensor
 #define LOG_RH_MSG 0x30 // SD Card Memory Direction for RH sensor
 #define LOG_WIND_MSG 0x31 //SD Card Memory Direction for our Wind estimation
-#define LOG_LB5900_MSG 0x32 //SD Card Memory Direction for our LB5900
-#define LOG_RFE_MSG 0x33 //SD Card Memory Direction for our RFExplorer
+#define LOG_RFE_MSG 0x32 //SD Card Memory Direction for our RFExplorer
 
 struct PACKED log_RH {
     LOG_PACKET_HEADER;
