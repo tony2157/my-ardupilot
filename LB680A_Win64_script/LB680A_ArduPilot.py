@@ -256,7 +256,7 @@ while (True):
         print("Duty Cycle = {0}\n".format(pulse_dutycycle.value))
 
     # Send Mavlink messege to Pixhawk
-    if(time.time() - last_msg > 0.01 and ARRC_mav_connection != None):
+    if(time.time() - last_msg > 0.02 and ARRC_mav_connection != None):
         # Pack ARRC's message and send it
         if(Pulse_NotCW == True):
             ARRC_mav_connection.mav.arrc_sensor_raw_send(10,0,0,0,pulse_pwr.value,pulse_pkpwr.value,pulse_avgpwr.value,pulse_dutycycle.value)
