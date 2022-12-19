@@ -10,18 +10,16 @@ public:
     AP_ARRC_RFE(void);
     ~AP_ARRC_RFE(void){}
 
-    void init(uint16_t dfreq);
+    void init(uint16_t dfreq, uint16_t davg, uint16_t dmode);
 
     // search for onboard computer in GCS_MAVLink routing table
     void find_RPi();
 
     // mavlink message handler
-    float get_pwr_c(void) { return _pwr_c; }
-    float get_pwr_x(void) { return _pwr_x; }
-    float get_aux_1(void) { return _aux_1; }
-    float get_aux_2(void) { return _aux_2; }
-    float get_aux_3(void) { return _aux_3; }
-    float get_freq(void) { return _freq; }
+    float get_pwr(void) { return _pwr; }
+    float get_pkpwr(void) { return _pkpwr; }
+    float get_avgpwr(void) { return _avgpwr; }
+    float get_dcyc(void) { return _dcyc; }
     uint64_t get_timestamp(void) { return _timestamp_us; }
     void handle_message(const mavlink_message_t &msg);
 
@@ -31,11 +29,11 @@ private:
     uint8_t _compid;                // component id of onboard computer
     mavlink_channel_t _chan;        // mavlink channel used to communicate with onboard computer
     uint64_t _timestamp_us;         // time when the sample was collected (since boot)
-    float _pwr_c;                   // Power measured by the RFExplorer (dBm)
-    float _pwr_x;                   // Power measured by the RFExplorer (dBm)
-    float _aux_1;                   // Aux 1
-    float _aux_2;                   // Aux 2
-    float _aux_3;                   // Aux 3
-    float _freq;                    // Frequency at which the power was measured
+    float _pwr;                   // Pulse/CW power (dBm)
+    float _pkpwr;                   // Peak power (dBm)
+    float _avgpwr;                   // Average power (dBm)
+    float _dcyc;                   // Duty cycle
     uint16_t _dfreq;                 // Desire frequency to sample
+    uint16_t _davg;                 // Desire average length
+    uint16_t _dmode;                 // Desire Pulse or CW mode
 };

@@ -3,18 +3,20 @@
 AP_ARRC_RFE::AP_ARRC_RFE() :
     _initialised(false),
     _timestamp_us(0),
-    _freq(0),
-    _pwr_c(0),
-    _pwr_x(0),
-    _aux_1(0),
-    _aux_2(0),
-    _aux_3(0),
-    _dfreq(5800)
+    _pwr(0),
+    _pkpwr(0),
+    _avgpwr(0),
+    _dcyc(0),
+    _dfreq(3070),
+    _davg(20),
+    _dmode(1)
 {
 }
 
-void AP_ARRC_RFE::init(uint16_t dfreq){
+void AP_ARRC_RFE::init(uint16_t dfreq, uint16_t davg, uint16_t dmode){
     _dfreq = dfreq;
+    _davg = davg;
+    _dmode = dmode;
 }
 
 void AP_ARRC_RFE::handle_message(const mavlink_message_t &msg)
@@ -22,12 +24,10 @@ void AP_ARRC_RFE::handle_message(const mavlink_message_t &msg)
     mavlink_arrc_sensor_raw_t arrc_message;
     mavlink_msg_arrc_sensor_raw_decode(&msg, &arrc_message);
     _timestamp_us = AP_HAL::micros64();
-    _freq = arrc_message.freq;
-    _pwr_c = arrc_message.pwr_c;
-    _pwr_x = arrc_message.pwr_x;
-    _aux_1 = arrc_message.aux_1;
-    _aux_2 = arrc_message.aux_2;
-    _aux_3 = arrc_message.aux_3;
+    _pwr = arrc_message.pwr;
+    _pkpwr = arrc_message.pkpwr;
+    _avgpwr = arrc_message.avgpwr;
+    _dcyc = arrc_message.dcyc;
 }
 
 // search for onboard computer in GCS_MAVLink routing table
@@ -36,7 +36,7 @@ void AP_ARRC_RFE::find_RPi()
     // return immediately if initialised
     if (_initialised) {
         // Send configuration to RPi
-        mavlink_msg_arrc_sensor_raw_send(_chan, 0, _dfreq, 0, 0, 0, 0, 0, 0);
+        mavlink_msg_arrc_sensor_raw_send(_chan, AP_HAL::millis(), _dfreq, _davg, _dmode, 0, 0, 0, 0);
         return;
     }
 

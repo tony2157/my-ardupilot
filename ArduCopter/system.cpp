@@ -30,9 +30,6 @@ void Copter::init_ardupilot()
     g2.gripper.init();
 #endif
 
-    // initialize ARRC RFExplorer
-    init_ARRC_rfe();
-
 #if AC_FENCE == ENABLED
     fence.init();
 #endif
@@ -91,8 +88,8 @@ void Copter::init_ardupilot()
     init_CASS_imet();
     init_CASS_hyt271();
 
-    // initialize ARRC LB5900 sensor
-    init_ARRC_lb5900();
+    // initialize ARRC LB680A
+    init_ARRC_rfe();
 
     // check if we should enter esc calibration mode
     esc_calibration_startup_check();

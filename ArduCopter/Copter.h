@@ -74,7 +74,6 @@
 #include <AC_CASS_HYT271/AC_CASS_HYT271.h>
 
 // ARRC libraries declaration
-#include <AP_ARRC_LB5900/AP_ARRC_LB5900.h>
 #include <AP_ARRC_RFE/AP_ARRC_RFE.h>
 
 // Configuration
@@ -260,8 +259,7 @@ private:
     // HYT271 humidity sensors class declaration
     AC_CASS_HYT271 CASS_HYT271[4];
 
-    // LB5900 and RFExplorer sensor class declaration
-    AP_ARRC_LB5900 ARRC_LB5900;
+    // LB680A sensor class declaration
     AP_ARRC_RFE ARRC_RFE;
 
     struct RangeFinderState {
@@ -917,7 +915,6 @@ private:
     void user_ARRC_gimbal_sim();
     void user_vpbatt_monitor();
     void user_thermohygrometer_logger();
-    void user_LB5900_logger();
     void user_RFE_logger();
     void user_ARRC_gimbal();
     void user_wind_vane();
@@ -930,7 +927,6 @@ private:
     void send_cass_hyt271(mavlink_channel_t chan);
 
     //ARRC Mavlink message
-    void send_arrc_lb5900(mavlink_channel_t chan);
     void send_arrc_rfe(mavlink_channel_t chan);
 
     // CASS Libraries sensor code initializer
@@ -938,7 +934,6 @@ private:
     void init_CASS_hyt271(void);
 
     //ARRC Libraries sensor code initializer
-    void init_ARRC_lb5900(void);
     void init_ARRC_rfe(void);
 
     // vehicle specific waypoint info helpers

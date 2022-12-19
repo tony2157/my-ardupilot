@@ -4,19 +4,12 @@ import os
 import sys
 import platform
 from ctypes import *
+from pymavlink import mavutil
 
 def configure_windows():
     """
         Set paths to DLLs
     """
-
-#    print("{0} bit".format((ctypes.sizeof(ctypes.c_voidp))*8))
-#    print(platform.architecture()[0])
-#    print(platform.architecture()[1])
-#    print(platform.machine())
-#    print(os.environ)
-    
-
     try:  # to use Python 3.8's DLL handling
         os.add_dll_directory(os.getcwd()+ "/DLLs/new/x86/")
         os.add_dll_directory(os.getcwd()+ "/DLLs/old/x86/")
@@ -61,7 +54,6 @@ if not os.path.isfile("./DLLs/old/x86/LB_API2.dll"):
     print("./DLLs/old/x86/LB_API2.dll is missing.")
     print("Please copy LB_API2.dll to this directory and retry")
     quit()
-
 
 
 # List of supported sensors
@@ -127,8 +119,11 @@ if count == 0:
     quit()
 else:
     print("There is/are {0} sensor(s) connected\n".format(count))
-#========================================================================
 
+
+#========================================================================
+#                         Look for LB sensor
+#========================================================================
 print("Using {0} driver".format(driver))
 
 # Create sensor variables
@@ -155,16 +150,65 @@ lb_api2_dll.LB_BlinkLED_Idx(sensor_idx)
 print("Reading sensor at index {0},address {1},serial# {2}\n\n".format(sensor_idx, sensor_addr, str(sensor_sNum.value,"utf-8")))
 time.sleep(1)
 
+
+#========================================================================
+#               Init Mavlink and look for autopilot
+#========================================================================
+
+# Start connection with Pixhawk through Mavlink
+try:
+    ARRC_mav_connection = mavutil.mavserial('COM3', baud=115200, source_system=1, source_component=191)
+except:
+    print("No Mavlink connection achieved")
+    ARRC_mav_connection = None
+
+if (ARRC_mav_connection != None):
+    # Wait for hearbeat from Pixhawk
+    tictoc = time.time()
+    PX4_beat = ARRC_mav_connection.wait_heartbeat(timeout=1000)
+
+    print("Mavlink connection: "+ str(PX4_beat))
+    print("Heartbeat system: sysID %u compID %u" % (ARRC_mav_connection.target_system, ARRC_mav_connection.target_component))
+
+    # Send heartbeat to confirm handshake
+    ARRC_mav_connection.mav.heartbeat_send(mavutil.mavlink.MAV_TYPE_ONBOARD_CONTROLLER, mavutil.mavlink.MAV_AUTOPILOT_INVALID, 0, 0, 0)
+
+    # Wait for config message 
+    msg = ARRC_mav_connection.recv_match(type='ARRC_SENSOR_RAW', blocking=True)
+    if not msg:
+        DFREQ = 3070
+        DAVG = 20
+        DMODE = 1
+    elif msg.get_type() == "BAD_DATA":
+        DFREQ = 3070
+        DAVG = 20
+        DMODE = 1
+    else:
+        DFREQ = msg.dfreq
+        DAVG = msg.davg
+        DMODE = msg.dmode
+else:
+    # Default values
+    DFREQ = 3070
+    DAVG = 20
+    DMODE = 1
+
+
+#========================================================================
+#                          Init LB sensor
+#========================================================================
 # Create variables
 cw_meas         = ctypes.c_double(-999.0)
-pulse_3dBpwr    = ctypes.c_double(-999.0)
+pulse_pwr       = ctypes.c_double(-999.0)
 pulse_pkpwr     = ctypes.c_double(-999.0)
 pulse_avgpwr    = ctypes.c_double(-999.0)
 pulse_dutycycle = ctypes.c_double(0)
-currentFreq     = ctypes.c_double(0)
-newFreq         = ctypes.c_double(2400000000)
-currentAver     = ctypes.c_long(0)
-newAver         = ctypes.c_long(1000)
+newFreq         = ctypes.c_double(DFREQ*1000000)
+newAver         = ctypes.c_long(DAVG)
+if(DMODE > 0.5):
+    Pulse_NotCW = True
+else:
+    Pulse_NotCW = False
 
 # Take "bad" measurement since sensor has not yet been initialized
 print("Measuring Power before initialization")
@@ -172,8 +216,58 @@ err = -999
 err = lb_api2_dll.LB_MeasureCW(sensor_addr, ctypes.byref(cw_meas))
 print("Power = {0} dBm with error value = {1}\n".format(cw_meas.value, err))
 
-# Initialize sensor
+# Initialize LB sensor
 print("Attempting to initialize sensor")
 err = -999
 err = lb_api2_dll.LB_InitializeSensor_Addr(sensor_addr)
 print("Initialized sensor with error value = {0}\n".format(err))
+
+# Set desired frequency
+err = -999
+err = lb_api2_dll.LB_SetFrequency(sensor_addr, newFreq)
+print("Setting Frequency to 2.4GHz with error value = {0}\n".format(err))
+
+# Set desired average length
+err = -999
+err = lb_api2_dll.LB_SetAverages(sensor_addr, newAver)
+print("Setting averages to 1000 with error value = {0}\n".format(err))
+
+
+
+#========================================================================
+#               LB measurements and Data streaming
+#========================================================================
+last_meas = time.time()
+last_msg = time.time()
+last_beat = time.time()
+
+while (True):
+
+    if(Pulse_NotCW == False):
+        # Take CW measurement
+        lb_api2_dll.LB_MeasureCW(sensor_addr, ctypes.byref(cw_meas))
+        print("Power = {0} dBm\n".format(cw_meas.value))
+    else:
+        # Take Pulse measurement
+        lb_api2_dll.LB_MeasurePulse(sensor_addr, ctypes.byref(pulse_pwr), ctypes.byref(pulse_pkpwr), ctypes.byref(pulse_avgpwr), ctypes.byref(pulse_dutycycle))
+        print("Pulse Power = {0} dBm\n".format(pulse_pwr.value))
+        print("Peak Power = {0} dBm\n".format(pulse_pkpwr.value))
+        print("Average Power = {0} dBm\n".format(pulse_avgpwr.value))
+        print("Duty Cycle = {0}\n".format(pulse_dutycycle.value))
+
+    # Send Mavlink messege to Pixhawk
+    if(time.time() - last_msg > 0.01 and ARRC_mav_connection != None):
+        # Pack ARRC's message and send it
+        if(Pulse_NotCW == True):
+            ARRC_mav_connection.mav.arrc_sensor_raw_send(10,0,0,0,pulse_pwr.value,pulse_pkpwr.value,pulse_avgpwr.value,pulse_dutycycle.value)
+        else:
+            ARRC_mav_connection.mav.arrc_sensor_raw_send(10,0,0,0,cw_meas.value,0,0,0)
+        last_msg = time.time()
+
+    # Send Heartbeat to Pixhawk every second
+    if(time.time() - last_beat > 0.95 and ARRC_mav_connection != None):
+        ARRC_mav_connection.mav.heartbeat_send(mavutil.mavlink.MAV_TYPE_ONBOARD_CONTROLLER, mavutil.mavlink.MAV_AUTOPILOT_INVALID, 0, 0, 0)
+        last_beat = time.time()
+
+    print("Loop time = {0} sec".format(time.time() - last_meas))
+    last_meas = time.time()

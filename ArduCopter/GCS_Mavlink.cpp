@@ -295,35 +295,17 @@ void Copter::send_cass_hyt271(mavlink_channel_t chan) {
         raw_sensor);
 }
 
-void Copter::send_arrc_lb5900(mavlink_channel_t chan) {
-    //mavlink_cass_sensor_raw_t packet;
-    float raw_sensor[5];
-    uint8_t size = 5;
-    memset(raw_sensor, 0, size * sizeof(float));
-
-    // Send LB5900 power dBm
-    raw_sensor[0] = copter.ARRC_LB5900.healthy();
-    raw_sensor[1] = copter.ARRC_LB5900.power_measure();
-
-    // Call Mavlink function and send CASS data
-    mavlink_msg_cass_sensor_raw_send(
-        chan,
-        AP_HAL::millis(),
-        2,
-        size,
-        raw_sensor);
-}
-
 void Copter::send_arrc_rfe(mavlink_channel_t chan) {
     //mavlink_cass_sensor_raw_t packet;
     float raw_sensor[5];
     uint8_t size = 5;
     memset(raw_sensor, 0, size * sizeof(float));
 
-    // Send LB5900 power dBm
-    raw_sensor[0] = copter.ARRC_RFE.get_freq();
-    raw_sensor[1] = copter.ARRC_RFE.get_pwr_c();
-    raw_sensor[2] = copter.ARRC_RFE.get_pwr_x();
+    // Send LB680A power dBm
+    raw_sensor[0] = copter.ARRC_RFE.get_pwr();
+    raw_sensor[1] = copter.ARRC_RFE.get_pkpwr();
+    raw_sensor[2] = copter.ARRC_RFE.get_avgpwr();
+    raw_sensor[3] = copter.ARRC_RFE.get_dcyc();
 
     // Call Mavlink function and send CASS data
     mavlink_msg_cass_sensor_raw_send(
@@ -461,11 +443,6 @@ bool GCS_MAVLINK_Copter::try_send_message(enum ap_message id)
     case MSG_CASS_HYT271:
         CHECK_PAYLOAD_SIZE(CASS_SENSOR_RAW);
         copter.send_cass_hyt271(chan);
-        break;
-
-    case MSG_ARRC_LB5900:
-        CHECK_PAYLOAD_SIZE(CASS_SENSOR_RAW);
-        copter.send_arrc_lb5900(chan);
         break;
 
     case MSG_ARRC_RFE:
@@ -639,7 +616,6 @@ static const ap_message STREAM_EXTRA3_msgs[] = {
     MSG_ARRC_RFE
     //MSG_CASS_IMET,
     //MSG_CASS_HYT271,
-    //MSG_ARRC_LB5900
 };
 static const ap_message STREAM_PARAMS_msgs[] = {
     MSG_NEXT_PARAM

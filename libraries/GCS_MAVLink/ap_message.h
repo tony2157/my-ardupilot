@@ -79,7 +79,6 @@ enum ap_message : uint8_t {
     MSG_WINCH_STATUS,
     MSG_CASS_IMET, //CASS message ID
     MSG_CASS_HYT271,
-    MSG_ARRC_LB5900,
     MSG_ARRC_RFE,
     MSG_WATER_DEPTH,
     MSG_LAST // MSG_LAST must be the last entry in this enum

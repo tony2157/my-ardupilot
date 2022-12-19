@@ -36,13 +36,10 @@ const AP_Param::GroupInfo UserParameters::var_info[] = {
     // GPS-based Lidar activation
     AP_GROUPINFO("_LIDAR_ALT", 19, UserParameters, gpslidar_alt, 80.0f),
     AP_GROUPINFO("_LIDAR_HUM", 20, UserParameters, gpslidar_hum, 90.0f),
-    // ARRC LB5900 params
-    AP_GROUPINFO("_LB_ADDR", 21, UserParameters, lb5900_addr, 76),
-    AP_GROUPINFO("_LB_FREQ", 22, UserParameters, lb5900_freq, 3000),
-    AP_GROUPINFO("_LB_AVG_CNT", 23, UserParameters, lb5900_avg_cnt, 10),
-    AP_GROUPINFO("_LB_RATE", 24, UserParameters, lb5900_mrate, 1),
-    // ARRC RFExplorer
-    AP_GROUPINFO("_RFE_DFREQ", 25, UserParameters, RFE_dfreq, 5800),
+    // ARRC LB680A params
+    AP_GROUPINFO("_LB_DFREQ", 21, UserParameters, LB680A_dfreq, 3070),
+    AP_GROUPINFO("_LB_DAVG", 22, UserParameters, LB680A_davg, 20),
+    AP_GROUPINFO("_LB_DMODE", 23, UserParameters, LB680A_dmode, 1),
     
     AP_GROUPEND
 };

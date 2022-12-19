@@ -113,59 +113,6 @@ void Copter::userhook_init()
 }
 #endif
 
-#ifdef USER_ARRCLB5900_LOOP
-void Copter::user_LB5900_logger()
-{
-    // Read Power in dBm. Write sensors packet into the SD card
-    // LB5900 Power Data Logger ///////////////////////////////////////////////////////////////////////////////////////////
-    struct log_LB5900 pkt_temp = {
-        LOG_PACKET_HEADER_INIT(LOG_LB5900_MSG),
-        time_stamp              : AP_HAL::micros64(),                   //Store time in microseconds
-        healthy                 : copter.ARRC_LB5900.healthy(),         //Store sensor health
-        power                   : copter.ARRC_LB5900.power_measure(),   //Store power in dBm
-    };
-    logger.WriteBlock(&pkt_temp, sizeof(pkt_temp));   //Send package to SD card
-
-    // Print desired params for Debugging
-    // if (AP_HAL::millis() - LB_now > 2000){
-
-    //     const char* (mrate[1])[4] = 
-    //     {
-    //         "NORMAL",   // 20 readings per sec
-    //         "DOUBLE",   // 40 readings per sec
-    //         "FAST",     // 110 readings per sec (disallows average count)
-    //         "SUPER"     // 110 readings per sec (allows average count)
-    //     };
-
-    //     gcs().send_text(MAV_SEVERITY_INFO,"LB health: %d",(uint8_t)copter.ARRC_LB5900.healthy());
-    //     gcs().send_text(MAV_SEVERITY_INFO,"LB power: %d",(uint8_t)copter.ARRC_LB5900.power_measure());
-
-    //     uint16_t freq = g2.user_parameters.get_lb5900_freq();
-    //     uint16_t avg_cnt = g2.user_parameters.get_lb5900_avg_cnt();
-    //     uint8_t rate = g2.user_parameters.get_lb5900_mrate();
-
-    //     char FREQ[10 + sizeof(char)] = "FREQ ";
-    //     char AVG_CNT[17 + sizeof(char)] = "SENS:AVER:COUN ";
-    //     char MRATE[16 + sizeof(char)] = "SENS:MRAT ";
-    //     char temp[5 + sizeof(char)];
-
-    //     snprintf(temp,6,"%d",freq);
-    //     strcat(FREQ, temp);
-    //     strcat(FREQ, " MHZ");
-    //     snprintf(temp,6,"%d",avg_cnt);
-    //     strcat(AVG_CNT, temp);
-    //     strcat(MRATE, mrate[0][rate]);
-
-    //     gcs().send_text(MAV_SEVERITY_INFO,"%s",FREQ);
-    //     gcs().send_text(MAV_SEVERITY_INFO,"%s",AVG_CNT);
-    //     gcs().send_text(MAV_SEVERITY_INFO,"%s",MRATE);
-
-    //     LB_now = AP_HAL::millis();
-    // }
-}
-
-#endif
-
 #ifdef USER_ARRCRFE_LOOP
 void Copter::user_RFE_logger()
 {
@@ -174,9 +121,10 @@ void Copter::user_RFE_logger()
     struct log_RFE pkt_temp = {
         LOG_PACKET_HEADER_INIT(LOG_RFE_MSG),
         time_stamp              : copter.ARRC_RFE.get_timestamp(),      //Store time in microseconds
-        freq                    : copter.ARRC_RFE.get_freq(),           //Store sampled frequency in Hz
-        pwr_c                   : copter.ARRC_RFE.get_pwr_c(),          //Store sampled power in dBm
-        pwr_x                   : copter.ARRC_RFE.get_pwr_x(),          //Store sampled power in dBm
+        pwr                     : copter.ARRC_RFE.get_pwr(),           //Store power in dBm
+        pkpwr                   : copter.ARRC_RFE.get_pkpwr(),          //Store peak power in dBm
+        avgpwr                  : copter.ARRC_RFE.get_avgpwr(),          //Store average power dBm
+        dcyc                    : copter.ARRC_RFE.get_dcyc(),          //Store duty cycle
     };
     logger.WriteBlock(&pkt_temp, sizeof(pkt_temp));   //Send package to SD card
 }
@@ -209,7 +157,7 @@ void Copter::user_ARRC_gimbal()
                 return;
             }
             if((AP_HAL::millis() - gimbal_now) < (uint32_t)(4000 + (gimbal_sample_time+gimbal_wait)*(gimbal_iter/gimbal_step+1))){ 
-                gimbal_probe_samples[gimbal_iter/gimbal_step] = gimbal_probe_samples[gimbal_iter/gimbal_step] + copter.ARRC_RFE.get_pwr_c();
+                gimbal_probe_samples[gimbal_iter/gimbal_step] = gimbal_probe_samples[gimbal_iter/gimbal_step] + copter.ARRC_RFE.get_pwr();
                 gimbal_num_samples++;
                 return;
             }
