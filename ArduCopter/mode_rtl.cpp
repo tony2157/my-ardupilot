@@ -195,10 +195,18 @@ void ModeRTL::loiterathome_start()
     _loiter_start_time = millis();
 
     // yaw back to initial take-off heading yaw unless pilot has already overridden yaw
-    if (auto_yaw.default_mode(true) != AutoYaw::Mode::HOLD) {
-        auto_yaw.set_mode(AutoYaw::Mode::RESETTOARMEDYAW);
-    } else {
-        auto_yaw.set_mode(AutoYaw::Mode::HOLD);
+    // BLISS modification: if AUTO_YAW_INTO_WIND is enabled, keep it.
+    if(auto_yaw.default_mode(true) == AutoYaw::Mode::AUTO_YAW_INTO_WIND){
+        auto_yaw.set_mode(AutoYaw::Mode::AUTO_YAW_INTO_WIND);}
+    else if(auto_yaw.default_mode(true) == AutoYaw::Mode::AUTO_YAW_WIND_CT2){
+        auto_yaw.set_mode(AutoYaw::Mode::AUTO_YAW_WIND_CT2);
+    }
+    else{
+        if(auto_yaw.default_mode(true) != AutoYaw::Mode::HOLD) {
+            auto_yaw.set_mode(AutoYaw::Mode::RESETTOARMEDYAW);
+        } else {
+            auto_yaw.set_mode(AutoYaw::Mode::HOLD);
+        }
     }
 }
 
@@ -249,7 +257,15 @@ void ModeRTL::descent_start()
     pos_control->init_z_controller_stopping_point();
 
     // initialise yaw
-    auto_yaw.set_mode(AutoYaw::Mode::HOLD);
+    // BLISS modification. Keep wind estimator while in RTL
+    if(auto_yaw.default_mode(true) == AutoYaw::Mode::AUTO_YAW_INTO_WIND){
+        auto_yaw.set_mode(AutoYaw::Mode::AUTO_YAW_INTO_WIND);}
+    else if(auto_yaw.default_mode(true) == AutoYaw::Mode::AUTO_YAW_WIND_CT2){
+        auto_yaw.set_mode(AutoYaw::Mode::AUTO_YAW_WIND_CT2);
+    }
+    else{
+        auto_yaw.set_mode(AutoYaw::Mode::HOLD);
+    }
 
 #if AP_LANDINGGEAR_ENABLED
     // optionally deploy landing gear
@@ -336,7 +352,15 @@ void ModeRTL::land_start()
     }
 
     // initialise yaw
-    auto_yaw.set_mode(AutoYaw::Mode::HOLD);
+    // BLISS modification. Keep wind estimator while in RTL
+    if(auto_yaw.default_mode(true) == AutoYaw::Mode::AUTO_YAW_INTO_WIND){
+        auto_yaw.set_mode(AutoYaw::Mode::AUTO_YAW_INTO_WIND);}
+    else if(auto_yaw.default_mode(true) == AutoYaw::Mode::AUTO_YAW_WIND_CT2){
+        auto_yaw.set_mode(AutoYaw::Mode::AUTO_YAW_WIND_CT2);
+    }
+    else{
+        auto_yaw.set_mode(AutoYaw::Mode::HOLD);
+    }
 
 #if AP_LANDINGGEAR_ENABLED
     // optionally deploy landing gear
