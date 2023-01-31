@@ -138,7 +138,19 @@ void ModeRTL::climb_start()
     }
 
     // hold current yaw during initial climb
-    auto_yaw.set_mode(AUTO_YAW_HOLD);
+    // BLISS modification: if AUTO_YAW_INTO_WIND is enabled, keep it.
+    if(auto_yaw.default_mode(true) == AUTO_YAW_INTO_WIND){
+        auto_yaw.set_mode(AUTO_YAW_INTO_WIND);}
+    else if(auto_yaw.default_mode(true) == AUTO_YAW_WIND_CT2){
+        auto_yaw.set_mode(AUTO_YAW_WIND_CT2);
+    }
+    else{
+        if(auto_yaw.default_mode(true) != AUTO_YAW_HOLD) {
+            auto_yaw.set_mode(AUTO_YAW_RESETTOARMEDYAW);
+        } else {
+            auto_yaw.set_mode(AUTO_YAW_HOLD);
+        }
+    }
 }
 
 // rtl_return_start - initialise return to home
@@ -168,7 +180,7 @@ void ModeRTL::climb_return_run()
 
     // process pilot's yaw input
     float target_yaw_rate = 0;
-    if (!copter.failsafe.radio && use_pilot_yaw()) {
+    if (!copter.failsafe.radio && use_pilot_yaw() && copter.current_loc.alt < RTL_ALT_MIN*10) { //BLISS modification
         // get pilot's desired yaw rate
         target_yaw_rate = get_pilot_desired_yaw_rate(channel_yaw->norm_input_dz());
         if (!is_zero(target_yaw_rate)) {
@@ -234,7 +246,7 @@ void ModeRTL::loiterathome_run()
 
     // process pilot's yaw input
     float target_yaw_rate = 0;
-    if (!copter.failsafe.radio && use_pilot_yaw()) {
+    if (!copter.failsafe.radio && use_pilot_yaw() && copter.current_loc.alt < RTL_ALT_MIN*10) { // BLISS modification
         // get pilot's desired yaw rate
         target_yaw_rate = get_pilot_desired_yaw_rate(channel_yaw->norm_input_dz());
         if (!is_zero(target_yaw_rate)) {
