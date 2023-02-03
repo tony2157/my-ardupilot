@@ -568,7 +568,7 @@ const struct LogStructure Copter::log_structure[] = {
       "LB59", "QBf","TimeUS,Hth,Pwr","s--","F00"},
       //ARRC RFExplorer data logging  
     { LOG_RFE_MSG, sizeof(log_RFE),
-      "RFEX", "Qff","TimeUS,Freq,Pwr","s--","F00"},
+      "RFEX", "Qff","TimeUS,Freq,pwr_c,pwr_x","s----","F0000"},
 };
 
 void Copter::Log_Write_Vehicle_Startup_Messages()
