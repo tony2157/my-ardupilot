@@ -49,6 +49,7 @@ float gimbal_probe_samples[gimbal_angle_span/gimbal_step + 1];
 uint8_t gimbal_num_samples;
 bool alignment_done;
 Matrix3d rotm_step;
+uint8_t RFswitch_status;
 
 //AutoVP mission generation
 uint32_t mission_now;
@@ -78,7 +79,10 @@ void Copter::userhook_init()
     gimbal_iter = 0;
     gimbal_num_samples = 0;
     alignment_done = false;
+    RFswitch_status = 0;
     memset(gimbal_probe_samples, 0, (gimbal_angle_span/gimbal_step + 1) * sizeof(float));
+    copter.relay.off(0);
+    copter.relay.off(1);
 
     //Wind filter initialization
     float Fss;
@@ -913,5 +917,45 @@ void Copter::userhook_auxSwitch2()
 void Copter::userhook_auxSwitch3()
 {
     // put your aux switch #3 handler here (CHx_OPT = 49)
+    // RF Switch logic
+    if((AP_HAL::millis() - mission_now) > 3000){
+        switch(RFswitch_status){
+            case 0:
+                copter.relay.off(0);
+                copter.relay.off(1);
+                RFswitch_status = 1;
+                gcs().send_text(MAV_SEVERITY_INFO, "V-pol and Rx active");
+                break;
+
+            case 1:
+                copter.relay.off(0);
+                copter.relay.on(1);
+                RFswitch_status = 2;
+                gcs().send_text(MAV_SEVERITY_INFO, "H-pol and Tx active");
+                break;
+
+            case 2:
+                copter.relay.on(0);
+                copter.relay.off(1);
+                RFswitch_status = 3;
+                gcs().send_text(MAV_SEVERITY_INFO, "V-pol and Tx active");
+                break;
+            
+            case 3:
+                copter.relay.on(0);
+                copter.relay.on(1);
+                RFswitch_status = 0;
+                gcs().send_text(MAV_SEVERITY_INFO, "H-pol and Rx active");
+                break;
+
+            default:
+                copter.relay.off(0);
+                copter.relay.off(1);
+                RFswitch_status = 0;
+                gcs().send_text(MAV_SEVERITY_INFO, "V-pol and Rx active");
+                break;
+        }
+        mission_now = AP_HAL::millis();
+    }
 }
 #endif
