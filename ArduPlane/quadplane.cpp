@@ -1324,6 +1324,10 @@ void QuadPlane::set_armed(bool armed)
     if (plane.control_mode == &plane.mode_guided) {
         guided_wait_takeoff = armed;
     }
+
+    // re-init throttle wait on arm and disarm, to prevent rudder
+    // arming on 2nd flight causing yaw
+    init_throttle_wait();
 }
 
 
@@ -4243,6 +4247,11 @@ void SLT_Transition::set_FW_roll_pitch(int32_t& nav_pitch_cd, int32_t& nav_roll_
 
     if (transition_state == TRANSITION_DONE) {
         // transition complete, nothing to do
+        return;
+    }
+
+    if (!plane.control_mode->does_auto_throttle()) {
+        // don't limit pitch when in manually controlled modes like FBWA, ACRO
         return;
     }
 
