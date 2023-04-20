@@ -930,7 +930,7 @@ private:
 
     // UserCode.cpp
     void userhook_init();
-    void userhook_FastLoop();
+    void user_ARRC_gimbal();
     void userhook_50Hz();
     void userhook_MediumLoop();
     void userhook_SlowLoop();

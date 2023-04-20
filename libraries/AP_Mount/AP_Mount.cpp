@@ -434,6 +434,39 @@ void AP_Mount::set_roi_target(uint8_t instance, const Location &target_loc)
     }
 }
 
+// ARRC set fixed yaw angle after antenna alignment
+void AP_Mount::set_fixed_yaw_angle(uint8_t instance, float fixed_yaw)
+{
+    if (!check_instance(instance)) {
+        return;
+    }
+
+    // send command to backend
+    _backends[instance]->set_fixed_yaw_angle(fixed_yaw);
+}
+
+// ARRC set Rotation matrix offset after antenna alignment
+void AP_Mount::set_RotM_offset(uint8_t instance, Matrix3d rotm_off)
+{
+    if (!check_instance(instance)) {
+        return;
+    }
+
+    // send command to backend
+    _backends[instance]->set_RotM_offset(rotm_off);
+}
+
+// ARRC get AUT elevation
+float AP_Mount::get_AUT_elevation(uint8_t instance) const
+{
+    if (!check_instance(instance)) {
+        return 0;
+    }
+
+    // send command to backend
+    return _backends[instance]->get_AUT_elevation();
+}
+
 //
 // camera controls for gimbals that include a camera
 //
