@@ -73,6 +73,15 @@ public:
     // set_roi_target - sets target location that mount should attempt to point towards
     void set_roi_target(const Location &target_loc);
 
+    // ARRC set fixed yaw angle after antenna alignment
+    void set_fixed_yaw_angle(float fixed_yaw);
+
+    // ARRC set Rotation matrix offset after antenna alignment
+    void set_RotM_offset(Matrix3d rotm_off);
+
+    // ARRC get elevation
+    float get_AUT_elevation() {return _params.ARRC_elev;};
+
     // set_sys_target - sets system that mount should attempt to point towards
     void set_target_sysid(uint8_t sysid);
 

@@ -29,4 +29,9 @@ public:
 
     AP_Float    roll_stb_lead;      // roll lead control gain (only used by servo backend)
     AP_Float    pitch_stb_lead;     // pitch lead control gain (only used by servo backend)
+
+    // ARRC params
+    AP_Float    ARRC_elev;          // AUT elevation
+    AP_Float    ARRC_z_offset;      // Gimbal Z offset wrt the CG (down is negative)
+    Matrix3d    rotM_offset;        // ARRC Rotation matrix offset applied to the gimbal after calibration
 };
