@@ -7,6 +7,8 @@
 
 extern const AP_HAL::HAL& hal;
 
+//uint32_t _now = 0; // Uncomment this for debugging
+
 #define AP_MOUNT_UPDATE_DT 0.02     // update rate in seconds.  update() should be called at this rate
 
 // set angle target in degrees
@@ -316,25 +318,6 @@ bool AP_Mount_Backend::get_angle_target_to_location(const Location &target, Moun
         return false;
     }
 
-    // const float GPS_vector_x = Location::diff_longitude(loc.lng, current_loc.lng)*cosf(ToRad((current_loc.lat + loc.lat) * 0.00000005f)) * 0.01113195f;
-    // const float GPS_vector_y = (loc.lat - current_loc.lat) * 0.01113195f;
-    // int32_t target_alt_cm = 0;
-    // if (!loc.get_alt_cm(Location::AltFrame::ABOVE_HOME, target_alt_cm)) {
-    //     return false;
-    // }
-    // int32_t current_alt_cm = 0;
-    // if (!current_loc.get_alt_cm(Location::AltFrame::ABOVE_HOME, current_alt_cm)) {
-    //     return false;
-    // }
-    // float GPS_vector_z = target_alt_cm - current_alt_cm;
-    // float target_distance = 100.0f*norm(GPS_vector_x, GPS_vector_y);      // Careful , centimeters here locally. Baro/alt is in cm, lat/lon is in meters.
-
-    // // calculate roll, pitch, yaw angles
-    // angle_rad.roll = 0;
-    // angle_rad.pitch = atan2f(GPS_vector_z, target_distance);
-    // angle_rad.yaw = atan2f(GPS_vector_x, GPS_vector_y);
-    // angle_rad.yaw_is_ef = true;
-
     // Haversine formula
     double curr_lat = ((double)current_loc.lat)*1.0e-7*M_PI/180.0;
     double tar_lat = ((double)target.lat)*1.0e-7*M_PI/180.0;
@@ -378,6 +361,7 @@ bool AP_Mount_Backend::get_angle_target_to_location(const Location &target, Moun
     double el = _params.ARRC_elev*DEG_TO_RAD;
 
     // Alexmos gimbal convention: Pitch down (+), Roll right (+), Yaw right (+)
+    // Gremsy gimbal convention: Pitch down (?), Roll right (?), Yaw right (?)
     // This technique's convention: Pitch down (-), Roll right (-), Yaw right (+)
     // Position (x,y,z) is NWU convention with the AUT as the origin
     if(dist2target > 10){
