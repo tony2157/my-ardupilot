@@ -141,7 +141,7 @@ const AP_Param::GroupInfo AP_Mount_Params::var_info[] = {
     // @Range: 0.0 0.2
     // @Increment: .005
     // @User: Standard
-    AP_GROUPINFO("_ARRC_AUT_YAW", 12, AP_Mount_Params, roll_stb_lead, 0.0f),
+    AP_GROUPINFO("_ARRC_AZTH", 12, AP_Mount_Params, roll_stb_lead, 0.0f),
 
     // @Param: _LEAD_PTCH
     // @DisplayName: Mount Pitch stabilization lead time
@@ -150,7 +150,7 @@ const AP_Param::GroupInfo AP_Mount_Params::var_info[] = {
     // @Range: 0.0 0.2
     // @Increment: .005
     // @User: Standard
-    AP_GROUPINFO("_ARRC_GB_MODE", 13, AP_Mount_Params, pitch_stb_lead, 0.0f),
+    AP_GROUPINFO("_ARRC_GMODE", 13, AP_Mount_Params, pitch_stb_lead, 0.0f),
 
     // @Param: _ARRC_ELEV
     // @DisplayName: AUT elevation
@@ -159,7 +159,7 @@ const AP_Param::GroupInfo AP_Mount_Params::var_info[] = {
     // @Range: 0.0 90
     // @Increment: .1
     // @User: Standard
-    AP_GROUPINFO("_ARRC_AUT_EL", 14, AP_Mount_Params, ARRC_elev, 0.0f),
+    AP_GROUPINFO("_ARRC_ELEV", 14, AP_Mount_Params, ARRC_elev, 0.0f),
 
     // @Param: _ARRC_ZOFF
     // @DisplayName: Offset between UAS CoM and Probe
