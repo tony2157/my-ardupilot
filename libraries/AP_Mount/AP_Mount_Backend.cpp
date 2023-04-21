@@ -401,7 +401,7 @@ bool AP_Mount_Backend::get_angle_target_to_location(const Location &target, Moun
             // Point gimbal straight down without corrections
 
             // tilt calcs. Fixed 
-            angle_rad.pitch = M_PI_2;
+            angle_rad.pitch = -M_PI_2;
             
             // roll calcs. Fixed
             angle_rad.roll = 0;
@@ -424,7 +424,7 @@ bool AP_Mount_Backend::get_angle_target_to_location(const Location &target, Moun
             RotM = _params.rotM_offset*RotM;
 
             // tilt calcs = atan2(Reb(1,3),Reb(3,3))
-            angle_rad.pitch = (float)-1.0*atan2(RotM.a.z, RotM.c.z);
+            angle_rad.pitch = (float)atan2(RotM.a.z, RotM.c.z);
             
             // roll calcs = atan2(-Reb(2,3),sqrt(1-Reb(2,3)^2))
             angle_rad.roll = (float)-1.0*atan2(-RotM.b.z, sqrt(1.0 - RotM.b.z*RotM.b.z));
@@ -449,7 +449,7 @@ bool AP_Mount_Backend::get_angle_target_to_location(const Location &target, Moun
             RotM =  _params.rotM_offset*RotM;
 
             // tilt calcs = atan2(Reb(1,3),Reb(3,3))
-            angle_rad.pitch = (float)-1.0*atan2(RotM.a.z, RotM.c.z);
+            angle_rad.pitch = (float)atan2(RotM.a.z, RotM.c.z);
             
             // roll calcs = atan2(-Reb(2,3),sqrt(1-Reb(2,3)^2))
             angle_rad.roll = (float)-1.0*atan2(-RotM.b.z, sqrt(1.0 - RotM.b.z*RotM.b.z));
