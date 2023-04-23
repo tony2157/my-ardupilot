@@ -61,6 +61,7 @@ void AP_Mount::init()
     // create each instance
     for (uint8_t instance=0; instance<AP_MOUNT_MAX_INSTANCES; instance++) {
         MountType mount_type = get_mount_type(instance);
+        _params[instance].rotM_offset.identity();           // ARRC modification. Initialize rotation matrix offset
 
         // check for servo mounts
         if (mount_type == Mount_Type_Servo) {

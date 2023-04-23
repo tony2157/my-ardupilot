@@ -357,7 +357,7 @@ bool AP_Mount_Backend::get_angle_target_to_location(const Location &target, Moun
     float slope = 0;
     if(!is_zero(horzdist2target)) slope = fabsf((float)z/horzdist2target);
 
-    // AUT elevation
+    // Get AUT elevation
     double el = _params.ARRC_elev*DEG_TO_RAD;
 
     // Alexmos gimbal convention: Pitch down (+), Roll right (+), Yaw right (+)
@@ -455,7 +455,7 @@ bool AP_Mount_Backend::get_angle_target_to_location(const Location &target, Moun
     //     gcs().send_text(MAV_SEVERITY_INFO,"Pitch: %5.2f",(float)angles_to_target_rad.y*RAD_TO_DEG);
     //     gcs().send_text(MAV_SEVERITY_INFO,"Roll: %5.2f",(float)angles_to_target_rad.x*RAD_TO_DEG);
     //     gcs().send_text(MAV_SEVERITY_INFO,"Yaw: %5.2f",(float)angles_to_target_rad.z*RAD_TO_DEG);
-    //     _now = AP_HAL::millis();
+    //     _now = AP_HAL::millis(); // Don't forget to uncomment declaration at the very top
     // }
 
     return true;
