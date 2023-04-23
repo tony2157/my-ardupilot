@@ -175,5 +175,4 @@ const AP_Param::GroupInfo AP_Mount_Params::var_info[] = {
 
 AP_Mount_Params::AP_Mount_Params(void) {
     AP_Param::setup_object_defaults(this, var_info);
-    rotM_offset.identity();
 }
