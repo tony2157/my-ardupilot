@@ -376,7 +376,7 @@ bool AP_Mount_Backend::get_angle_target_to_location(const Location &target, Moun
 
             // calculate roll, pitch, yaw angles
             angle_rad.roll = 0;
-            angle_rad.pitch = atan2f(GPS_vector_z, target_distance);
+            angle_rad.pitch = atan2f(GPS_vector_z/100.0, target_distance);
             angle_rad.yaw = atan2f(GPS_vector_x, GPS_vector_y);
             angle_rad.yaw_is_ef = true;
         }
@@ -391,8 +391,8 @@ bool AP_Mount_Backend::get_angle_target_to_location(const Location &target, Moun
             angle_rad.roll = 0;
 
             // pan calcs. Fixed and equal to user param
-            angle_rad.yaw = (float)wrap_180((fixed_yaw - (double)AP::ahrs().yaw)*RAD_TO_DEG)*DEG_TO_RAD;
-            angle_rad.yaw_is_ef = false;
+            angle_rad.yaw = (float)wrap_180(fixed_yaw*RAD_TO_DEG)*DEG_TO_RAD;
+            angle_rad.yaw_is_ef = true;
         }
         else if(is_zero(_params.pitch_stb_lead - 2)){
 
@@ -415,8 +415,8 @@ bool AP_Mount_Backend::get_angle_target_to_location(const Location &target, Moun
 
             // pan calcs = atan2(Reb(2,1),Reb(2,2))
             angle_rad.yaw = (float)atan2f(RotM.b.x,RotM.b.y) + fixed_yaw;
-            angle_rad.yaw = (float)wrap_180((angle_rad.yaw - (double)AP::ahrs().yaw)*RAD_TO_DEG)*DEG_TO_RAD;
-            angle_rad.yaw_is_ef = false;
+            //angle_rad.yaw = (float)wrap_180(angle_rad.yaw*RAD_TO_DEG)*DEG_TO_RAD;
+            angle_rad.yaw_is_ef = true;
         }
         else if(is_zero(_params.pitch_stb_lead - 3)){
 
@@ -439,9 +439,9 @@ bool AP_Mount_Backend::get_angle_target_to_location(const Location &target, Moun
             angle_rad.roll = (float)-1.0*atan2(-RotM.b.z, sqrt(1.0 - RotM.b.z*RotM.b.z));
 
             // pan calcs = atan2(Reb(2,1),Reb(2,2))
-            angle_rad.pitch = (float)atan2(RotM.b.x,RotM.b.y) + fixed_yaw;
-            angle_rad.yaw = (float)wrap_180((angle_rad.yaw - (double)AP::ahrs().yaw)*RAD_TO_DEG)*DEG_TO_RAD;
-            angle_rad.yaw_is_ef = false;
+            angle_rad.yaw = (float)atan2(RotM.b.x,RotM.b.y) + fixed_yaw;
+            //angle_rad.yaw = (float)wrap_180(angle_rad.yaw*RAD_TO_DEG)*DEG_TO_RAD;
+            angle_rad.yaw_is_ef = true;
         }
     }
 
@@ -452,9 +452,9 @@ bool AP_Mount_Backend::get_angle_target_to_location(const Location &target, Moun
     //     gcs().send_text(MAV_SEVERITY_INFO,"Target X: %5.2f",(float)x);
     //     gcs().send_text(MAV_SEVERITY_INFO,"Target Y: %5.2f",(float)y);
     //     gcs().send_text(MAV_SEVERITY_INFO,"Target Z: %5.2f",(float)z);
-    //     gcs().send_text(MAV_SEVERITY_INFO,"Pitch: %5.2f",(float)angles_to_target_rad.y*RAD_TO_DEG);
-    //     gcs().send_text(MAV_SEVERITY_INFO,"Roll: %5.2f",(float)angles_to_target_rad.x*RAD_TO_DEG);
-    //     gcs().send_text(MAV_SEVERITY_INFO,"Yaw: %5.2f",(float)angles_to_target_rad.z*RAD_TO_DEG);
+    //     gcs().send_text(MAV_SEVERITY_INFO,"Pitch: %5.2f",(float)angle_rad.pitch*RAD_TO_DEG);
+    //     gcs().send_text(MAV_SEVERITY_INFO,"Roll: %5.2f",(float)angle_rad.roll*RAD_TO_DEG);
+    //     gcs().send_text(MAV_SEVERITY_INFO,"Yaw: %5.2f",(float)angle_rad.yaw*RAD_TO_DEG);
     //     _now = AP_HAL::millis(); // Don't forget to uncomment declaration at the very top
     // }
 
