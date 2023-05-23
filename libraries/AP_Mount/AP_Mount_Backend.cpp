@@ -337,7 +337,7 @@ bool AP_Mount_Backend::calc_angle_to_location_d(const struct Location &target, V
             // Original ArduPilot mode
 
             // tilt calcs
-            angles_to_target_rad.y = atan2(-z, target_distance);
+            angles_to_target_rad.y = atan2(z, target_distance);
 
             // roll is leveled to the ground
 
