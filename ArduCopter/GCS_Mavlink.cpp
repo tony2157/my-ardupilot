@@ -247,6 +247,27 @@ int16_t GCS_MAVLINK_Copter::vfr_hud_throttle() const
     return (int16_t)(copter.motors->get_throttle() * 100);
 }
 
+void Copter::send_arrc_gcs_message(mavlink_channel_t chan) {
+    //mavlink_cass_sensor_raw_t packet;
+    float raw_sensor[5];
+    uint8_t size = 5;
+    memset(raw_sensor, 0, size * sizeof(float));
+
+    // Send LB680A power dBm
+    raw_sensor[0] = copter.ARRC_LB680A.get_pwr();
+    raw_sensor[1] = copter.ARRC_LB680A.get_pkpwr();
+    raw_sensor[2] = copter.ARRC_LB680A.get_avgpwr();
+    raw_sensor[3] = copter.ARRC_LB680A.get_dcyc();
+
+    // Call Mavlink function and send CASS data
+    mavlink_msg_cass_sensor_raw_send(
+        chan,
+        AP_HAL::millis(),
+        3,
+        size,
+        raw_sensor);
+}
+
 /*
   send PID tuning message
  */
@@ -367,6 +388,11 @@ bool GCS_MAVLINK_Copter::try_send_message(enum ap_message id)
 #endif
         break;
     }
+
+    case MSG_ARRC_LB680A:
+        CHECK_PAYLOAD_SIZE(CASS_SENSOR_RAW);
+        copter.send_arrc_gcs_message(chan);
+        break;
 
     default:
         return GCS_MAVLINK::try_send_message(id);
@@ -545,6 +571,7 @@ static const ap_message STREAM_EXTRA3_msgs[] = {
 #if HAL_EFI_ENABLED
     MSG_EFI_STATUS,
 #endif
+    MSG_ARRC_LB680A,
 };
 static const ap_message STREAM_PARAMS_msgs[] = {
     MSG_NEXT_PARAM
@@ -1083,6 +1110,16 @@ void GCS_MAVLINK_Copter::handleMessage(const mavlink_message_t &msg)
         POSITION_TARGET_TYPEMASK_FORCE_SET;
 
     switch (msg.msgid) {
+
+    // ARRC RFE message handle
+    case MAVLINK_MSG_ID_ARRC_SENSOR_RAW:
+    {
+        // Recieve message from RPi and handle the RFExplorer data
+        copter.ARRC_LB680A.handle_message(msg);
+        // Immediately save the data to the SD card
+        copter.user_ARRC_LB680A_logger();
+        break;
+    }
 
     case MAVLINK_MSG_ID_MANUAL_CONTROL:
     {

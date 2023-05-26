@@ -945,6 +945,9 @@ private:
     void userhook_auxSwitch2(const RC_Channel::AuxSwitchPos ch_flag);
     void userhook_auxSwitch3(const RC_Channel::AuxSwitchPos ch_flag);
 
+    //ARRC Mavlink message
+    void send_arrc_gcs_message(mavlink_channel_t chan);
+
     //ARRC Libraries sensor code initializer
     void init_ARRC_LB680A(void);
 
