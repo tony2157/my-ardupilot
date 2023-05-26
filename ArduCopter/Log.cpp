@@ -558,6 +558,10 @@ const struct LogStructure Copter::log_structure[] = {
 
     { LOG_GUIDED_ATTITUDE_TARGET_MSG, sizeof(log_Guided_Attitude_Target),
       "GUIA",  "QBffffffff",    "TimeUS,Type,Roll,Pitch,Yaw,RollRt,PitchRt,YawRt,Thrust,ClimbRt", "s-dddkkk-n", "F-000000-0" , true },
+
+    //ARRC LB680A data logging  
+    { LOG_LB680A_MSG, sizeof(log_LB680A),
+      "LB68", "Qffff","TimeUS,Pwr,PkPwr,AvgPwr,Dcyc","s----","F0000"},
 };
 
 void Copter::Log_Write_Vehicle_Startup_Messages()

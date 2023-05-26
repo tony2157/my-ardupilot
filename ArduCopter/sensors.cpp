@@ -1,5 +1,9 @@
 #include "Copter.h"
 
+void Copter::init_ARRC_LB680A(){
+    ARRC_LB680A.init(g2.user_parameters.get_LB680A_dfreq(), g2.user_parameters.get_LB680A_davg(), g2.user_parameters.get_LB680A_dmode());
+}
+
 // return barometric altitude in centimeters
 void Copter::read_barometer(void)
 {

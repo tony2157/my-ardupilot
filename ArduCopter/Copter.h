@@ -72,6 +72,9 @@
 #include <AP_OpticalFlow/AP_OpticalFlow.h>
 #include <AP_Winch/AP_Winch_config.h>
 
+// ARRC libraries declaration
+#include <AC_ARRC_LB680A/AC_ARRC_LB680A.h>
+
 // Configuration
 #include "defines.h"
 #include "config.h"
@@ -251,6 +254,9 @@ private:
     // flight modes convenience array
     AP_Int8 *flight_modes;
     const uint8_t num_flight_modes = 6;
+
+    // LB680A sensor class declaration
+    AC_ARRC_LB680A ARRC_LB680A;
 
     struct RangeFinderState {
         bool enabled:1;
@@ -938,13 +944,16 @@ private:
     // UserCode.cpp
     void userhook_init();
     void user_ARRC_gimbal();
-    void userhook_50Hz();
+    void user_ARRC_LB680A_logger();
     void userhook_MediumLoop();
     void userhook_SlowLoop();
     void userhook_SuperSlowLoop();
     void userhook_auxSwitch1(const RC_Channel::AuxSwitchPos ch_flag);
     void userhook_auxSwitch2(const RC_Channel::AuxSwitchPos ch_flag);
     void userhook_auxSwitch3(const RC_Channel::AuxSwitchPos ch_flag);
+
+    //ARRC Libraries sensor code initializer
+    void init_ARRC_LB680A(void);
 
 #if MODE_ACRO_ENABLED == ENABLED
 #if FRAME_CONFIG == HELI_FRAME

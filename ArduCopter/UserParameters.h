@@ -14,9 +14,19 @@ public:
     AP_Int16 get_int16Param() const { return _int16; }
     AP_Float get_floatParam() const { return _float; }
 
+    // ARRC LB680A
+    AP_Int16 get_LB680A_dfreq() const{return LB680A_dfreq; }
+    AP_Int16 get_LB680A_davg() const{return LB680A_davg; }
+    AP_Int16 get_LB680A_dmode() const{return LB680A_dmode; }
+    
 private:
     // Put your parameter variable definitions here
     AP_Int8 _int8;
     AP_Int16 _int16;
     AP_Float _float;
+
+    //ARRC LB680A params
+    AP_Int16 LB680A_dfreq;
+    AP_Int16 LB680A_davg;
+    AP_Int16 LB680A_dmode;
 };

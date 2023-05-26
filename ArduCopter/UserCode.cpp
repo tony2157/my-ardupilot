@@ -194,10 +194,20 @@ void Copter::user_ARRC_gimbal()
 }
 #endif
 
-#ifdef USERHOOK_50HZLOOP
-void Copter::userhook_50Hz()
+#ifdef USER_LB680A_LOOP
+void Copter::user_ARRC_LB680A_logger()
 {
-    // put your 50Hz code here
+    // Read Power in dBm. Write sensors packet into the SD card
+    // RFExplorer Power Data Logger ///////////////////////////////////////////////////////////////////////////////////////////
+    struct log_LB680A pkt_temp = {
+        LOG_PACKET_HEADER_INIT(LOG_LB680A_MSG),
+        time_stamp              : copter.ARRC_LB680A.get_timestamp(),      //Store time in microseconds
+        pwr                     : copter.ARRC_LB680A.get_pwr(),           //Store power in dBm
+        pkpwr                   : copter.ARRC_LB680A.get_pkpwr(),          //Store peak power in dBm
+        avgpwr                  : copter.ARRC_LB680A.get_avgpwr(),          //Store average power dBm
+        dcyc                    : copter.ARRC_LB680A.get_dcyc(),          //Store duty cycle
+    };
+    logger.WriteBlock(&pkt_temp, sizeof(pkt_temp));   //Send package to SD card
 }
 #endif
 
