@@ -3,7 +3,7 @@
 #include <AP_Vehicle/AP_Vehicle.h>
 #include <GCS_MAVLink/GCS_MAVLink.h>
 
-#define ARRC_RPI_SEARCH_MS 60000
+#define ARRC_RPI_SEARCH_MS 180000
 
 class AC_ARRC_LB680A {
 public:
