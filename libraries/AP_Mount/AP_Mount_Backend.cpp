@@ -2,9 +2,6 @@
 #if HAL_MOUNT_ENABLED
 #include <AP_AHRS/AP_AHRS.h>
 
-#define ALLOW_DOUBLE_MATH_FUNCTIONS
-#define ALLOW_DOUBLE_TRIG_FUNCTIONS
-
 extern const AP_HAL::HAL& hal;
 
 //uint32_t _now = 0; // Uncomment this for debugging
@@ -382,10 +379,10 @@ bool AP_Mount_Backend::get_angle_target_to_location(const Location &target, Moun
         }
         else if(is_zero(_params.pitch_stb_lead - 1)){
 
-            // Point gimbal straight down without corrections
+            // Probe plane parallel to AUT plane
 
             // tilt calcs. Fixed 
-            angle_rad.pitch = -M_PI_2;
+            angle_rad.pitch = (float)-el;
             
             // roll calcs. Fixed
             angle_rad.roll = 0;
