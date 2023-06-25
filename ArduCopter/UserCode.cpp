@@ -4,7 +4,7 @@
 uint32_t gimbal_now;
 bool gimbal_execute;
 uint8_t gimbal_iter;
-const uint8_t gimbal_angle_span = 100;        // Must be an even number
+const uint8_t gimbal_angle_span = 60;        // Must be an even number
 const uint8_t gimbal_step = 10;              // Angle steps
 const uint16_t gimbal_wait = 2200;           // Waiting time while gimbal is rotating
 const uint16_t gimbal_sample_time = 2000;    // Sampling time at each angle step in milliseconds
@@ -24,7 +24,7 @@ void Copter::userhook_init()
     gimbal_execute = false;
     gimbal_iter = 0;
     gimbal_num_samples = 0;
-    alignment_done = false;
+    alignment_done = true;
     memset(gimbal_probe_samples, 0, (gimbal_angle_span/gimbal_step + 1) * sizeof(float));
 }
 #endif
@@ -56,7 +56,7 @@ void Copter::user_ARRC_gimbal()
                 return;
             }
             if((AP_HAL::millis() - gimbal_now) < (uint32_t)(4000 + (gimbal_sample_time+gimbal_wait)*(gimbal_iter/gimbal_step+1))){ 
-                gimbal_probe_samples[gimbal_iter/gimbal_step] = gimbal_probe_samples[gimbal_iter/gimbal_step]; // + copter.ARRC_RFE.get_pwr();
+                gimbal_probe_samples[gimbal_iter/gimbal_step] = gimbal_probe_samples[gimbal_iter/gimbal_step] + copter.ARRC_LB680A.get_pwr();
                 gimbal_num_samples++;
                 return;
             }
