@@ -2,6 +2,7 @@
 
 //ARRC Gimbal function global params
 uint32_t gimbal_now;
+uint32_t switch_pause;
 bool gimbal_execute;
 uint8_t gimbal_iter;
 const uint8_t gimbal_angle_span = 60;        // Must be an even number
@@ -21,6 +22,7 @@ void Copter::userhook_init()
 
     //ARRC Gimbal params init
     gimbal_now = AP_HAL::millis();
+    switch_pause = AP_HAL::millis();
     gimbal_execute = false;
     gimbal_iter = 0;
     gimbal_num_samples = 0;
@@ -32,12 +34,11 @@ void Copter::userhook_init()
 #ifdef USER_GIMBAL_LOOP
 void Copter::user_ARRC_gimbal()
 {
-    // put your 100Hz code here
-    //float elev = copter.camera_mount.get_AUT_elevation();
-    Vector3d axis = {-1.0, 0.0, 0.0}; // Rotate about the axis that is pointing to the AUT (Gimbal frame)
-    uint8_t N = gimbal_angle_span/2;
-
     if(gimbal_execute == true){
+
+        // Rotate about the axis that is pointing to the AUT (Gimbal frame)
+        Vector3d axis = {-1.0, 0.0, 0.0};
+        uint8_t N = gimbal_angle_span/2;
 
         // Set Gimbal at initial rotation
         rotm_step.from_axis_angle(axis, ((double)(-N))*DEG_TO_RAD);
@@ -137,6 +138,8 @@ void Copter::user_ARRC_gimbal()
         // Check if we got a local maxima. Otherwise, the alignment failed
         if(a[2] > 0 || is_zero(a[2])){
             gcs().send_text(MAV_SEVERITY_INFO, "Gimbal alignment failed: No Maxima");
+            rotm_step.identity();
+            copter.camera_mount.set_RotM_offset(rotm_step);
             gimbal_execute = false;
             return;
         }
@@ -175,6 +178,8 @@ void Copter::user_ARRC_gimbal()
         // Check the correlation coefficient. Alignment failed if corr is too low
         if(fabsf(corr) < 0.85){
             gcs().send_text(MAV_SEVERITY_INFO, "Gimbal alignment failed: R = %f",corr);
+            rotm_step.identity();
+            copter.camera_mount.set_RotM_offset(rotm_step);
             gimbal_execute = false;
             return;
         }
@@ -238,22 +243,29 @@ void Copter::userhook_auxSwitch1(const RC_Channel::AuxSwitchPos ch_flag)
     // put your aux switch #1 handler here (CHx_OPT = 47)
     // Execution of the ARRC gimbal movement
 
-    if(alignment_done == false ){
-        gcs().send_text(MAV_SEVERITY_INFO, "Executing Gimbal alignment");
-        memset(gimbal_probe_samples, 0, (gimbal_angle_span/gimbal_step + 1) * sizeof(float));
-        gimbal_num_samples = 0;
-        gimbal_iter = 0;
-        gimbal_now = AP_HAL::millis();
-        gimbal_execute = true;
-        alignment_done = true;
+    if(AP_HAL::millis() - switch_pause > 5000){
+        if(alignment_done == false && gimbal_execute == false){
+            gcs().send_text(MAV_SEVERITY_INFO, "Executing Gimbal alignment");
+            memset(gimbal_probe_samples, 0, (gimbal_angle_span/gimbal_step + 1) * sizeof(float));
+            gimbal_num_samples = 0;
+            gimbal_iter = 0;
+            gimbal_now = AP_HAL::millis();
+            gimbal_execute = true;
+            alignment_done = true;
+        }
+        else if(alignment_done == true && gimbal_execute == false){
+            rotm_step.identity();
+            copter.camera_mount.set_RotM_offset(rotm_step);
+            gcs().send_text(MAV_SEVERITY_INFO, "Gimbal RotM offset cleared");
+            alignment_done = false;
+            gimbal_execute = false;
+        }
+        else{
+            return;
+        }
     }
-    else{
-        rotm_step.identity();
-        copter.camera_mount.set_RotM_offset(rotm_step);
-        gcs().send_text(MAV_SEVERITY_INFO, "Gimbal RotM offset cleared");
-        alignment_done = false;
-        gimbal_execute = false;
-    }
+    
+    switch_pause = AP_HAL::millis();
 }
 
 void Copter::userhook_auxSwitch2(const RC_Channel::AuxSwitchPos ch_flag)
