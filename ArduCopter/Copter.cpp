@@ -234,7 +234,7 @@ const AP_Scheduler::Task Copter::scheduler_tasks[] = {
     SCHED_TASK_CLASS(AP_Winch,             &copter.g2.winch,            update,          50,  50, 150),
 #endif
 #ifdef USER_GIMBAL_LOOP
-    SCHED_TASK(user_ARRC_gimbal,    10,     75, 153),
+    SCHED_TASK(user_ARRC_gimbal,    5,     100, 172),
 #endif
 // #ifdef USER_LB680A_LOOP
 //     SCHED_TASK(user_ARRC_LB680A_logger,         50,     75, 156),
