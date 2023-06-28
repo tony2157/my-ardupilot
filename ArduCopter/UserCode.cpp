@@ -5,14 +5,17 @@ uint32_t gimbal_now;
 uint32_t switch_pause;
 bool gimbal_execute;
 uint8_t gimbal_iter;
-const uint8_t gimbal_angle_span = 60;        // Must be an even number
-const uint8_t gimbal_step = 10;              // Angle steps
-const uint16_t gimbal_wait = 2500;           // Waiting time while gimbal is rotating
+const uint8_t gimbal_angle_span = 30;        // Must be an even number
+const uint8_t gimbal_step = 5;              // Angle steps
+const uint16_t gimbal_init_wait = 4000;      // Gimbal initial waiting time
+const uint16_t gimbal_wait = 3000;           // Waiting time while gimbal is rotating
 const uint16_t gimbal_sample_time = 2000;    // Sampling time at each angle step in milliseconds
 float gimbal_probe_samples[gimbal_angle_span/gimbal_step + 1];
 uint8_t gimbal_num_samples;
 bool alignment_done;
 Matrix3d rotm_step;
+
+uint8_t kek;
 
 #ifdef USERHOOK_INIT
 void Copter::userhook_init()
@@ -28,6 +31,8 @@ void Copter::userhook_init()
     gimbal_num_samples = 0;
     alignment_done = true;
     memset(gimbal_probe_samples, 0, (gimbal_angle_span/gimbal_step + 1) * sizeof(float));
+
+    kek = 0;
 }
 #endif
 
@@ -45,7 +50,7 @@ void Copter::user_ARRC_gimbal()
         copter.camera_mount.set_RotM_offset(rotm_step);
 
         // Wait for a certain amount of time before starting the measurements
-        if((AP_HAL::millis() - gimbal_now) < 4000){ return;}
+        if((AP_HAL::millis() - gimbal_now) < gimbal_init_wait){ return;}
 
         repeat:
         if(gimbal_iter <= 2*N){
@@ -55,12 +60,12 @@ void Copter::user_ARRC_gimbal()
             copter.camera_mount.set_RotM_offset(rotm_step);
 
             // Wait for the gimbal to complete rotating
-            if((AP_HAL::millis() - gimbal_now) < (uint32_t)(4000 + gimbal_wait*(gimbal_iter/gimbal_step+1))){ 
+            if((AP_HAL::millis() - gimbal_now) < (uint32_t)(gimbal_init_wait + gimbal_wait*(gimbal_iter/gimbal_step+1))){ 
                 return;
             }
 
             // Collect power measurements during a time period
-            if((AP_HAL::millis() - gimbal_now) < (uint32_t)(4000 + (gimbal_sample_time+gimbal_wait)*(gimbal_iter/gimbal_step+1))){ 
+            if((AP_HAL::millis() - gimbal_now) < (uint32_t)(gimbal_init_wait + (gimbal_sample_time+gimbal_wait)*(gimbal_iter/gimbal_step+1))){ 
                 gimbal_probe_samples[gimbal_iter/gimbal_step] = gimbal_probe_samples[gimbal_iter/gimbal_step] + copter.ARRC_LB680A.get_pwr();
                 gimbal_num_samples++;
                 return;
@@ -75,12 +80,28 @@ void Copter::user_ARRC_gimbal()
             goto repeat;
         }
 
-        // Fake input for debugging
-        // float test[31] = {16.85, 17.2, 17.53, 17.84, 18.13, 18.4, 18.65, 
-        //                 18.88, 19.09, 19.28, 19.45, 19.6, 19.73, 19.84, 
-        //                 19.93, 20, 20.05, 20.08, 20.09, 20.08, 20.05, 20,
-        //                 19.93, 19.84, 19.73, 19.6, 19.45, 19.28, 19.09,
-        //                 18.88, 18.65};
+        // // Simulated data points for code test and debugging
+        // if (kek == 0){
+        //     float newValues[] = {-10.6525, -10.2897, -10.0700, -10.0001, -10.0821, -10.3136, -10.6874}; // 0.2 deg offset, measured: -0.197742
+        //     for(int i = 0; i < 7; i++) {
+        //         gimbal_probe_samples[i] = newValues[i];
+        //     }
+        //     kek = kek + 1;
+        // }
+        // else if (kek == 1){
+        //     float newValues[] = {-10.5450, -10.2185, -10.0373, -10.0069, -10.1281, -10.3975, -10.8066}; // 1.5 deg offset, measured: -1.484070
+        //     for(int i = 0; i < 7; i++) {
+        //         gimbal_probe_samples[i] = newValues[i];
+        //     }
+        //     kek = kek + 1;
+        // }
+        // else{
+        //     float newValues[] = {-10.0760, -10.0000, -10.0760, -10.3015, -10.6699, -11.1698, -11.7861}; // 10 deg offset, measured: -10.30861
+        //     for(int i = 0; i < 7; i++) {
+        //         gimbal_probe_samples[i] = newValues[i];
+        //     }
+        //     kek = 0;
+        // }
 
         int8_t i,j,k;
         int8_t n = gimbal_angle_span/gimbal_step;
