@@ -5,8 +5,8 @@ uint32_t gimbal_now;
 uint32_t switch_pause;
 bool gimbal_execute;
 uint8_t gimbal_iter;
-const uint8_t gimbal_angle_span = 30;        // Must be an even number
-const uint8_t gimbal_step = 5;              // Angle steps
+const uint8_t gimbal_angle_span = 64;        // Must be an even number
+const uint8_t gimbal_step = 8;              // Angle steps
 const uint16_t gimbal_init_wait = 4000;      // Gimbal initial waiting time
 const uint16_t gimbal_wait = 3000;           // Waiting time while gimbal is rotating
 const uint16_t gimbal_sample_time = 2500;    // Sampling time at each angle step in milliseconds
