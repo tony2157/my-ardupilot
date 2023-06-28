@@ -7,7 +7,7 @@ bool gimbal_execute;
 uint8_t gimbal_iter;
 const uint8_t gimbal_angle_span = 60;        // Must be an even number
 const uint8_t gimbal_step = 10;              // Angle steps
-const uint16_t gimbal_wait = 2200;           // Waiting time while gimbal is rotating
+const uint16_t gimbal_wait = 2500;           // Waiting time while gimbal is rotating
 const uint16_t gimbal_sample_time = 2000;    // Sampling time at each angle step in milliseconds
 float gimbal_probe_samples[gimbal_angle_span/gimbal_step + 1];
 uint8_t gimbal_num_samples;
@@ -40,35 +40,43 @@ void Copter::user_ARRC_gimbal()
         Vector3d axis = {-1.0, 0.0, 0.0};
         uint8_t N = gimbal_angle_span/2;
 
-        // Set Gimbal at initial rotation
+        // Set Gimbal to initial rotation
         rotm_step.from_axis_angle(axis, ((double)(-N))*DEG_TO_RAD);
         copter.camera_mount.set_RotM_offset(rotm_step);
 
+        // Wait for a certain amount of time before starting the measurements
         if((AP_HAL::millis() - gimbal_now) < 4000){ return;}
 
         repeat:
         if(gimbal_iter <= 2*N){
 
-            // rotate gimbal at predefined angle steps
+            // rotate gimbal to the next angle step
             rotm_step.from_axis_angle(axis, ((double)(-N+gimbal_iter))*DEG_TO_RAD);
             copter.camera_mount.set_RotM_offset(rotm_step);
 
+            // Wait for the gimbal to complete rotating
             if((AP_HAL::millis() - gimbal_now) < (uint32_t)(4000 + gimbal_wait*(gimbal_iter/gimbal_step+1))){ 
                 return;
             }
+
+            // Collect power measurements during a time period
             if((AP_HAL::millis() - gimbal_now) < (uint32_t)(4000 + (gimbal_sample_time+gimbal_wait)*(gimbal_iter/gimbal_step+1))){ 
                 gimbal_probe_samples[gimbal_iter/gimbal_step] = gimbal_probe_samples[gimbal_iter/gimbal_step] + copter.ARRC_LB680A.get_pwr();
                 gimbal_num_samples++;
                 return;
             }
+
+            // Average the collected power measurements
             gimbal_probe_samples[gimbal_iter/gimbal_step] /= gimbal_num_samples;
             gimbal_num_samples = 0;
+
+            // Reapeat the process until completing all angle steps
             gimbal_iter = gimbal_iter + gimbal_step;
             goto repeat;
         }
 
         // Fake input for debugging
-        // float y[31] = {16.85, 17.2, 17.53, 17.84, 18.13, 18.4, 18.65, 
+        // float test[31] = {16.85, 17.2, 17.53, 17.84, 18.13, 18.4, 18.65, 
         //                 18.88, 19.09, 19.28, 19.45, 19.6, 19.73, 19.84, 
         //                 19.93, 20, 20.05, 20.08, 20.09, 20.08, 20.05, 20,
         //                 19.93, 19.84, 19.73, 19.6, 19.45, 19.28, 19.09,
@@ -77,6 +85,7 @@ void Copter::user_ARRC_gimbal()
         int8_t i,j,k;
         int8_t n = gimbal_angle_span/gimbal_step;
 
+        // Create array of angle steps corresponding to each power measurement
         float x[n + 1];
         for(i = 0; i<=2*N; i=i+gimbal_step){
             x[i/gimbal_step] = i - N;
