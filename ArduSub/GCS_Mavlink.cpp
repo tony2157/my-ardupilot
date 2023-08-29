@@ -21,10 +21,10 @@ MAV_MODE GCS_MAVLINK_Sub::base_mode() const
     // the APM flight mode and has a well defined meaning in the
     // ArduPlane documentation
     switch (sub.control_mode) {
-    case AUTO:
-    case GUIDED:
-    case CIRCLE:
-    case POSHOLD:
+    case Mode::Number::AUTO:
+    case Mode::Number::GUIDED:
+    case Mode::Number::CIRCLE:
+    case Mode::Number::POSHOLD:
         _base_mode |= MAV_MODE_FLAG_GUIDED_ENABLED;
         // note that MAV_MODE_FLAG_AUTO_ENABLED does not match what
         // APM does in any mode, as that is defined as "system finds its own goal
@@ -50,7 +50,7 @@ MAV_MODE GCS_MAVLINK_Sub::base_mode() const
 
 uint32_t GCS_Sub::custom_mode() const
 {
-    return sub.control_mode;
+    return (uint32_t)sub.control_mode;
 }
 
 MAV_STATE GCS_MAVLINK_Sub::vehicle_system_status() const
@@ -416,7 +416,7 @@ bool GCS_MAVLINK_Sub::handle_guided_request(AP_Mission::Mission_Command &cmd)
     return sub.do_guided(cmd);
 }
 
-MAV_RESULT GCS_MAVLINK_Sub::_handle_command_preflight_calibration_baro()
+MAV_RESULT GCS_MAVLINK_Sub::_handle_command_preflight_calibration_baro(const mavlink_message_t &msg)
 {
     if (sub.motors.armed()) {
         gcs().send_text(MAV_SEVERITY_INFO, "Disarm before calibration.");
@@ -431,7 +431,7 @@ MAV_RESULT GCS_MAVLINK_Sub::_handle_command_preflight_calibration_baro()
     return MAV_RESULT_ACCEPTED;
 }
 
-MAV_RESULT GCS_MAVLINK_Sub::_handle_command_preflight_calibration(const mavlink_command_long_t &packet)
+MAV_RESULT GCS_MAVLINK_Sub::_handle_command_preflight_calibration(const mavlink_command_long_t &packet, const mavlink_message_t &msg)
 {
     if (is_equal(packet.param6,1.0f)) {
         // compassmot calibration
@@ -440,7 +440,7 @@ MAV_RESULT GCS_MAVLINK_Sub::_handle_command_preflight_calibration(const mavlink_
         return MAV_RESULT_UNSUPPORTED;
     }
 
-    return GCS_MAVLINK::_handle_command_preflight_calibration(packet);
+    return GCS_MAVLINK::_handle_command_preflight_calibration(packet, msg);
 }
 
 MAV_RESULT GCS_MAVLINK_Sub::handle_command_do_set_roi(const Location &roi_loc)
@@ -448,7 +448,7 @@ MAV_RESULT GCS_MAVLINK_Sub::handle_command_do_set_roi(const Location &roi_loc)
     if (!roi_loc.check_latlng()) {
         return MAV_RESULT_FAILED;
     }
-    sub.set_auto_yaw_roi(roi_loc);
+    sub.mode_auto.set_auto_yaw_roi(roi_loc);
     return MAV_RESULT_ACCEPTED;
 }
 
@@ -460,17 +460,17 @@ bool GCS_MAVLINK_Sub::set_home(const Location& loc, bool _lock) {
 }
 
 
-MAV_RESULT GCS_MAVLINK_Sub::handle_command_long_packet(const mavlink_command_long_t &packet)
+MAV_RESULT GCS_MAVLINK_Sub::handle_command_long_packet(const mavlink_command_long_t &packet, const mavlink_message_t &msg)
 {
     switch (packet.command) {
     case MAV_CMD_NAV_LOITER_UNLIM:
-        if (!sub.set_mode(POSHOLD, ModeReason::GCS_COMMAND)) {
+        if (!sub.set_mode(Mode::Number::POSHOLD, ModeReason::GCS_COMMAND)) {
             return MAV_RESULT_FAILED;
         }
         return MAV_RESULT_ACCEPTED;
 
     case MAV_CMD_NAV_LAND:
-        if (!sub.set_mode(SURFACE, ModeReason::GCS_COMMAND)) {
+        if (!sub.set_mode(Mode::Number::SURFACE, ModeReason::GCS_COMMAND)) {
             return MAV_RESULT_FAILED;
         }
         return MAV_RESULT_ACCEPTED;
@@ -483,7 +483,7 @@ MAV_RESULT GCS_MAVLINK_Sub::handle_command_long_packet(const mavlink_command_lon
         if ((packet.param1 >= 0.0f)   &&
             (packet.param1 <= 360.0f) &&
             (is_zero(packet.param4) || is_equal(packet.param4,1.0f))) {
-            sub.set_auto_yaw_look_at_heading(packet.param1, packet.param2, (int8_t)packet.param3, (uint8_t)packet.param4);
+            sub.mode_auto.set_auto_yaw_look_at_heading(packet.param1, packet.param2, (int8_t)packet.param3, (uint8_t)packet.param4);
             return MAV_RESULT_ACCEPTED;
         }
         return MAV_RESULT_FAILED;
@@ -500,7 +500,7 @@ MAV_RESULT GCS_MAVLINK_Sub::handle_command_long_packet(const mavlink_command_lon
         return MAV_RESULT_FAILED;
 
     case MAV_CMD_MISSION_START:
-        if (sub.motors.armed() && sub.set_mode(AUTO, ModeReason::GCS_COMMAND)) {
+        if (sub.motors.armed() && sub.set_mode(Mode::Number::AUTO, ModeReason::GCS_COMMAND)) {
             return MAV_RESULT_ACCEPTED;
         }
         return MAV_RESULT_FAILED;
@@ -516,7 +516,7 @@ MAV_RESULT GCS_MAVLINK_Sub::handle_command_long_packet(const mavlink_command_lon
         return MAV_RESULT_ACCEPTED;
 
     default:
-        return GCS_MAVLINK::handle_command_long_packet(packet);
+        return GCS_MAVLINK::handle_command_long_packet(packet, msg);
     }
 }
 
@@ -543,6 +543,19 @@ void GCS_MAVLINK_Sub::handleMessage(const mavlink_message_t &msg)
         // a RC override message is considered to be a 'heartbeat'
         // from the ground station for failsafe purposes
         gcs().sysid_myggcs_seen(AP_HAL::millis());
+        break;
+    }
+
+    case MAVLINK_MSG_ID_RC_CHANNELS_OVERRIDE: {     // MAV ID: 70
+        if (msg.sysid != sub.g.sysid_my_gcs) {
+            break;    // Only accept control from our gcs
+        }
+
+        sub.failsafe.last_pilot_input_ms = AP_HAL::millis();
+        // a RC override message is considered to be a 'heartbeat'
+        // from the ground station for failsafe purposes
+        
+        handle_rc_channels_override(msg);
         break;
     }
 
@@ -575,7 +588,7 @@ void GCS_MAVLINK_Sub::handleMessage(const mavlink_message_t &msg)
             // descend at up to WPNAV_SPEED_DN
             climb_rate_cms = (packet.thrust - 0.5f) * 2.0f * sub.wp_nav.get_default_speed_down();
         }
-        sub.guided_set_angle(Quaternion(packet.q[0],packet.q[1],packet.q[2],packet.q[3]), climb_rate_cms);
+        sub.mode_guided.guided_set_angle(Quaternion(packet.q[0],packet.q[1],packet.q[2],packet.q[3]), climb_rate_cms);
         break;
     }
 
@@ -585,7 +598,7 @@ void GCS_MAVLINK_Sub::handleMessage(const mavlink_message_t &msg)
         mavlink_msg_set_position_target_local_ned_decode(&msg, &packet);
 
         // exit if vehicle is not in Guided mode or Auto-Guided mode
-        if ((sub.control_mode != GUIDED) && !(sub.control_mode == AUTO && sub.auto_mode == Auto_NavGuided)) {
+        if ((sub.control_mode != Mode::Number::GUIDED) && !(sub.control_mode == Mode::Number::AUTO && sub.auto_mode == Auto_NavGuided)) {
             break;
         }
 
@@ -593,34 +606,32 @@ void GCS_MAVLINK_Sub::handleMessage(const mavlink_message_t &msg)
         if (packet.coordinate_frame != MAV_FRAME_LOCAL_NED &&
                 packet.coordinate_frame != MAV_FRAME_LOCAL_OFFSET_NED &&
                 packet.coordinate_frame != MAV_FRAME_BODY_NED &&
-                packet.coordinate_frame != MAV_FRAME_BODY_OFFSET_NED) {
+                packet.coordinate_frame != MAV_FRAME_BODY_OFFSET_NED &&
+                packet.coordinate_frame != MAV_FRAME_BODY_FRD) {
             break;
         }
 
         bool pos_ignore      = packet.type_mask & MAVLINK_SET_POS_TYPE_MASK_POS_IGNORE;
         bool vel_ignore      = packet.type_mask & MAVLINK_SET_POS_TYPE_MASK_VEL_IGNORE;
         bool acc_ignore      = packet.type_mask & MAVLINK_SET_POS_TYPE_MASK_ACC_IGNORE;
-
-        /*
-         * for future use:
-         * bool force           = packet.type_mask & MAVLINK_SET_POS_TYPE_MASK_FORCE;
-         * bool yaw_ignore      = packet.type_mask & MAVLINK_SET_POS_TYPE_MASK_YAW_IGNORE;
-         * bool yaw_rate_ignore = packet.type_mask & MAVLINK_SET_POS_TYPE_MASK_YAW_RATE_IGNORE;
-         */
+        bool yaw_ignore      = packet.type_mask & MAVLINK_SET_POS_TYPE_MASK_YAW_IGNORE;
+        bool yaw_rate_ignore = packet.type_mask & MAVLINK_SET_POS_TYPE_MASK_YAW_RATE_IGNORE;
 
         // prepare position
         Vector3f pos_vector;
         if (!pos_ignore) {
             // convert to cm
             pos_vector = Vector3f(packet.x * 100.0f, packet.y * 100.0f, -packet.z * 100.0f);
-            // rotate to body-frame if necessary
+            // rotate from body-frame if necessary
             if (packet.coordinate_frame == MAV_FRAME_BODY_NED ||
+                    packet.coordinate_frame == MAV_FRAME_BODY_FRD ||
                     packet.coordinate_frame == MAV_FRAME_BODY_OFFSET_NED) {
                 sub.rotate_body_frame_to_NE(pos_vector.x, pos_vector.y);
             }
             // add body offset if necessary
             if (packet.coordinate_frame == MAV_FRAME_LOCAL_OFFSET_NED ||
                     packet.coordinate_frame == MAV_FRAME_BODY_NED ||
+                    packet.coordinate_frame == MAV_FRAME_BODY_FRD ||
                     packet.coordinate_frame == MAV_FRAME_BODY_OFFSET_NED) {
                 pos_vector += sub.inertial_nav.get_position_neu_cm();
             }
@@ -631,19 +642,31 @@ void GCS_MAVLINK_Sub::handleMessage(const mavlink_message_t &msg)
         if (!vel_ignore) {
             // convert to cm
             vel_vector = Vector3f(packet.vx * 100.0f, packet.vy * 100.0f, -packet.vz * 100.0f);
-            // rotate to body-frame if necessary
-            if (packet.coordinate_frame == MAV_FRAME_BODY_NED || packet.coordinate_frame == MAV_FRAME_BODY_OFFSET_NED) {
+            // rotate from body-frame if necessary
+            if (packet.coordinate_frame == MAV_FRAME_BODY_NED || packet.coordinate_frame == MAV_FRAME_BODY_FRD || packet.coordinate_frame == MAV_FRAME_BODY_OFFSET_NED) {
                 sub.rotate_body_frame_to_NE(vel_vector.x, vel_vector.y);
             }
         }
 
+        // prepare yaw
+        float yaw_cd =  0.0f;
+        bool yaw_relative = false;
+        float yaw_rate_cds = 0.0f;
+        if (!yaw_ignore) {
+            yaw_cd = ToDeg(packet.yaw) * 100.0f;
+            yaw_relative = packet.coordinate_frame == MAV_FRAME_BODY_OFFSET_NED;
+        }
+        if (!yaw_rate_ignore) {
+            yaw_rate_cds = ToDeg(packet.yaw_rate) * 100.0f;
+        }
+
         // send request
         if (!pos_ignore && !vel_ignore && acc_ignore) {
-            sub.guided_set_destination_posvel(pos_vector, vel_vector);
+            sub.mode_guided.guided_set_destination_posvel(pos_vector, vel_vector, !yaw_ignore, yaw_cd, !yaw_rate_ignore, yaw_rate_cds, yaw_relative);
         } else if (pos_ignore && !vel_ignore && acc_ignore) {
-            sub.guided_set_velocity(vel_vector);
+            sub.mode_guided.guided_set_velocity(vel_vector, !yaw_ignore, yaw_cd, !yaw_rate_ignore, yaw_rate_cds, yaw_relative);
         } else if (!pos_ignore && vel_ignore && acc_ignore) {
-            sub.guided_set_destination(pos_vector);
+            sub.mode_guided.guided_set_destination(pos_vector, !yaw_ignore, yaw_cd, !yaw_rate_ignore, yaw_rate_cds, yaw_relative);
         }
 
         break;
@@ -655,9 +678,9 @@ void GCS_MAVLINK_Sub::handleMessage(const mavlink_message_t &msg)
         mavlink_msg_set_position_target_global_int_decode(&msg, &packet);
 
         // exit if vehicle is not in Guided, Auto-Guided, or Depth Hold modes
-        if ((sub.control_mode != GUIDED)
-            && !(sub.control_mode == AUTO && sub.auto_mode == Auto_NavGuided)
-            && !(sub.control_mode == ALT_HOLD)) {
+        if ((sub.control_mode != Mode::Number::GUIDED)
+            && !(sub.control_mode == Mode::Number::AUTO && sub.auto_mode == Auto_NavGuided)
+            && !(sub.control_mode == Mode::Number::ALT_HOLD)) {
             break;
         }
 
@@ -673,7 +696,7 @@ void GCS_MAVLINK_Sub::handleMessage(const mavlink_message_t &msg)
          * bool yaw_rate_ignore = packet.type_mask & MAVLINK_SET_POS_TYPE_MASK_YAW_RATE_IGNORE;
          */
 
-        if (!z_ignore && sub.control_mode == ALT_HOLD) { // Control only target depth when in ALT_HOLD
+        if (!z_ignore && sub.control_mode == Mode::Number::ALT_HOLD) { // Control only target depth when in ALT_HOLD
             sub.pos_control.set_pos_target_z_cm(packet.alt*100);
             break;
         }
@@ -702,11 +725,11 @@ void GCS_MAVLINK_Sub::handleMessage(const mavlink_message_t &msg)
         }
 
         if (!pos_ignore && !vel_ignore && acc_ignore) {
-            sub.guided_set_destination_posvel(pos_neu_cm, Vector3f(packet.vx * 100.0f, packet.vy * 100.0f, -packet.vz * 100.0f));
+            sub.mode_guided.guided_set_destination_posvel(pos_neu_cm, Vector3f(packet.vx * 100.0f, packet.vy * 100.0f, -packet.vz * 100.0f));
         } else if (pos_ignore && !vel_ignore && acc_ignore) {
-            sub.guided_set_velocity(Vector3f(packet.vx * 100.0f, packet.vy * 100.0f, -packet.vz * 100.0f));
+            sub.mode_guided.guided_set_velocity(Vector3f(packet.vx * 100.0f, packet.vy * 100.0f, -packet.vz * 100.0f));
         } else if (!pos_ignore && vel_ignore && acc_ignore) {
-            sub.guided_set_destination(pos_neu_cm);
+            sub.mode_guided.guided_set_destination(pos_neu_cm);
         }
 
         break;
@@ -777,11 +800,11 @@ int32_t GCS_MAVLINK_Sub::global_position_int_relative_alt() const {
 int16_t GCS_MAVLINK_Sub::high_latency_target_altitude() const
 {
     AP_AHRS &ahrs = AP::ahrs();
-    struct Location global_position_current;
+    Location global_position_current;
     UNUSED_RESULT(ahrs.get_location(global_position_current));
 
     //return units are m
-    if (sub.control_mode == AUTO || sub.control_mode == GUIDED) {
+    if (sub.control_mode == Mode::Number::AUTO || sub.control_mode == Mode::Number::GUIDED) {
         return 0.01 * (global_position_current.alt + sub.pos_control.get_pos_error_z_cm());
     }
     return 0;
@@ -791,7 +814,7 @@ int16_t GCS_MAVLINK_Sub::high_latency_target_altitude() const
 uint8_t GCS_MAVLINK_Sub::high_latency_tgt_heading() const
 {
     // return units are deg/2
-    if (sub.control_mode == AUTO || sub.control_mode == GUIDED) {
+    if (sub.control_mode == Mode::Number::AUTO || sub.control_mode == Mode::Number::GUIDED) {
         // need to convert -18000->18000 to 0->360/2
         return wrap_360_cd(sub.wp_nav.get_wp_bearing_to_destination()) / 200;
     }
@@ -801,7 +824,7 @@ uint8_t GCS_MAVLINK_Sub::high_latency_tgt_heading() const
 uint16_t GCS_MAVLINK_Sub::high_latency_tgt_dist() const
 {
     // return units are dm
-    if (sub.control_mode == AUTO || sub.control_mode == GUIDED) {
+    if (sub.control_mode == Mode::Number::AUTO || sub.control_mode == Mode::Number::GUIDED) {
         return MIN(sub.wp_nav.get_wp_distance_to_destination() * 0.001, UINT16_MAX);
     }
     return 0;
@@ -810,7 +833,7 @@ uint16_t GCS_MAVLINK_Sub::high_latency_tgt_dist() const
 uint8_t GCS_MAVLINK_Sub::high_latency_tgt_airspeed() const
 {
     // return units are m/s*5
-    if (sub.control_mode == AUTO || sub.control_mode == GUIDED) {
+    if (sub.control_mode == Mode::Number::AUTO || sub.control_mode == Mode::Number::GUIDED) {
         return MIN((sub.pos_control.get_vel_desired_cms().length()/100) * 5, UINT8_MAX);
     }
     return 0;

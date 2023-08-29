@@ -43,11 +43,11 @@ public:
 private:
     uint32_t last_pkt1_us;
     uint32_t last_pkt2_us;
+    uint32_t last_type_us;
 
     void send_packet1();
     void send_packet2();
-
-    uint64_t start_us;
+    void nmea_printf(const char *fmt, ...);
 };
 
 }

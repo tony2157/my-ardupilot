@@ -24,6 +24,9 @@
 #include <GCS_MAVLink/GCS_MAVLink.h>
 #include "AP_Proximity_Params.h"
 #include "AP_Proximity_Boundary_3D.h"
+#include <AP_Vehicle/AP_Vehicle_Type.h>
+
+#include <AP_HAL/Semaphores.h>
 
 #define PROXIMITY_MAX_INSTANCES             3   // Maximum number of proximity sensor instances available on this platform
 #define PROXIMITY_SENSOR_ID_START 10
@@ -34,6 +37,7 @@ class AP_Proximity
 {
 public:
     friend class AP_Proximity_Backend;
+    friend class AP_Proximity_DroneCAN;
 
     AP_Proximity();
 
@@ -44,18 +48,42 @@ public:
     enum class Type {
         None    = 0,
         // 1 was SF40C_v09
+#if AP_PROXIMITY_MAV_ENABLED
         MAV     = 2,
+#endif
+#if AP_PROXIMITY_TERARANGERTOWER_ENABLED
         TRTOWER = 3,
+#endif
+#if AP_PROXIMITY_RANGEFINDER_ENABLED
         RangeFinder = 4,
+#endif
+#if AP_PROXIMITY_RPLIDARA2_ENABLED
         RPLidarA2 = 5,
+#endif
+#if AP_PROXIMITY_TERARANGERTOWEREVO_ENABLED
         TRTOWEREVO = 6,
+#endif
+#if AP_PROXIMITY_LIGHTWARE_SF40C_ENABLED
         SF40C = 7,
+#endif
+#if AP_PROXIMITY_LIGHTWARE_SF45B_ENABLED
         SF45B = 8,
-#if CONFIG_HAL_BOARD == HAL_BOARD_SITL
+#endif
+#if AP_PROXIMITY_SITL_ENABLED
         SITL    = 10,
+#endif
+#if AP_PROXIMITY_AIRSIMSITL_ENABLED
         AirSimSITL = 12,
 #endif
+#if AP_PROXIMITY_CYGBOT_ENABLED
         CYGBOT_D1 = 13,
+#endif
+#if AP_PROXIMITY_DRONECAN_ENABLED
+        DroneCAN = 14,
+#endif
+#if AP_PROXIMITY_SCRIPTING_ENABLED
+        Scripting = 15,
+#endif
     };
 
     enum class Status {
@@ -115,6 +143,9 @@ public:
     uint8_t get_object_count() const;
     bool get_object_angle_and_distance(uint8_t object_number, float& angle_deg, float &distance) const;
 
+    // get obstacle pitch and angle for a particular obstacle num
+    bool get_obstacle_info(uint8_t obstacle_num, float &angle_deg, float &pitch, float &distance) const;
+
     //
     // mavlink related methods
     //
@@ -152,11 +183,19 @@ public:
 
     static AP_Proximity *get_singleton(void) { return _singleton; };
 
+    // return backend object for Lua scripting
+    AP_Proximity_Backend *get_backend(uint8_t id) const;
+
     // 3D boundary
     AP_Proximity_Boundary_3D boundary;
 
     // Check if Obstacle defined by body-frame yaw and pitch is near ground
     bool check_obstacle_near_ground(float pitch, float yaw, float distance) const;
+
+    // get proximity address (for AP_Periph CAN)
+    uint8_t get_address(uint8_t id) const {
+        return id >= PROXIMITY_MAX_INSTANCES? 0 : uint8_t(params[id].address.get());
+    }
 
 protected:
 
@@ -188,6 +227,7 @@ private:
         uint32_t last_downward_update_ms;  // last update ms
     } _rangefinder_state;
 
+    HAL_Semaphore detect_sem;
 };
 
 namespace AP {

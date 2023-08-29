@@ -18,9 +18,11 @@
 
 #pragma once
 
-#include "AP_ExternalAHRS_backend.h"
+#include "AP_ExternalAHRS_config.h"
 
-#if HAL_EXTERNAL_AHRS_ENABLED
+#if AP_EXTERNAL_AHRS_VECTORNAV_ENABLED
+
+#include "AP_ExternalAHRS_backend.h"
 
 class AP_ExternalAHRS_VectorNav : public AP_ExternalAHRS_backend {
 
@@ -42,10 +44,13 @@ public:
         check_uart();
     }
 
+    // Get model/type name
+    const char* get_name() const override;
+
 private:
     AP_HAL::UARTDriver *uart;
     int8_t port_num;
-    bool port_opened;
+    bool setup_complete;
     uint32_t baudrate;
 
     void update_thread();
@@ -53,7 +58,8 @@ private:
 
     void process_packet1(const uint8_t *b);
     void process_packet2(const uint8_t *b);
-    void send_config(void) const;
+    void process_packet_VN_100(const uint8_t *b);
+    void wait_register_responce(const uint8_t register_num);
 
     uint8_t *pktbuf;
     uint16_t pktoffset;
@@ -64,7 +70,28 @@ private:
 
     uint32_t last_pkt1_ms;
     uint32_t last_pkt2_ms;
+
+    enum class TYPE {
+        VN_300,
+        VN_100,
+    } type;
+
+    char model_name[25];
+
+    // NMEA parsing for setup
+    bool decode(char c);
+    bool decode_latest_term();
+    struct NMEA_parser {
+        char term[25];            // buffer for the current term within the current sentence
+        uint8_t term_offset;      // offset within the _term buffer where the next character should be placed
+        uint8_t term_number;      // term index within the current sentence
+        uint8_t checksum;         // checksum accumulator
+        bool term_is_checksum;    // current term is the checksum
+        bool sentence_valid;      // is current sentence valid so far
+        bool sentence_done;       // true if this sentence has already been decoded
+        uint8_t register_number;  // VectorNAV register number were reading
+    } nmea;
+
 };
 
-#endif  // HAL_EXTERNAL_AHRS_ENABLED
-
+#endif  // AP_EXTERNAL_AHRS_VECTORNAV_ENABLED

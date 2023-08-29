@@ -70,7 +70,7 @@ bool Compass::_start_calibration(uint8_t i, bool retry, float delay)
         }
     }
 
-    if (_options.get() & uint16_t(Option::CAL_REQUIRE_GPS)) {
+    if (option_set(Option::CAL_REQUIRE_GPS)) {
         if (AP::gps().status() < AP_GPS::GPS_OK_FIX_2D) {
             gcs().send_text(MAV_SEVERITY_ERROR, "Compass cal requires GPS lock");
             return false;
@@ -371,7 +371,7 @@ uint8_t Compass::_get_cal_mask()
 /*
   handle an incoming MAG_CAL command
  */
-MAV_RESULT Compass::handle_mag_cal_command(const mavlink_command_long_t &packet)
+MAV_RESULT Compass::handle_mag_cal_command(const mavlink_command_int_t &packet)
 {
     MAV_RESULT result = MAV_RESULT_FAILED;
 
@@ -392,7 +392,7 @@ MAV_RESULT Compass::handle_mag_cal_command(const mavlink_command_long_t &packet)
         bool retry = !is_zero(packet.param2);
         bool autosave = !is_zero(packet.param3);
         float delay = packet.param4;
-        bool autoreboot = !is_zero(packet.param5);
+        bool autoreboot = packet.x != 0;
 
         if (mag_mask == 0) { // 0 means all
             _reset_compass_id();
@@ -463,18 +463,20 @@ bool Compass::get_uncorrected_field(uint8_t instance, Vector3f &field) const
     // needed to remove the effects of the eliptical correction
     // when calculating new offsets
     const Vector3f &diagonals = get_diagonals(instance);
-    const Vector3f &offdiagonals = get_offdiagonals(instance);
-    Matrix3f mat {
-        diagonals.x, offdiagonals.x, offdiagonals.y,
-        offdiagonals.x,    diagonals.y, offdiagonals.z,
-        offdiagonals.y, offdiagonals.z,    diagonals.z
-    };
-    if (!mat.invert()) {
-        return false;
-    }
+    if (!diagonals.is_zero()) {
+        const Vector3f &offdiagonals = get_offdiagonals(instance);
+        Matrix3f mat {
+            diagonals.x, offdiagonals.x, offdiagonals.y,
+            offdiagonals.x,    diagonals.y, offdiagonals.z,
+            offdiagonals.y, offdiagonals.z,    diagonals.z
+        };
+        if (!mat.invert()) {
+            return false;
+        }
 
-    // remove impact of diagonals and off-diagonals
-    field = mat * field;
+        // remove impact of diagonals and off-diagonals
+        field = mat * field;
+    }
 #endif
 
     // remove impact of offsets

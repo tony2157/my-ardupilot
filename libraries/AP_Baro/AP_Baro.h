@@ -4,6 +4,7 @@
 
 #include <AP_HAL/AP_HAL.h>
 #include <AP_Param/AP_Param.h>
+#include <AP_Math/AP_Math.h>
 #include <Filter/DerivativeFilter.h>
 #include <AP_MSP/msp.h>
 #include <AP_ExternalAHRS/AP_ExternalAHRS.h>
@@ -27,6 +28,7 @@ class AP_Baro
 {
     friend class AP_Baro_Backend;
     friend class AP_Baro_SITL; // for access to sensors[]
+    friend class AP_Baro_DroneCAN; // for access to sensors[]
 
 public:
     AP_Baro();
@@ -56,9 +58,9 @@ public:
     bool healthy(void) const { return healthy(_primary); }
 #ifdef HAL_BUILD_AP_PERIPH
     // calibration and alt check not valid for AP_Periph
-    bool healthy(uint8_t instance) const { return sensors[instance].healthy; }
+    bool healthy(uint8_t instance) const;
 #else
-    bool healthy(uint8_t instance) const { return sensors[instance].healthy && sensors[instance].alt_ok && sensors[instance].calibrated; }
+    bool healthy(uint8_t instance) const;
 #endif
 
     // check if all baros are healthy - used for SYS_STATUS report
@@ -73,6 +75,10 @@ public:
     // pressure in Pascal. Divide by 100 for millibars or hectopascals
     float get_pressure(void) const { return get_pressure(_primary); }
     float get_pressure(uint8_t instance) const { return sensors[instance].pressure; }
+#if HAL_BARO_WIND_COMP_ENABLED
+    // dynamic pressure in Pascal. Divide by 100 for millibars or hectopascals
+    const Vector3f& get_dynamic_pressure(uint8_t instance) const { return sensors[instance].dynamic_pressure; }
+#endif
 
     // temperature in degrees C
     float get_temperature(void) const { return get_temperature(_primary); }
@@ -250,6 +256,8 @@ private:
         AP_Float xn;     // ratio of static pressure rise to dynamic pressure when flying backwards
         AP_Float yp;     // ratio of static pressure rise to dynamic pressure when flying to the right
         AP_Float yn;     // ratio of static pressure rise to dynamic pressure when flying to the left
+        AP_Float zp;     // ratio of static pressure rise to dynamic pressure when flying up
+        AP_Float zn;     // ratio of static pressure rise to dynamic pressure when flying down
     };
 #endif
 
@@ -268,6 +276,7 @@ private:
         AP_Int32 bus_id;
 #if HAL_BARO_WIND_COMP_ENABLED
         WindCoeff wind_coeff;
+        Vector3f dynamic_pressure;      // calculated dynamic pressure
 #endif
     } sensors[BARO_MAX_INSTANCES];
 
@@ -316,7 +325,8 @@ private:
     // Logging function
     void Write_Baro(void);
     void Write_Baro_instance(uint64_t time_us, uint8_t baro_instance);
-    
+
+    void update_field_elevation();
 };
 
 namespace AP {

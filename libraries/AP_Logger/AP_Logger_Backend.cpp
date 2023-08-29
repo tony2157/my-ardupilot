@@ -8,6 +8,10 @@
 #include <AP_Rally/AP_Rally.h>
 #include <AP_Vehicle/AP_Vehicle_Type.h>
 
+#if HAL_LOGGER_FENCE_ENABLED
+    #include <AC_Fence/AC_Fence.h>
+#endif
+
 extern const AP_HAL::HAL& hal;
 
 AP_Logger_Backend::AP_Logger_Backend(AP_Logger &front,
@@ -377,6 +381,7 @@ void AP_Logger_Backend::validate_WritePrioritisedBlock(const void *pBuffer,
     }
     const uint8_t type = ((uint8_t*)pBuffer)[2];
     uint8_t type_len;
+    const char *name_src;
     const struct LogStructure *s = _front.structure_for_msg_type(type);
     if (s == nullptr) {
         const struct AP_Logger::log_write_fmt *t = _front.log_write_fmt_for_msg_type(type);
@@ -384,13 +389,15 @@ void AP_Logger_Backend::validate_WritePrioritisedBlock(const void *pBuffer,
             AP_HAL::panic("No structure for msg_type=%u", type);
         }
         type_len = t->msg_len;
+        name_src = t->name;
     } else {
         type_len = s->msg_len;
+        name_src = s->name;
     }
     if (type_len != size) {
         char name[5] = {}; // get a null-terminated string
-        if (s->name != nullptr) {
-            memcpy(name, s->name, 4);
+        if (name_src != nullptr) {
+            memcpy(name, name_src, 4);
         } else {
             strncpy(name, "?NM?", ARRAY_SIZE(name));
         }
@@ -612,7 +619,8 @@ uint16_t AP_Logger_Backend::find_oldest_log()
 
 void AP_Logger_Backend::vehicle_was_disarmed()
 {
-    if (_front._params.file_disarm_rot) {
+    if (_front._params.file_disarm_rot &&
+        !_front._params.log_replay) {
         // rotate our log.  Closing the current one and letting the
         // logging restart naturally based on log_disarmed should do
         // the trick:
@@ -671,22 +679,24 @@ void AP_Logger_Backend::df_stats_log() {
 
 
 // class to handle rate limiting of log messages
-AP_Logger_RateLimiter::AP_Logger_RateLimiter(const AP_Logger &_front, const AP_Float &_limit_hz)
-    : front(_front), rate_limit_hz(_limit_hz)
+AP_Logger_RateLimiter::AP_Logger_RateLimiter(const AP_Logger &_front, const AP_Float &_limit_hz, const AP_Float &_disarm_limit_hz)
+    : front(_front),
+      rate_limit_hz(_limit_hz),
+      disarm_rate_limit_hz(_disarm_limit_hz)
 {
 }
 
 /*
   return false if a streaming message should not be sent yet
  */
-bool AP_Logger_RateLimiter::should_log_streaming(uint8_t msgid)
+bool AP_Logger_RateLimiter::should_log_streaming(uint8_t msgid, float rate_hz)
 {
     if (front._log_pause) {
         return false;
     }
     const uint16_t now = AP_HAL::millis16();
     uint16_t delta_ms = now - last_send_ms[msgid];
-    if (delta_ms < 1000.0 / rate_limit_hz.get()) {
+    if (is_positive(rate_hz) && delta_ms < 1000.0 / rate_hz) {
         // too soon
         return false;
     }
@@ -700,7 +710,13 @@ bool AP_Logger_RateLimiter::should_log_streaming(uint8_t msgid)
  */
 bool AP_Logger_RateLimiter::should_log(uint8_t msgid, bool writev_streaming)
 {
-    if (rate_limit_hz <= 0 && !front._log_pause) {
+    float rate_hz = rate_limit_hz;
+    if (!hal.util->get_soft_armed() &&
+        !AP::logger().in_log_persistance() &&
+        !is_zero(disarm_rate_limit_hz)) {
+        rate_hz = disarm_rate_limit_hz;
+    }
+    if (!is_positive(rate_hz) && !front._log_pause) {
         // no rate limiting if not paused and rate is zero(user changed the parameter)
         return true;
     }
@@ -728,7 +744,7 @@ bool AP_Logger_RateLimiter::should_log(uint8_t msgid, bool writev_streaming)
     last_sched_count[msgid] = sched_ticks;
 #endif
 
-    bool ret = should_log_streaming(msgid);
+    bool ret = should_log_streaming(msgid, rate_hz);
     if (ret) {
         last_return.set(msgid);
     } else {

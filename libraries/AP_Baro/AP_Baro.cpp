@@ -43,7 +43,7 @@
 #include "AP_Baro_DPS280.h"
 #include "AP_Baro_BMP388.h"
 #include "AP_Baro_Dummy.h"
-#include "AP_Baro_UAVCAN.h"
+#include "AP_Baro_DroneCAN.h"
 #include "AP_Baro_MSP.h"
 #include "AP_Baro_ExternalAHRS.h"
 #include "AP_Baro_ICP101XX.h"
@@ -60,10 +60,6 @@
 
 #ifndef HAL_BARO_FILTER_DEFAULT
  #define HAL_BARO_FILTER_DEFAULT 0 // turned off by default
-#endif
-
-#if !defined(HAL_PROBE_EXTERNAL_I2C_BAROS) && !HAL_MINIMIZE_FEATURES
-#define HAL_PROBE_EXTERNAL_I2C_BAROS
 #endif
 
 #ifndef HAL_BARO_PROBE_EXT_DEFAULT
@@ -173,7 +169,7 @@ const AP_Param::GroupInfo AP_Baro::var_info[] = {
     // @Increment: 1
     AP_GROUPINFO("_FLTR_RNG", 13, AP_Baro, _filter_range, HAL_BARO_FILTER_DEFAULT),
 
-#if defined(HAL_PROBE_EXTERNAL_I2C_BAROS) || defined(AP_BARO_MSP_ENABLED)
+#if AP_BARO_PROBE_EXTERNAL_I2C_BUSES || AP_BARO_MSP_ENABLED
     // @Param: _PROBE_EXT
     // @DisplayName: External barometers to probe
     // @Description: This sets which types of external i2c barometer to look for. It is a bitmask of barometer types. The I2C buses to probe is based on BARO_EXT_BUS. If BARO_EXT_BUS is -1 then it will probe all external buses, otherwise it will probe just the bus number given in BARO_EXT_BUS.
@@ -226,7 +222,7 @@ const AP_Param::GroupInfo AP_Baro::var_info[] = {
 #ifndef HAL_BUILD_AP_PERIPH
     // @Param: _FIELD_ELV
     // @DisplayName: field elevation
-    // @Description: User provided field elevation in meters. This is used to improve the calculation of the altitude the vehicle is at. This parameter is not persistent and will be reset to 0 every time the vehicle is rebooted. A value of 0 means no correction for takeoff height above sea level is performed.
+    // @Description: User provided field elevation in meters. This is used to improve the calculation of the altitude the vehicle is at. This parameter is not persistent and will be reset to 0 every time the vehicle is rebooted. Changes to this parameter will only be used when disarmed. A value of 0 means the EKF origin height is used for takeoff height above sea level.
     // @Units: m
     // @Increment: 0.1
     // @Volatile: True
@@ -605,20 +601,23 @@ void AP_Baro::init(void)
     if (sitl == nullptr) {
         AP_HAL::panic("No SITL pointer");
     }
+#if !AP_TEST_DRONECAN_DRIVERS
+    // use dronecan instances instead of SITL instances
     for(uint8_t i = 0; i < sitl->baro_count; i++) {
         ADD_BACKEND(new AP_Baro_SITL(*this));
     }
 #endif
+#endif
 
-#if AP_BARO_UAVCAN_ENABLED
+#if AP_BARO_DRONECAN_ENABLED
     // Detect UAVCAN Modules, try as many times as there are driver slots
     for (uint8_t i = 0; i < BARO_MAX_DRIVERS; i++) {
-        ADD_BACKEND(AP_Baro_UAVCAN::probe(*this));
+        ADD_BACKEND(AP_Baro_DroneCAN::probe(*this));
     }
 #endif
 
 #if AP_BARO_EXTERNALAHRS_ENABLED
-    const int8_t serial_port = AP::externalAHRS().get_port();
+    const int8_t serial_port = AP::externalAHRS().get_port(AP_ExternalAHRS::AvailableSensor::BARO);
     if (serial_port >= 0) {
         ADD_BACKEND(new AP_Baro_ExternalAHRS(*this, serial_port));
     }
@@ -763,7 +762,7 @@ void AP_Baro::init(void)
 #endif
     }
 
-#ifdef HAL_PROBE_EXTERNAL_I2C_BAROS
+#if AP_BARO_PROBE_EXTERNAL_I2C_BUSES
     _probe_i2c_barometers();
 #endif
 
@@ -961,21 +960,7 @@ void AP_Baro::update(void)
         }
     }
 #ifndef HAL_BUILD_AP_PERIPH
-    const uint32_t now_ms = AP_HAL::millis();
-    if (now_ms - _field_elevation_last_ms >= 1000 && fabsf(_field_elevation_active-_field_elevation) > 1.0) {
-      if (!AP::arming().is_armed()) {
-        _field_elevation_last_ms = now_ms;
-        _field_elevation_active = _field_elevation;
-        AP::ahrs().resetHeightDatum();
-        update_calibration();
-        BARO_SEND_TEXT(MAV_SEVERITY_INFO, "Barometer Field Elevation Set: %.0fm",_field_elevation_active);
-      }
-      else {
-        _field_elevation.set(_field_elevation_active);
-        _field_elevation.notify();
-        BARO_SEND_TEXT(MAV_SEVERITY_ALERT, "Failed to Set Field Elevation: Armed");
-      }
-    }
+    update_field_elevation();
 #endif
 
     // logging
@@ -994,6 +979,63 @@ void AP_Baro::update(void)
         }
     }
 #endif
+}
+
+#ifdef HAL_BUILD_AP_PERIPH
+// calibration and alt check not valid for AP_Periph
+bool AP_Baro::healthy(uint8_t instance) const {
+    // If the requested instance was outside max instances it is not healthy (it doesn't exist)
+    if (instance >= BARO_MAX_INSTANCES) {
+        return false;
+    }
+    return sensors[instance].healthy;
+}
+#else
+bool AP_Baro::healthy(uint8_t instance) const {
+    // If the requested instance was outside max instances it is not healthy (it doesn't exist)
+    if (instance >= BARO_MAX_INSTANCES) {
+        return false;
+    }
+    return sensors[instance].healthy && sensors[instance].alt_ok && sensors[instance].calibrated;
+}
+#endif
+
+/*
+  update field elevation value
+ */
+void AP_Baro::update_field_elevation(void)
+{
+    const uint32_t now_ms = AP_HAL::millis();
+    bool new_field_elev = false;
+    const bool armed = hal.util->get_soft_armed();
+    if (now_ms - _field_elevation_last_ms >= 1000) {
+        if (is_zero(_field_elevation_active) &&
+            is_zero(_field_elevation)) {
+            // auto-set based on origin
+            Location origin;
+            if (!armed && AP::ahrs().get_origin(origin)) {
+                _field_elevation_active = origin.alt * 0.01;
+                new_field_elev = true;
+            }
+        } else if (fabsf(_field_elevation_active-_field_elevation) > 1.0 &&
+                   !is_zero(_field_elevation)) {
+            // user has set field elevation
+            if (!armed) {
+                _field_elevation_active = _field_elevation;
+                new_field_elev = true;
+            } else {
+                _field_elevation.set(_field_elevation_active);
+                _field_elevation.notify();
+                BARO_SEND_TEXT(MAV_SEVERITY_ALERT, "Failed to Set Field Elevation: Armed");
+            }
+        }
+    }
+    if (new_field_elev && !armed) {
+        _field_elevation_last_ms = now_ms;
+        AP::ahrs().resetHeightDatum();
+        update_calibration();
+        BARO_SEND_TEXT(MAV_SEVERITY_INFO, "Field Elevation Set: %.0fm", _field_elevation_active);
+    }
 }
 
 /*
@@ -1088,7 +1130,8 @@ bool AP_Baro::arming_checks(size_t buflen, char *buffer) const
     const auto &gps = AP::gps();
     if (_alt_error_max > 0 && gps.status() >= AP_GPS::GPS_Status::GPS_OK_FIX_3D) {
         const float alt_amsl = gps.location().alt*0.01;
-        const float alt_pressure = get_altitude_difference(SSL_AIR_PRESSURE, get_pressure());
+        // note the addition of _field_elevation_active as this is subtracted in get_altitude_difference()
+        const float alt_pressure = get_altitude_difference(SSL_AIR_PRESSURE, get_pressure()) + _field_elevation_active;
         const float error = fabsf(alt_amsl - alt_pressure);
         if (error > _alt_error_max) {
             hal.util->snprintf(buffer, buflen, "GPS alt error %.0fm (see BARO_ALTERR_MAX)", error);

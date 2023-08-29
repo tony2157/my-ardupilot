@@ -213,14 +213,6 @@ void Sub::Log_Write_GuidedTarget(uint8_t target_type, const Vector3f& pos_target
 // @Field: DCRt: desired climb rate
 // @Field: CRt: climb rate
 
-// @LoggerMessage: MOTB
-// @Description: Battery information
-// @Field: TimeUS: Time since system startup
-// @Field: LiftMax: Maximum motor compensation gain
-// @Field: BatVolt: Ratio betwen detected battery voltage and maximum battery voltage
-// @Field: BatRes: Estimated battery resistance
-// @Field: ThLimit: Throttle limit set due to battery current limitations
-
 // @LoggerMessage: D16
 // @Description: Generic 16-bit-signed-integer storage
 // @Field: TimeUS: Time since system startup
@@ -286,7 +278,7 @@ const struct LogStructure Sub::log_structure[] = {
 void Sub::Log_Write_Vehicle_Startup_Messages()
 {
     // only 200(?) bytes are guaranteed by AP_Logger
-    logger.Write_Mode(control_mode, control_mode_reason);
+    logger.Write_Mode((uint8_t)control_mode, control_mode_reason);
     ahrs.Log_Write_Home_And_Origin();
     gps.Write_AP_Logger_Log_Startup_messages();
 }

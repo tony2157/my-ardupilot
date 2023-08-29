@@ -18,6 +18,10 @@
 #include "AP_BattMonitor.h"
 #include "AP_BattMonitor_Backend.h"
 
+#if AP_BATTERY_ESC_TELEM_OUTBOUND_ENABLED
+#include "AP_ESC_Telem/AP_ESC_Telem.h"
+#endif
+
 /*
   base class constructor.
   This incorporates initialisation as well.
@@ -171,10 +175,10 @@ bool AP_BattMonitor_Backend::arming_checks(char * buffer, size_t buflen) const
                                  ((_params._pack_capacity - _state.consumed_mah) < _params._arming_minimum_capacity);
     bool fs_capacity_inversion = is_positive(_params._critical_capacity) &&
                                  is_positive(_params._low_capacity) &&
-                                 (_params._low_capacity < _params._critical_capacity);
+                                 !(_params._low_capacity > _params._critical_capacity);
     bool fs_voltage_inversion = is_positive(_params._critical_voltage) &&
                                 is_positive(_params._low_voltage) &&
-                                (_params._low_voltage < _params._critical_voltage);
+                                !(_params._low_voltage > _params._critical_voltage);
 
     bool result = update_check(buflen, buffer, !_state.healthy, "unhealthy");
     result = result && update_check(buflen, buffer, below_arming_voltage, "below minimum arming voltage");
@@ -183,8 +187,8 @@ bool AP_BattMonitor_Backend::arming_checks(char * buffer, size_t buflen) const
     result = result && update_check(buflen, buffer, low_capacity, "low capacity failsafe");
     result = result && update_check(buflen, buffer, critical_voltage, "critical voltage failsafe");
     result = result && update_check(buflen, buffer, critical_capacity, "critical capacity failsafe");
-    result = result && update_check(buflen, buffer, fs_capacity_inversion, "capacity failsafe critical > low");
-    result = result && update_check(buflen, buffer, fs_voltage_inversion, "voltage failsafe critical > low");
+    result = result && update_check(buflen, buffer, fs_capacity_inversion, "capacity failsafe critical >= low");
+    result = result && update_check(buflen, buffer, fs_voltage_inversion, "voltage failsafe critical >= low");
 
     return result;
 }
@@ -232,6 +236,42 @@ void AP_BattMonitor_Backend::check_failsafe_types(bool &low_voltage, bool &low_c
         low_capacity = false;
     }
 }
+
+#if AP_BATTERY_ESC_TELEM_OUTBOUND_ENABLED
+void AP_BattMonitor_Backend::update_esc_telem_outbound()
+{
+    const uint8_t esc_index = _params._esc_telem_outbound_index;
+    if (esc_index == 0 || !_state.healthy) {
+        // Disabled if there's no ESC identified to route the data to or if the battery is unhealthy
+        return;
+    }
+
+    AP_ESC_Telem_Backend::TelemetryData telem {};
+
+    uint16_t type = AP_ESC_Telem_Backend::TelemetryType::VOLTAGE;
+    telem.voltage = _state.voltage; // all battery backends have voltage
+
+    if (has_current()) {
+        telem.current = _state.current_amps;
+        type |= AP_ESC_Telem_Backend::TelemetryType::CURRENT;
+    }
+
+    if (has_consumed_energy()) {
+        telem.consumption_mah = _state.consumed_mah;
+        type |= AP_ESC_Telem_Backend::TelemetryType::CONSUMPTION;
+    }
+
+    float temperature_c;
+    if (_mon.get_temperature(temperature_c, _state.instance)) {
+        // get the temperature from the frontend so we check for external temperature
+        telem.temperature_cdeg = temperature_c * 100;
+        type |= AP_ESC_Telem_Backend::TelemetryType::TEMPERATURE;
+    }
+
+    AP::esc_telem().update_telem_data(esc_index-1, telem, type);
+}
+#endif
+
 
 /*
   default implementation for reset_remaining(). This sets consumed_wh

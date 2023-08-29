@@ -1,3 +1,7 @@
+#include "AP_Airspeed_config.h"
+
+#if AP_AIRSPEED_ENABLED
+
 #include "AP_Airspeed.h"
 
 #include <AP_Common/AP_Common.h>
@@ -18,6 +22,7 @@ void AP_Airspeed::check_sensor_failures()
 
 void AP_Airspeed::check_sensor_ahrs_wind_max_failures(uint8_t i)
 {
+#ifndef HAL_BUILD_AP_PERIPH
     const uint32_t now_ms = AP_HAL::millis();
     if ((now_ms - state[i].failures.last_check_ms) <= 200) {
         // slow the checking rate
@@ -63,8 +68,9 @@ void AP_Airspeed::check_sensor_ahrs_wind_max_failures(uint8_t i)
         }
         data_is_inconsistent = state[i].failures.test_ratio > gate_size;
     }
-
-    const float speed_diff = fabsf(state[i].airspeed-gps.ground_speed());
+    
+    const auto gps_speed = gps.velocity().length();
+    const float speed_diff = fabsf(state[i].airspeed-gps_speed);
     const bool data_is_implausible = is_positive(_wind_max) && speed_diff > _wind_max;
     // update health_probability with LowPassFilter
     if (data_is_implausible || data_is_inconsistent) {
@@ -116,4 +122,7 @@ void AP_Airspeed::check_sensor_ahrs_wind_max_failures(uint8_t i)
         param[i].use.set_and_notify(state[i].failures.param_use_backup); // resume
         state[i].failures.param_use_backup = -1; // set to invalid so we don't use it
     }
+#endif // HAL_BUILD_AP_PERIPH
 }
+
+#endif  // AP_AIRSPEED_ENABLED

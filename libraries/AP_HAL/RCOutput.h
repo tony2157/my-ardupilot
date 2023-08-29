@@ -139,17 +139,15 @@ public:
       microseconds, and represent minimum and maximum PWM values which
       will be used to convert channel writes into a percentage
      */
-    virtual void     set_esc_scaling(uint16_t min_pwm, uint16_t max_pwm) {}
+    void set_esc_scaling(uint16_t min_pwm, uint16_t max_pwm) {
+        _esc_pwm_min = min_pwm;
+        _esc_pwm_max = max_pwm;
+    }
 
-    /*
-      return ESC scaling value from set_esc_scaling()
-     */
-    virtual bool     get_esc_scaling(uint16_t &min_pwm, uint16_t &max_pwm) { return false; }
-    
     /*
       returns the pwm value scaled to [-1;1] regrading to set_esc_scaling ranges range without constraints.
      */
-    virtual float    scale_esc_to_unity(uint16_t pwm) { return 0; }
+    float scale_esc_to_unity(uint16_t pwm) const;
 
     /*
       return the erpm and error rate for a channel if available
@@ -222,6 +220,15 @@ public:
     // static to allow use in the ChibiOS thread stuff
     static bool is_dshot_protocol(const enum output_mode mode);
 
+    static bool is_led_protocol(const enum output_mode mode) {
+      switch (mode) {
+      case MODE_NEOPIXEL:
+      case MODE_PROFILED:
+        return true;
+      default:
+        return false;
+      }
+    }
 
     // BLHeli32: https://github.com/bitdump/BLHeli/blob/master/BLHeli_32%20ARM/BLHeli_32%20Firmware%20specs/Digital_Cmd_Spec.txt
     // BLHeli_S: https://github.com/bitdump/BLHeli/blob/master/BLHeli_S%20SiLabs/Dshotprog%20spec%20BLHeli_S.txt
@@ -238,6 +245,8 @@ public:
       DSHOT_3D_OFF = 9,
       DSHOT_3D_ON = 10,
       DSHOT_SAVE = 12,
+      DSHOT_EXTENDED_TELEMETRY_ENABLE = 13,
+      DSHOT_EXTENDED_TELEMETRY_DISABLE = 14,
       DSHOT_NORMAL = 20,
       DSHOT_REVERSE = 21,
       // The following options are only available on BLHeli32
@@ -256,10 +265,18 @@ public:
     enum DshotEscType {
       DSHOT_ESC_NONE = 0,
       DSHOT_ESC_BLHELI = 1,
-      DSHOT_ESC_BLHELI_S = 2
+      DSHOT_ESC_BLHELI_S = 2,
+      DSHOT_ESC_BLHELI_EDT = 3,
+      DSHOT_ESC_BLHELI_EDT_S = 4
     };
 
     virtual void    set_output_mode(uint32_t mask, enum output_mode mode) {}
+
+    virtual enum output_mode get_output_mode(uint32_t& mask) {
+      mask = 0;
+      return MODE_PWM_NORMAL;
+    }
+
 
     /*
      * get output mode banner to inform user of how outputs are configured
@@ -297,6 +314,12 @@ public:
       Set the dshot rate as a multiple of the loop rate
      */
     virtual void set_dshot_rate(uint8_t dshot_rate, uint16_t loop_rate_hz) {}
+
+    /*
+      Set the dshot period in us, only for use by the IOMCU
+     */
+    virtual void set_dshot_period(uint32_t period_us, uint8_t dshot_rate) {}
+    virtual uint32_t get_dshot_period_us() const { return 0; }
 
     /*
       Set the dshot ESC type
@@ -359,7 +382,7 @@ public:
      * Options are (ticks, percentage):
      * 20/7/14, 35/70
      * 11/4/8, 36/72
-     * 8/3/6, 37/75
+     * 8/3/6, 37/75 <-- this is the preferred duty cycle and has some support on the interwebs
      */
     // bitwidths: 8/3/6 == 37%/75%
     static constexpr uint32_t DSHOT_BIT_WIDTH_TICKS_DEFAULT = 8;
@@ -382,9 +405,15 @@ public:
     static constexpr uint32_t PROFI_BIT_0_TICKS = 7;
     static constexpr uint32_t PROFI_BIT_1_TICKS = 14;
 
+    // suitably long LED output period to support high LED counts
+    static constexpr uint32_t LED_OUTPUT_PERIOD_US = 10000;
+
 protected:
 
     // helper functions for implementation of get_output_mode_banner
     void append_to_banner(char banner_msg[], uint8_t banner_msg_len, output_mode out_mode, uint8_t low_ch, uint8_t high_ch) const;
     const char* get_output_mode_string(enum output_mode out_mode) const;
+
+    uint16_t _esc_pwm_min;
+    uint16_t _esc_pwm_max;
 };

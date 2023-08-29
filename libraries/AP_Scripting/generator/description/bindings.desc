@@ -169,16 +169,32 @@ singleton AP_Notify method handle_rgb void uint8_t'skip_check uint8_t'skip_check
 singleton AP_Notify method handle_rgb_id void uint8_t'skip_check uint8_t'skip_check uint8_t'skip_check uint8_t'skip_check
 
 include AP_Proximity/AP_Proximity.h
+include AP_Proximity/AP_Proximity_Backend.h
 
 singleton AP_Proximity depends HAL_PROXIMITY_ENABLED == 1
+ap_object AP_Proximity_Backend depends HAL_PROXIMITY_ENABLED == 1
+ap_object AP_Proximity_Backend method handle_script_distance_msg boolean float'skip_check float'skip_check float'skip_check boolean
+ap_object AP_Proximity_Backend method handle_script_3d_msg boolean Vector3f boolean
+ap_object AP_Proximity_Backend method type uint8_t
+ap_object AP_Proximity_Backend method set_distance_min_max boolean float'skip_check float'skip_check
+ap_object AP_Proximity_Backend method update_virtual_boundary boolean
+
 singleton AP_Proximity rename proximity
 singleton AP_Proximity method get_status uint8_t
 singleton AP_Proximity method num_sensors uint8_t
 singleton AP_Proximity method get_object_count uint8_t
 singleton AP_Proximity method get_closest_object boolean float'Null float'Null
 singleton AP_Proximity method get_object_angle_and_distance boolean uint8_t'skip_check float'Null float'Null
+singleton AP_Proximity method get_backend AP_Proximity_Backend uint8_t'skip_check
 
 include AP_RangeFinder/AP_RangeFinder.h
+include AP_RangeFinder/AP_RangeFinder_Backend.h
+
+ap_object AP_RangeFinder_Backend method distance float
+ap_object AP_RangeFinder_Backend method orientation Rotation'enum
+ap_object AP_RangeFinder_Backend method type uint8_t
+ap_object AP_RangeFinder_Backend method status uint8_t
+ap_object AP_RangeFinder_Backend method handle_script_msg boolean float'skip_check
 
 singleton RangeFinder rename rangefinder
 singleton RangeFinder method num_sensors uint8_t
@@ -190,6 +206,8 @@ singleton RangeFinder method ground_clearance_cm_orient uint16_t Rotation'enum R
 singleton RangeFinder method status_orient uint8_t Rotation'enum ROTATION_NONE ROTATION_MAX-1
 singleton RangeFinder method has_data_orient boolean Rotation'enum ROTATION_NONE ROTATION_MAX-1
 singleton RangeFinder method get_pos_offset_orient Vector3f Rotation'enum ROTATION_NONE ROTATION_MAX-1
+
+singleton RangeFinder method get_backend AP_RangeFinder_Backend uint8_t'skip_check
 
 include AP_Terrain/AP_Terrain.h
 
@@ -204,6 +222,7 @@ singleton AP_Terrain method height_above_terrain boolean float'Null boolean
 
 include AP_Relay/AP_Relay.h
 
+singleton AP_Relay depends AP_RELAY_ENABLED
 singleton AP_Relay rename relay
 singleton AP_Relay method on void uint8_t 0 AP_RELAY_NUM_RELAYS
 singleton AP_Relay method off void uint8_t 0 AP_RELAY_NUM_RELAYS
@@ -216,6 +235,12 @@ singleton GCS rename gcs
 singleton GCS method send_text void MAV_SEVERITY'enum MAV_SEVERITY_EMERGENCY MAV_SEVERITY_DEBUG "%s"'literal string
 singleton GCS method set_message_interval MAV_RESULT'enum uint8_t 0 MAVLINK_COMM_NUM_BUFFERS uint32_t'skip_check int32_t -1 INT32_MAX
 singleton GCS method send_named_float void string float'skip_check
+singleton GCS method frame_type MAV_TYPE'enum
+singleton GCS method get_hud_throttle int16_t
+
+singleton GCS depends HAL_HIGH_LATENCY2_ENABLED == 1
+singleton GCS method get_high_latency_status boolean
+singleton GCS method enable_high_latency_connections void boolean
 
 include AP_ONVIF/AP_ONVIF.h depends ENABLE_ONVIF == 1
 singleton AP_ONVIF depends ENABLE_ONVIF == 1
@@ -247,6 +272,7 @@ singleton AP_Vehicle method set_target_angle_and_climbrate boolean float -180 18
 singleton AP_Vehicle method get_circle_radius boolean float'Null
 singleton AP_Vehicle method set_circle_rate boolean float'skip_check
 singleton AP_Vehicle method set_steering_and_throttle boolean float -1 1 float -1 1
+singleton AP_Vehicle method get_steering_and_throttle boolean float'Null float'Null
 singleton AP_Vehicle method get_wp_distance_m boolean float'Null
 singleton AP_Vehicle method get_wp_bearing_deg boolean float'Null
 singleton AP_Vehicle method get_wp_crosstrack_error_m boolean float'Null
@@ -254,14 +280,20 @@ singleton AP_Vehicle method get_pan_tilt_norm boolean float'Null float'Null
 singleton AP_Vehicle method nav_script_time boolean uint16_t'Null uint8_t'Null float'Null float'Null int16_t'Null int16_t'Null
 singleton AP_Vehicle method nav_script_time_done void uint16_t'skip_check
 singleton AP_Vehicle method set_target_throttle_rate_rpy void float -100 100 float'skip_check float'skip_check float'skip_check
+singleton AP_Vehicle method set_rudder_offset void float'skip_check boolean
 singleton AP_Vehicle method set_desired_turn_rate_and_speed boolean float'skip_check float'skip_check
 singleton AP_Vehicle method set_desired_speed boolean float'skip_check
 singleton AP_Vehicle method nav_scripting_enable boolean uint8_t'skip_check
 singleton AP_Vehicle method set_velocity_match boolean Vector2f
+singleton AP_Vehicle method set_land_descent_rate boolean float'skip_check
 singleton AP_Vehicle method has_ekf_failsafed boolean
+singleton AP_Vehicle method reboot void boolean
+singleton AP_Vehicle method is_landing boolean
+singleton AP_Vehicle method is_taking_off boolean
 
 include AP_SerialLED/AP_SerialLED.h
 singleton AP_SerialLED rename serialLED
+singleton AP_SerialLED depends AP_SERIALLED_ENABLED
 singleton AP_SerialLED method set_num_neopixel boolean uint8_t 1 16 uint8_t 0 AP_SERIALLED_MAX_LEDS
 singleton AP_SerialLED method set_num_profiled boolean uint8_t 1 16 uint8_t 0 AP_SERIALLED_MAX_LEDS
 singleton AP_SerialLED method set_RGB void uint8_t 1 16 int8_t -1 INT8_MAX uint8_t'skip_check uint8_t'skip_check uint8_t'skip_check
@@ -279,6 +311,8 @@ singleton SRV_Channels method get_output_scaled float SRV_Channel::Aux_servo_fun
 singleton SRV_Channels method set_output_norm void SRV_Channel::Aux_servo_function_t'enum SRV_Channel::k_none SRV_Channel::k_nr_aux_servo_functions-1 float -1 1
 singleton SRV_Channels method set_angle void SRV_Channel::Aux_servo_function_t'enum SRV_Channel::k_none SRV_Channel::k_nr_aux_servo_functions-1 uint16_t'skip_check
 singleton SRV_Channels method set_range void SRV_Channel::Aux_servo_function_t'enum SRV_Channel::k_none SRV_Channel::k_nr_aux_servo_functions-1 uint16_t'skip_check
+singleton SRV_Channels method get_emergency_stop boolean
+singleton SRV_Channels manual get_safety_state SRV_Channels_get_safety_state 0
 
 ap_object RC_Channel method norm_input float
 ap_object RC_Channel method norm_input_dz float
@@ -313,6 +347,8 @@ singleton AP_Baro rename baro
 singleton AP_Baro method get_pressure float
 singleton AP_Baro method get_temperature float
 singleton AP_Baro method get_external_temperature float
+singleton AP_Baro method get_altitude float
+singleton AP_Baro method healthy boolean uint8_t'skip_check
 
 include AP_OpticalFlow/AP_OpticalFlow.h
 singleton AP_OpticalFlow depends AP_OPTICALFLOW_ENABLED
@@ -356,6 +392,9 @@ userdata Parameter method set_and_save boolean float'skip_check
 userdata Parameter method configured boolean
 userdata Parameter method set_default boolean float'skip_check
 
+include AP_Scripting/AP_Scripting.h
+singleton AP_Scripting rename scripting
+singleton AP_Scripting method restart_all void
 
 include AP_Mission/AP_Mission.h
 singleton AP_Mission rename mission
@@ -371,6 +410,11 @@ singleton AP_Mission method num_commands uint16_t
 singleton AP_Mission method get_item boolean uint16_t'skip_check mavlink_mission_item_int_t'Null
 singleton AP_Mission method set_item boolean uint16_t'skip_check mavlink_mission_item_int_t
 singleton AP_Mission method clear boolean
+singleton AP_Mission method cmd_has_location boolean uint16_t'skip_check
+singleton AP_Mission method jump_to_tag boolean uint16_t 0 UINT16_MAX
+singleton AP_Mission method get_index_of_jump_tag uint16_t uint16_t 0 UINT16_MAX
+singleton AP_Mission method get_last_jump_tag boolean uint16_t'Null uint16_t'Null
+
 
 userdata mavlink_mission_item_int_t field param1 float'skip_check read write
 userdata mavlink_mission_item_int_t field param2 float'skip_check read write
@@ -407,6 +451,8 @@ singleton QuadPlane rename quadplane
 singleton QuadPlane depends APM_BUILD_TYPE(APM_BUILD_ArduPlane) && HAL_QUADPLANE_ENABLED
 singleton QuadPlane method in_vtol_mode boolean
 singleton QuadPlane method in_assisted_flight boolean
+singleton QuadPlane method abort_landing boolean
+singleton QuadPlane method in_vtol_land_descent boolean
 
 include AP_Motors/AP_MotorsMatrix.h depends APM_BUILD_TYPE(APM_BUILD_ArduPlane)||APM_BUILD_COPTER_OR_HELI
 singleton AP_MotorsMatrix depends APM_BUILD_TYPE(APM_BUILD_ArduPlane)||APM_BUILD_COPTER_OR_HELI
@@ -414,6 +460,8 @@ singleton AP_MotorsMatrix rename MotorsMatrix
 singleton AP_MotorsMatrix method init boolean uint8_t 0 AP_MOTORS_MAX_NUM_MOTORS
 singleton AP_MotorsMatrix method add_motor_raw void int8_t 0 (AP_MOTORS_MAX_NUM_MOTORS-1) float'skip_check float'skip_check float'skip_check uint8_t 0 AP_MOTORS_MAX_NUM_MOTORS
 singleton AP_MotorsMatrix method set_throttle_factor boolean int8_t 0 (AP_MOTORS_MAX_NUM_MOTORS-1) float 0 FLT_MAX
+singleton AP_MotorsMatrix method get_lost_motor uint8_t
+singleton AP_MotorsMatrix method get_thrust_boost boolean
 
 include AP_Frsky_Telem/AP_Frsky_SPort.h
 singleton AP_Frsky_SPort rename frsky_sport
@@ -448,10 +496,11 @@ ap_object AP_HAL::AnalogSource method voltage_average float
 ap_object AP_HAL::AnalogSource method voltage_latest float
 ap_object AP_HAL::AnalogSource method voltage_average_ratiometric float
 
-userdata AP_HAL::PWMSource rename PWMSource
-userdata AP_HAL::PWMSource method set_pin boolean uint8_t'skip_check "Scripting"'literal
-userdata AP_HAL::PWMSource method get_pwm_us uint16_t
-userdata AP_HAL::PWMSource method get_pwm_avg_us uint16_t
+global manual PWMSource lua_get_PWMSource 0
+
+ap_object AP_HAL::PWMSource method set_pin boolean uint8_t'skip_check "Scripting"'literal
+ap_object AP_HAL::PWMSource method get_pwm_us uint16_t
+ap_object AP_HAL::PWMSource method get_pwm_avg_us uint16_t
 
 singleton hal.gpio rename gpio
 singleton hal.gpio literal
@@ -481,6 +530,8 @@ userdata AP_MotorsMatrix_Scripting_Dynamic::factor_table field throttle'array AP
 include AP_InertialSensor/AP_InertialSensor.h
 singleton AP_InertialSensor rename ins
 singleton AP_InertialSensor method get_temperature float uint8_t 0 INS_MAX_INSTANCES
+singleton AP_InertialSensor method get_gyro_health boolean uint8_t'skip_check
+singleton AP_InertialSensor method get_accel_health boolean uint8_t'skip_check
 
 singleton CAN manual get_device lua_get_CAN_device 1
 singleton CAN manual get_device2 lua_get_CAN_device2 1
@@ -516,6 +567,19 @@ singleton AP::motors() depends APM_BUILD_TYPE(APM_BUILD_ArduPlane)||APM_BUILD_CO
 singleton AP::motors() literal
 singleton AP::motors() rename motors
 singleton AP::motors() method set_frame_string void string
+singleton AP::motors() method get_interlock boolean
+singleton AP::motors() method get_desired_spool_state uint8_t
+singleton AP::motors() method get_roll float
+singleton AP::motors() method get_roll_ff float
+singleton AP::motors() method get_pitch float
+singleton AP::motors() method get_pitch_ff float
+singleton AP::motors() method get_yaw float
+singleton AP::motors() method get_yaw_ff float
+singleton AP::motors() method get_throttle float
+singleton AP::motors() method get_forward float
+singleton AP::motors() method get_lateral float
+singleton AP::motors() method get_spool_state uint8_t
+singleton AP::motors() method set_external_limits void boolean boolean boolean boolean boolean
 
 include AP_Common/AP_FWVersion.h
 singleton AP::fwversion() literal
@@ -531,8 +595,8 @@ singleton AP::fwversion() field patch uint8_t read
 singleton AP::fwversion() field fw_hash_str string read
 singleton AP::fwversion() field fw_hash_str rename hash
 
-include AP_Follow/AP_Follow.h depends APM_BUILD_TYPE(APM_BUILD_ArduPlane)||APM_BUILD_COPTER_OR_HELI
-singleton AP_Follow depends APM_BUILD_TYPE(APM_BUILD_ArduPlane)||APM_BUILD_COPTER_OR_HELI
+include AP_Follow/AP_Follow.h
+singleton AP_Follow depends AP_FOLLOW_ENABLED && (APM_BUILD_TYPE(APM_BUILD_ArduPlane)||APM_BUILD_COPTER_OR_HELI)
 singleton AP_Follow rename follow
 singleton AP_Follow method have_target boolean
 singleton AP_Follow method get_last_update_ms uint32_t
@@ -544,6 +608,14 @@ include AC_AttitudeControl/AC_AttitudeControl.h depends APM_BUILD_TYPE(APM_BUILD
 singleton AC_AttitudeControl depends APM_BUILD_TYPE(APM_BUILD_ArduPlane)||APM_BUILD_COPTER_OR_HELI
 singleton AC_AttitudeControl method get_rpy_srate void float'Ref float'Ref float'Ref
 
+include APM_Control/AR_AttitudeControl.h depends APM_BUILD_TYPE(APM_BUILD_Rover)
+singleton AR_AttitudeControl depends APM_BUILD_TYPE(APM_BUILD_Rover)
+singleton AR_AttitudeControl method get_srate void float'Ref float'Ref
+
+include APM_Control/AR_PosControl.h depends APM_BUILD_TYPE(APM_BUILD_Rover)
+singleton AR_PosControl depends APM_BUILD_TYPE(APM_BUILD_Rover)
+singleton AR_PosControl method get_srate void float'Ref
+
 include AP_Mount/AP_Mount.h
 singleton AP_Mount depends HAL_MOUNT_ENABLED == 1
 singleton AP_Mount rename mount
@@ -553,9 +625,32 @@ singleton AP_Mount method set_angle_target void uint8_t'skip_check float'skip_ch
 singleton AP_Mount method set_rate_target void uint8_t'skip_check float'skip_check float'skip_check float'skip_check boolean
 singleton AP_Mount method set_roi_target void uint8_t'skip_check Location
 singleton AP_Mount method get_attitude_euler boolean uint8_t'skip_check float'Null float'Null float'Null
+singleton AP_Mount method get_rate_target boolean uint8_t'skip_check float'Null float'Null float'Null boolean'Null
+singleton AP_Mount method get_angle_target boolean uint8_t'skip_check float'Null float'Null float'Null boolean'Null
+singleton AP_Mount method get_location_target boolean uint8_t'skip_check Location'Null
+singleton AP_Mount method set_attitude_euler void uint8_t'skip_check float'skip_check float'skip_check float'skip_check
 
-include AP_Winch/AP_Winch.h depends APM_BUILD_COPTER_OR_HELI
-singleton AP_Winch depends APM_BUILD_COPTER_OR_HELI
+include AP_Camera/AP_Camera.h
+singleton AP_Camera depends AP_CAMERA_SCRIPTING_ENABLED == 1
+singleton AP_Camera rename camera
+singleton AP_Camera semaphore
+singleton AP_Camera method take_picture void uint8_t'skip_check
+singleton AP_Camera method record_video boolean uint8_t'skip_check boolean
+singleton AP_Camera method set_trigger_distance void uint8_t'skip_check float'skip_check
+userdata AP_Camera::camera_state_t depends (AP_CAMERA_SCRIPTING_ENABLED == 1)
+userdata AP_Camera::camera_state_t field take_pic_incr uint16_t'skip_check read
+userdata AP_Camera::camera_state_t field recording_video boolean read
+userdata AP_Camera::camera_state_t field zoom_type uint8_t'skip_check read
+userdata AP_Camera::camera_state_t field zoom_value float'skip_check read
+userdata AP_Camera::camera_state_t field focus_type uint8_t'skip_check read
+userdata AP_Camera::camera_state_t field focus_value float'skip_check read
+userdata AP_Camera::camera_state_t field tracking_type uint8_t'skip_check read
+userdata AP_Camera::camera_state_t field tracking_p1 Vector2f read
+userdata AP_Camera::camera_state_t field tracking_p2 Vector2f read
+singleton AP_Camera method get_state boolean uint8_t'skip_check AP_Camera::camera_state_t'Null
+
+include AP_Winch/AP_Winch.h
+singleton AP_Winch depends AP_WINCH_ENABLED && APM_BUILD_COPTER_OR_HELI
 singleton AP_Winch rename winch
 singleton AP_Winch method healthy boolean
 singleton AP_Winch method relax void
@@ -563,39 +658,49 @@ singleton AP_Winch method release_length void float'skip_check
 singleton AP_Winch method set_desired_rate void float'skip_check
 singleton AP_Winch method get_rate_max float
 
+include AP_IOMCU/AP_IOMCU.h
+singleton AP_IOMCU depends HAL_WITH_IO_MCU
+singleton AP_IOMCU rename iomcu
+singleton AP_IOMCU method healthy boolean
+
+include AP_Compass/AP_Compass.h
+singleton Compass rename compass
+singleton Compass method healthy boolean uint8_t'skip_check
+
 -- ----EFI Library----
 include AP_EFI/AP_EFI.h depends HAL_EFI_ENABLED
-include AP_EFI/AP_EFI_Scripting.h depends HAL_EFI_ENABLED
+include AP_EFI/AP_EFI_Scripting.h depends AP_EFI_SCRIPTING_ENABLED
 include AP_EFI/AP_EFI_config.h
 
 userdata Cylinder_Status depends (AP_EFI_SCRIPTING_ENABLED == 1)
-userdata Cylinder_Status field ignition_timing_deg float'skip_check write
-userdata Cylinder_Status field injection_time_ms float'skip_check write
-userdata Cylinder_Status field cylinder_head_temperature float'skip_check write
-userdata Cylinder_Status field exhaust_gas_temperature float'skip_check write
-userdata Cylinder_Status field lambda_coefficient float'skip_check write
+userdata Cylinder_Status field ignition_timing_deg float'skip_check read write
+userdata Cylinder_Status field injection_time_ms float'skip_check read write
+userdata Cylinder_Status field cylinder_head_temperature float'skip_check read write
+userdata Cylinder_Status field exhaust_gas_temperature float'skip_check read write
+userdata Cylinder_Status field lambda_coefficient float'skip_check read write
 
 userdata EFI_State depends (AP_EFI_SCRIPTING_ENABLED == 1)
-userdata EFI_State field last_updated_ms uint32_t'skip_check write
-userdata EFI_State field general_error boolean write
-userdata EFI_State field engine_load_percent uint8_t'skip_check write
-userdata EFI_State field engine_speed_rpm uint32_t'skip_check write
-userdata EFI_State field spark_dwell_time_ms float'skip_check write
-userdata EFI_State field atmospheric_pressure_kpa float'skip_check write
-userdata EFI_State field intake_manifold_pressure_kpa float'skip_check write
-userdata EFI_State field intake_manifold_temperature float'skip_check write
-userdata EFI_State field coolant_temperature float'skip_check write
-userdata EFI_State field oil_pressure float'skip_check write
-userdata EFI_State field oil_temperature float'skip_check write
-userdata EFI_State field fuel_pressure float'skip_check write
-userdata EFI_State field fuel_consumption_rate_cm3pm float'skip_check write
-userdata EFI_State field estimated_consumed_fuel_volume_cm3 float'skip_check write
-userdata EFI_State field throttle_position_percent uint8_t'skip_check write
-userdata EFI_State field ecu_index uint8_t'skip_check write
-userdata EFI_State field cylinder_status Cylinder_Status write
-userdata EFI_State field ignition_voltage float'skip_check write
-userdata EFI_State field throttle_out float'skip_check write
-userdata EFI_State field pt_compensation float'skip_check write
+userdata EFI_State field last_updated_ms uint32_t'skip_check read write
+userdata EFI_State field general_error boolean read write
+userdata EFI_State field engine_load_percent uint8_t'skip_check read write
+userdata EFI_State field engine_speed_rpm uint32_t'skip_check read write
+userdata EFI_State field spark_dwell_time_ms float'skip_check read write
+userdata EFI_State field atmospheric_pressure_kpa float'skip_check read write
+userdata EFI_State field intake_manifold_pressure_kpa float'skip_check read write
+userdata EFI_State field intake_manifold_temperature float'skip_check read write
+userdata EFI_State field coolant_temperature float'skip_check read write
+userdata EFI_State field oil_pressure float'skip_check read write
+userdata EFI_State field oil_temperature float'skip_check read write
+userdata EFI_State field fuel_pressure float'skip_check read write
+userdata EFI_State field fuel_pressure_status Fuel_Pressure_Status'enum read write Fuel_Pressure_Status::NOT_SUPPORTED Fuel_Pressure_Status::ABOVE_NOMINAL
+userdata EFI_State field fuel_consumption_rate_cm3pm float'skip_check read write
+userdata EFI_State field estimated_consumed_fuel_volume_cm3 float'skip_check read write
+userdata EFI_State field throttle_position_percent uint8_t'skip_check read write
+userdata EFI_State field ecu_index uint8_t'skip_check read write
+userdata EFI_State field cylinder_status Cylinder_Status read write
+userdata EFI_State field ignition_voltage float'skip_check read write
+userdata EFI_State field throttle_out float'skip_check read write
+userdata EFI_State field pt_compensation float'skip_check read write
 
 ap_object AP_EFI_Backend depends (AP_EFI_SCRIPTING_ENABLED == 1)
 ap_object AP_EFI_Backend method handle_scripting boolean EFI_State
@@ -603,11 +708,14 @@ ap_object AP_EFI_Backend method handle_scripting boolean EFI_State
 singleton AP_EFI depends (AP_EFI_SCRIPTING_ENABLED == 1)
 singleton AP_EFI rename efi
 singleton AP_EFI method get_backend AP_EFI_Backend uint8_t'skip_check
+singleton AP_EFI method get_state void EFI_State'Ref
 
 -- ----END EFI Library----
 
+include AP_Logger/AP_Logger.h
 singleton AP_Logger rename logger
 singleton AP_Logger manual write AP_Logger_Write 7
+singleton AP_Logger method log_file_content void string
 
 singleton i2c manual get_device lua_get_i2c_device 4
 
@@ -635,3 +743,11 @@ userdata uint32_t manual_operator __tostring uint32_t___tostring
 userdata uint32_t manual toint uint32_t_toint 0
 userdata uint32_t manual tofloat uint32_t_tofloat 0
 
+global manual dirlist lua_dirlist 1
+global manual remove lua_removefile 1
+
+singleton mavlink manual init lua_mavlink_init 2
+singleton mavlink manual register_rx_msgid lua_mavlink_register_rx_msgid 1
+singleton mavlink manual send_chan lua_mavlink_send_chan 3
+singleton mavlink manual receive_chan lua_mavlink_receive_chan 0
+singleton mavlink manual block_command lua_mavlink_block_command 1

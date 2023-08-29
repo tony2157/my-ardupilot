@@ -63,6 +63,8 @@
 
 extern const AP_HAL::HAL& hal;
 
+AR_AttitudeControl *AR_AttitudeControl::_singleton;
+
 const AP_Param::GroupInfo AR_AttitudeControl::var_info[] = {
 
     // @Param: _STR_RAT_P
@@ -467,11 +469,12 @@ const AP_Param::GroupInfo AR_AttitudeControl::var_info[] = {
 
 AR_AttitudeControl::AR_AttitudeControl() :
     _steer_angle_p(AR_ATTCONTROL_STEER_ANG_P),
-    _steer_rate_pid(AR_ATTCONTROL_STEER_RATE_P, AR_ATTCONTROL_STEER_RATE_I, AR_ATTCONTROL_STEER_RATE_D, AR_ATTCONTROL_STEER_RATE_FF, AR_ATTCONTROL_STEER_RATE_IMAX, 0.0f, AR_ATTCONTROL_STEER_RATE_FILT, 0.0f, AR_ATTCONTROL_DT),
-    _throttle_speed_pid(AR_ATTCONTROL_THR_SPEED_P, AR_ATTCONTROL_THR_SPEED_I, AR_ATTCONTROL_THR_SPEED_D, 0.0f, AR_ATTCONTROL_THR_SPEED_IMAX, 0.0f, AR_ATTCONTROL_THR_SPEED_FILT, 0.0f, AR_ATTCONTROL_DT),
-    _pitch_to_throttle_pid(AR_ATTCONTROL_PITCH_THR_P, AR_ATTCONTROL_PITCH_THR_I, AR_ATTCONTROL_PITCH_THR_D, 0.0f, AR_ATTCONTROL_PITCH_THR_IMAX, 0.0f, AR_ATTCONTROL_PITCH_THR_FILT, 0.0f, AR_ATTCONTROL_DT),
-    _sailboat_heel_pid(AR_ATTCONTROL_HEEL_SAIL_P, AR_ATTCONTROL_HEEL_SAIL_I, AR_ATTCONTROL_HEEL_SAIL_D, 0.0f, AR_ATTCONTROL_HEEL_SAIL_IMAX, 0.0f, AR_ATTCONTROL_HEEL_SAIL_FILT, 0.0f, AR_ATTCONTROL_DT)
-    {
+    _steer_rate_pid(AR_ATTCONTROL_STEER_RATE_P, AR_ATTCONTROL_STEER_RATE_I, AR_ATTCONTROL_STEER_RATE_D, AR_ATTCONTROL_STEER_RATE_FF, AR_ATTCONTROL_STEER_RATE_IMAX, 0.0f, AR_ATTCONTROL_STEER_RATE_FILT, 0.0f),
+    _throttle_speed_pid(AR_ATTCONTROL_THR_SPEED_P, AR_ATTCONTROL_THR_SPEED_I, AR_ATTCONTROL_THR_SPEED_D, 0.0f, AR_ATTCONTROL_THR_SPEED_IMAX, 0.0f, AR_ATTCONTROL_THR_SPEED_FILT, 0.0f),
+    _pitch_to_throttle_pid(AR_ATTCONTROL_PITCH_THR_P, AR_ATTCONTROL_PITCH_THR_I, AR_ATTCONTROL_PITCH_THR_D, 0.0f, AR_ATTCONTROL_PITCH_THR_IMAX, 0.0f, AR_ATTCONTROL_PITCH_THR_FILT, 0.0f),
+    _sailboat_heel_pid(AR_ATTCONTROL_HEEL_SAIL_P, AR_ATTCONTROL_HEEL_SAIL_I, AR_ATTCONTROL_HEEL_SAIL_D, 0.0f, AR_ATTCONTROL_HEEL_SAIL_IMAX, 0.0f, AR_ATTCONTROL_HEEL_SAIL_FILT, 0.0f)
+{
+    _singleton = this;
     AP_Param::setup_object_defaults(this, var_info);
 }
 
@@ -529,12 +532,18 @@ float AR_AttitudeControl::get_turn_rate_from_heading(float heading_rad, float ra
     return desired_rate;
 }
 
-// return a steering servo output from -1 to +1 given a
-// desired yaw rate in radians/sec. Positive yaw is to the right.
+// return a steering servo output given a desired yaw rate in radians/sec.
+// positive yaw is to the right
+// return value is normally in range -1.0 to +1.0 but can be higher or lower
+// also sets steering_limit_left and steering_limit_right flags
 float AR_AttitudeControl::get_steering_out_rate(float desired_rate, bool motor_limit_left, bool motor_limit_right, float dt)
 {
     // sanity check dt
     dt = constrain_float(dt, 0.0f, 1.0f);
+
+    // update steering limit flags used by higher level controllers (e.g. position controller)
+    _steering_limit_left = motor_limit_left;
+    _steering_limit_right = motor_limit_right;
 
     // if not called recently, reset input filter and desired turn rate to actual turn rate (used for accel limiting)
     const uint32_t now = AP_HAL::millis();
@@ -548,6 +557,12 @@ float AR_AttitudeControl::get_steering_out_rate(float desired_rate, bool motor_l
     // acceleration limit desired turn rate
     if (is_positive(_steer_accel_max)) {
         const float change_max = radians(_steer_accel_max) * dt;
+        if (desired_rate <= _desired_turn_rate - change_max) {
+            _steering_limit_left = true;
+        }
+        if (desired_rate >= _desired_turn_rate + change_max) {
+            _steering_limit_right = true;
+        }
         desired_rate = constrain_float(desired_rate, _desired_turn_rate - change_max, _desired_turn_rate + change_max);
     }
     _desired_turn_rate = desired_rate;
@@ -555,6 +570,12 @@ float AR_AttitudeControl::get_steering_out_rate(float desired_rate, bool motor_l
     // rate limit desired turn rate
     if (is_positive(_steer_rate_max)) {
         const float steer_rate_max_rad = radians(_steer_rate_max);
+        if (_desired_turn_rate <= -steer_rate_max_rad) {
+            _steering_limit_left = true;
+        }
+        if (_desired_turn_rate >= steer_rate_max_rad) {
+            _steering_limit_right = true;
+        }
         _desired_turn_rate = constrain_float(_desired_turn_rate, -steer_rate_max_rad, steer_rate_max_rad);
     }
 
@@ -563,13 +584,17 @@ float AR_AttitudeControl::get_steering_out_rate(float desired_rate, bool motor_l
     if (get_forward_speed(speed)) {
         // do not limit to less than 1 deg/s
         const float turn_rate_max = MAX(get_turn_rate_from_lat_accel(get_turn_lat_accel_max(), fabsf(speed)), radians(1.0f));
+        if (_desired_turn_rate <= -turn_rate_max) {
+            _steering_limit_left = true;
+        }
+        if (_desired_turn_rate >= turn_rate_max) {
+            _steering_limit_right = true;
+        }
         _desired_turn_rate = constrain_float(_desired_turn_rate, -turn_rate_max, turn_rate_max);
     }
 
-    // set PID's dt
-    _steer_rate_pid.set_dt(dt);
-
-    float output = _steer_rate_pid.update_all(_desired_turn_rate, AP::ahrs().get_yaw_rate_earth(), (motor_limit_left || motor_limit_right));
+    // update pid to calculate output to motors
+    float output = _steer_rate_pid.update_all(_desired_turn_rate, AP::ahrs().get_yaw_rate_earth(), dt, (motor_limit_left || motor_limit_right));
     output += _steer_rate_pid.get_ff();
     // constrain and return final output
     return output;
@@ -648,9 +673,6 @@ float AR_AttitudeControl::get_throttle_out_speed(float desired_speed, bool motor
     // acceleration limit desired speed
     _desired_speed = get_desired_speed_accel_limited(desired_speed, dt);
 
-    // set PID's dt
-    _throttle_speed_pid.set_dt(dt);
-
     // calculate base throttle (protect against divide by zero)
     float throttle_base = 0.0f;
     if (is_positive(cruise_speed) && is_positive(cruise_throttle)) {
@@ -658,7 +680,7 @@ float AR_AttitudeControl::get_throttle_out_speed(float desired_speed, bool motor
     }
 
     // calculate final output
-    float throttle_out = _throttle_speed_pid.update_all(_desired_speed, speed, (motor_limit_low || motor_limit_high || _throttle_limit_low || _throttle_limit_high));
+    float throttle_out = _throttle_speed_pid.update_all(_desired_speed, speed, dt, (motor_limit_low || motor_limit_high || _throttle_limit_low || _throttle_limit_high));
     throttle_out += _throttle_speed_pid.get_ff();
     throttle_out += throttle_base;
 
@@ -761,15 +783,12 @@ float AR_AttitudeControl::get_throttle_out_from_pitch(float desired_pitch, float
         _pitch_limited = false;
     }
 
-    // set PID's dt
-    _pitch_to_throttle_pid.set_dt(dt);
-
     // initialise output to feed forward from current pitch angle
     const float pitch_rad = AP::ahrs().pitch;
     float output = sinf(pitch_rad) * _pitch_to_throttle_ff;
 
     // add regular PID control
-    output += _pitch_to_throttle_pid.update_all(desired_pitch, pitch_rad, motor_limit);
+    output += _pitch_to_throttle_pid.update_all(desired_pitch, pitch_rad, dt, motor_limit);
     output += _pitch_to_throttle_pid.get_ff();
 
     // update pitch limits for next iteration
@@ -821,10 +840,7 @@ float AR_AttitudeControl::get_sail_out_from_heel(float desired_heel, float dt)
     }
     _heel_controller_last_ms = now;
 
-    // set PID's dt
-    _sailboat_heel_pid.set_dt(dt);
-
-    _sailboat_heel_pid.update_all(desired_heel, fabsf(AP::ahrs().roll));
+    _sailboat_heel_pid.update_all(desired_heel, fabsf(AP::ahrs().roll), dt);
 
     // get feed-forward
     const float ff = _sailboat_heel_pid.get_ff();
@@ -847,6 +863,13 @@ float AR_AttitudeControl::get_sail_out_from_heel(float desired_heel, float dt)
 
     // constrain and return final output
     return (ff + p + i + d) * -1.0f;
+}
+
+// get the slew rate value for speed and steering for oscillation detection in lua scripts
+void AR_AttitudeControl::get_srate(float &steering_srate, float &speed_srate)
+{
+    steering_srate = get_steering_rate_pid().get_pid_info().slew_rate;
+    speed_srate = _throttle_speed_pid_info.slew_rate;
 }
 
 // get forward speed in m/s (earth-frame horizontal velocity but only along vehicle x-axis).  returns true on success

@@ -44,6 +44,8 @@ void led_on(unsigned led);
 void led_off(unsigned led);
 void led_toggle(unsigned led);
 
+void custom_startup(void);
+
 // printf to debug uart (or USB)
 extern "C" {
 void uprintf(const char *fmt, ...) FMT_PRINTF(1,2);
@@ -55,7 +57,6 @@ void led_pulses(uint8_t npulses);
 typedef struct mcu_des_t {
     uint16_t mcuid;
     const char *desc;
-    char  rev;
 } mcu_des_t;
 
 typedef struct mcu_rev_t {

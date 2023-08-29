@@ -108,6 +108,21 @@
 #define WIND_VEL_VARIANCE_MAX 400.0f
 #define WIND_VEL_VARIANCE_MIN 0.25f
 
+// maximum number of downward facing rangefinder instances available
+#if RANGEFINDER_MAX_INSTANCES > 1
+#define DOWNWARD_RANGEFINDER_MAX_INSTANCES 2
+#else
+#define DOWNWARD_RANGEFINDER_MAX_INSTANCES 1
+#endif
+
+// number of continuous valid GPS velocity samples required to reset yaw
+#define GPS_VEL_YAW_ALIGN_COUNT_THRESHOLD 5
+
+// minimum GPS horizontal speed required to use GPS ground course for yaw alignment (m/s)
+#define GPS_VEL_YAW_ALIGN_MIN_SPD 5.0F
+
+// maximum GPs ground course uncertainty allowed for yaw alignment (deg)
+#define GPS_VEL_YAW_ALIGN_MAX_ANG_ERR 15.0F
 
 class NavEKF3_core : public NavEKF_core_common
 {
@@ -203,17 +218,22 @@ public:
     // If a calculated location isn't available, return a raw GPS measurement
     // The status will return true if a calculation or raw measurement is available
     // The getFilterStatus() function provides a more detailed description of data health and must be checked if data is to be used for flight control
-    bool getLLH(struct Location &loc) const;
+    bool getLLH(Location &loc) const;
 
     // return the latitude and longitude and height used to set the NED origin
     // All NED positions calculated by the filter are relative to this location
     // Returns false if the origin has not been set
-    bool getOriginLLH(struct Location &loc) const;
+    bool getOriginLLH(Location &loc) const;
 
     // set the latitude and longitude and height used to set the NED origin
     // All NED positions calculated by the filter will be relative to this location
     // returns false if Absolute aiding and GPS is being used or if the origin is already set
     bool setOriginLLH(const Location &loc);
+
+    // Set the EKF's NE horizontal position states and their corresponding variances from a supplied WGS-84 location and uncertainty
+    // The altitude element of the location is not used.
+    // Returns true if the set was successful
+    bool setLatLng(const Location &loc, float posAccuracy, uint32_t timestamp_ms);
 
     // return estimated height above ground level
     // return false if ground height is not being estimated.
@@ -448,14 +468,31 @@ private:
     uint8_t obs_buffer_length;
 
 #if MATH_CHECK_INDEXES
+    class Vector9 : public VectorN<ftype, 9> {
+    public:
+        Vector9(ftype p0, ftype p1, ftype p2,
+                ftype p3, ftype p4, ftype p5,
+                ftype p6, ftype p7, ftype p8) {
+            _v[0] = p0;   _v[1] = p1;  _v[2] = p2;
+            _v[3] = p3;   _v[4] = p4;  _v[5] = p5;
+            _v[6] = p6;   _v[7] = p7;  _v[8] = p8;
+        }
+    };
+    class Vector5 : public VectorN<ftype, 5> {
+    public:
+        Vector5(ftype p0, ftype p1, ftype p2,
+                ftype p3, ftype p4) {
+            _v[0] = p0;   _v[1] = p1;  _v[2] = p2;
+            _v[3] = p3;   _v[4] = p4;
+        }
+    };
+
     typedef VectorN<ftype,2> Vector2;
     typedef VectorN<ftype,3> Vector3;
     typedef VectorN<ftype,4> Vector4;
-    typedef VectorN<ftype,5> Vector5;
     typedef VectorN<ftype,6> Vector6;
     typedef VectorN<ftype,7> Vector7;
     typedef VectorN<ftype,8> Vector8;
-    typedef VectorN<ftype,9> Vector9;
     typedef VectorN<ftype,10> Vector10;
     typedef VectorN<ftype,11> Vector11;
     typedef VectorN<ftype,13> Vector13;
@@ -772,7 +809,7 @@ private:
     void SelectBetaDragFusion();
 
     // force alignment of the yaw angle using GPS velocity data
-    void realignYawGPS();
+    void realignYawGPS(bool emergency_reset);
 
     // initialise the earth magnetic field states using declination and current attitude and magnetometer measurements
 
@@ -988,7 +1025,7 @@ private:
     void SelectDragFusion();
     void SampleDragData(const imu_elements &imu);
 
-    bool getGPSLLH(struct Location &loc) const;
+    bool getGPSLLH(Location &loc) const;
 
     // Variables
     bool statesInitialised;         // boolean true when filter states have been initialised
@@ -1078,8 +1115,8 @@ private:
     bool needEarthBodyVarReset;     // we need to reset mag earth variances at next CovariancePrediction
     bool inhibitDelAngBiasStates;   // true when IMU delta angle bias states are inactive
     bool gpsIsInUse;                // bool true when GPS data is being used to correct states estimates
-    struct Location EKF_origin;     // LLH origin of the NED axis system, internal only
-    struct Location &public_origin; // LLH origin of the NED axis system, public functions
+    Location EKF_origin;     // LLH origin of the NED axis system, internal only
+    Location &public_origin; // LLH origin of the NED axis system, public functions
     bool validOrigin;               // true when the EKF origin is valid
     ftype gpsSpdAccuracy;           // estimated speed accuracy in m/s returned by the GPS receiver
     ftype gpsPosAccuracy;           // estimated position accuracy in m returned by the GPS receiver
@@ -1093,6 +1130,7 @@ private:
     uint32_t lastYawReset_ms;       // System time at which the last yaw reset occurred. Returned by getLastYawResetAngle
     bool tiltAlignComplete;         // true when tilt alignment is complete
     bool yawAlignComplete;          // true when yaw alignment is complete
+    uint8_t yawAlignGpsValidCount;  // number of continuous good GPS velocity samples used for in flight yaw alignment
     bool magStateInitComplete;      // true when the magnetic field states have been initialised
     uint8_t stateIndexLim;          // Max state index used during matrix and array operations
     imu_elements imuDataDelayed;    // IMU data at the fusion time horizon
@@ -1171,7 +1209,7 @@ private:
     } vertCompFiltState;
 
     // variables used by the pre-initialisation GPS checks
-    struct Location gpsloc_prev;    // LLH location of previous GPS measurement
+    Location gpsloc_prev;    // LLH location of previous GPS measurement
     uint32_t lastPreAlignGpsCheckTime_ms;   // last time in msec the GPS quality was checked during pre alignment checks
     ftype gpsDriftNE;               // amount of drift detected in the GPS position during pre-flight GPs checks
     ftype gpsVertVelFilt;           // amount of filtered vertical GPS velocity detected during pre-flight GPS checks
@@ -1230,10 +1268,11 @@ private:
     bool baroDataToFuse;            // true when valid baro height finder data has arrived at the fusion time horizon.
     bool gpsDataToFuse;             // true when valid GPS data has arrived at the fusion time horizon.
     bool magDataToFuse;             // true when valid magnetometer data has arrived at the fusion time horizon
-    enum AidingMode {AID_ABSOLUTE=0,    // GPS or some other form of absolute position reference aiding is being used (optical flow may also be used in parallel) so position estimates are absolute.
-                     AID_NONE=1,       // no aiding is being used so only attitude and height estimates are available. Either constVelMode or constPosMode must be used to constrain tilt drift.
-                     AID_RELATIVE=2    // only optical flow aiding is being used so position estimates will be relative
-                    };
+    enum AidingMode {
+        AID_ABSOLUTE=0,    // GPS or some other form of absolute position reference aiding is being used (optical flow may also be used in parallel) so position estimates are absolute.
+        AID_NONE=1,       // no aiding is being used so only attitude and height estimates are available. Either constVelMode or constPosMode must be used to constrain tilt drift.
+        AID_RELATIVE=2,    // only optical flow aiding is being used so position estimates will be relative
+    };
     AidingMode PV_AidingMode;       // Defines the preferred mode for aiding of velocity and position estimates from the INS
     AidingMode PV_AidingModePrev;   // Value of PV_AidingMode from the previous frame - used to detect transitions
     bool gndOffsetValid;            // true when the ground offset state can still be considered valid
@@ -1246,11 +1285,11 @@ private:
     // Range finder
     ftype baroHgtOffset;                    // offset applied when when switching to use of Baro height
     ftype rngOnGnd;                         // Expected range finder reading in metres when vehicle is on ground
-    ftype storedRngMeas[2][3];              // Ringbuffer of stored range measurements for dual range sensors
-    uint32_t storedRngMeasTime_ms[2][3];    // Ringbuffers of stored range measurement times for dual range sensors
     uint32_t lastRngMeasTime_ms;            // Timestamp of last range measurement
-    uint8_t rngMeasIndex[2];                // Current range measurement ringbuffer index for dual range sensors
     bool terrainHgtStable;                  // true when the terrain height is stable enough to be used as a height reference
+    ftype storedRngMeas[DOWNWARD_RANGEFINDER_MAX_INSTANCES][3];              // Ringbuffer of stored range measurements for dual range sensors
+    uint32_t storedRngMeasTime_ms[DOWNWARD_RANGEFINDER_MAX_INSTANCES][3];    // Ringbuffers of stored range measurement times for dual range sensors
+    uint8_t rngMeasIndex[DOWNWARD_RANGEFINDER_MAX_INSTANCES];                // Current range measurement ringbuffer index for dual range sensors
 
     // body frame odometry fusion
 #if EK3_FEATURE_BODY_ODOM
@@ -1282,53 +1321,56 @@ private:
 
     // Range Beacon Sensor Fusion
 #if EK3_FEATURE_BEACON_FUSION
-    EKF_obs_buffer_t<rng_bcn_elements> storedRangeBeacon; // Beacon range buffer
-    rng_bcn_elements rngBcnDataDelayed; // Range beacon data at the fusion time horizon
-    uint32_t lastRngBcnPassTime_ms;     // time stamp when the range beacon measurement last passed innovation consistency checks (msec)
-    ftype rngBcnTestRatio;              // Innovation test ratio for range beacon measurements
-    bool rngBcnHealth;                  // boolean true if range beacon measurements have passed innovation consistency check
-    ftype varInnovRngBcn;               // range beacon observation innovation variance (m^2)
-    ftype innovRngBcn;                  // range beacon observation innovation (m)
-    uint32_t lastTimeRngBcn_ms[4];      // last time we received a range beacon measurement (msec)
-    bool rngBcnDataToFuse;              // true when there is new range beacon data to fuse
-    Vector3F beaconVehiclePosNED;       // NED position estimate from the beacon system (NED)
-    ftype beaconVehiclePosErr;          // estimated position error from the beacon system (m)
-    uint32_t rngBcnLast3DmeasTime_ms;   // last time the beacon system returned a 3D fix (msec)
-    bool rngBcnGoodToAlign;             // true when the range beacon systems 3D fix can be used to align the filter
-    uint8_t lastRngBcnChecked;          // index of the last range beacon checked for data
-    Vector3F receiverPos;               // receiver NED position (m) - alignment 3 state filter
-    ftype receiverPosCov[3][3];         // Receiver position covariance (m^2) - alignment 3 state filter (
-    bool rngBcnAlignmentStarted;        // True when the initial position alignment using range measurements has started
-    bool rngBcnAlignmentCompleted;      // True when the initial position alignment using range measurements has finished
-    uint8_t lastBeaconIndex;            // Range beacon index last read -  used during initialisation of the 3-state filter
-    Vector3F rngBcnPosSum;              // Sum of range beacon NED position (m) - used during initialisation of the 3-state filter
-    uint8_t numBcnMeas;                 // Number of beacon measurements - used during initialisation of the 3-state filter
-    ftype rngSum;                       // Sum of range measurements (m) - used during initialisation of the 3-state filter
-    uint8_t N_beacons;                  // Number of range beacons in use
-    ftype maxBcnPosD;                   // maximum position of all beacons in the down direction (m)
-    ftype minBcnPosD;                   // minimum position of all beacons in the down direction (m)
-    bool usingMinHypothesis;            // true when the min beacon constellation offset hypothesis is being used
+    class BeaconFusion {
+    public:
+        EKF_obs_buffer_t<rng_bcn_elements> storedRange; // Beacon range buffer
+        rng_bcn_elements dataDelayed; // Range beacon data at the fusion time horizon
+        uint32_t lastPassTime_ms;     // time stamp when the range beacon measurement last passed innovation consistency checks (msec)
+        ftype testRatio;              // Innovation test ratio for range beacon measurements
+        bool health;                  // boolean true if range beacon measurements have passed innovation consistency check
+        ftype varInnov;               // range beacon observation innovation variance (m^2)
+        ftype innov;                  // range beacon observation innovation (m)
+        uint32_t lastTime_ms[4];      // last time we received a range beacon measurement (msec)
+        bool dataToFuse;              // true when there is new range beacon data to fuse
+        Vector3F vehiclePosNED;       // NED position estimate from the beacon system (NED)
+        ftype vehiclePosErr;          // estimated position error from the beacon system (m)
+        uint32_t last3DmeasTime_ms;   // last time the beacon system returned a 3D fix (msec)
+        bool goodToAlign;             // true when the range beacon systems 3D fix can be used to align the filter
+        uint8_t lastChecked;          // index of the last range beacon checked for data
+        Vector3F receiverPos;               // receiver NED position (m) - alignment 3 state filter
+        ftype receiverPosCov[3][3];         // Receiver position covariance (m^2) - alignment 3 state filter (
+        bool alignmentStarted;        // True when the initial position alignment using range measurements has started
+        bool alignmentCompleted;      // True when the initial position alignment using range measurements has finished
+        uint8_t lastIndex;            // Range beacon index last read -  used during initialisation of the 3-state filter
+        Vector3F posSum;              // Sum of range beacon NED position (m) - used during initialisation of the 3-state filter
+        uint8_t numMeas;                 // Number of beacon measurements - used during initialisation of the 3-state filter
+        ftype sum;                       // Sum of range measurements (m) - used during initialisation of the 3-state filter
+        uint8_t N;                  // Number of range beacons in use
+        ftype maxPosD;                   // maximum position of all beacons in the down direction (m)
+        ftype minPosD;                   // minimum position of all beacons in the down direction (m)
+        bool usingMinHypothesis;            // true when the min beacon constellation offset hypothesis is being used
 
-    ftype bcnPosDownOffsetMax;          // Vertical position offset of the beacon constellation origin relative to the EKF origin (m)
-    ftype bcnPosOffsetMaxVar;           // Variance of the bcnPosDownOffsetMax state (m)
-    ftype maxOffsetStateChangeFilt;     // Filtered magnitude of the change in bcnPosOffsetHigh
+        ftype posDownOffsetMax;          // Vertical position offset of the beacon constellation origin relative to the EKF origin (m)
+        ftype posOffsetMaxVar;           // Variance of the PosDownOffsetMax state (m)
+        ftype maxOffsetStateChangeFilt;     // Filtered magnitude of the change in PosOffsetHigh
 
-    ftype bcnPosDownOffsetMin;          // Vertical position offset of the beacon constellation origin relative to the EKF origin (m)
-    ftype bcnPosOffsetMinVar;           // Variance of the bcnPosDownOffsetMin state (m)
-    ftype minOffsetStateChangeFilt;     // Filtered magnitude of the change in bcnPosOffsetLow
+        ftype posDownOffsetMin;          // Vertical position offset of the beacon constellation origin relative to the EKF origin (m)
+        ftype posOffsetMinVar;           // Variance of the PosDownOffsetMin state (m)
+        ftype minOffsetStateChangeFilt;     // Filtered magnitude of the change in PosOffsetLow
 
-    Vector3F bcnPosOffsetNED;           // NED position of the beacon origin in earth frame (m)
-    bool bcnOriginEstInit;              // True when the beacon origin has been initialised
+        Vector3F posOffsetNED;           // NED position of the beacon origin in earth frame (m)
+        bool originEstInit;              // True when the beacon origin has been initialised
 
-    // Range Beacon Fusion Debug Reporting
-    uint8_t rngBcnFuseDataReportIndex;// index of range beacon fusion data last reported
-    struct rngBcnFusionReport_t {
-        ftype rng;          // measured range to beacon (m)
-        ftype innov;        // range innovation (m)
-        ftype innovVar;     // innovation variance (m^2)
-        ftype testRatio;    // innovation consistency test ratio
-        Vector3F beaconPosNED; // beacon NED position
-    } *rngBcnFusionReport;
+        // Range Beacon Fusion Debug Reporting
+        uint8_t fuseDataReportIndex;// index of range beacon fusion data last reported
+        struct FusionReport {
+            ftype rng;          // measured range to beacon (m)
+            ftype innov;        // range innovation (m)
+            ftype innovVar;     // innovation variance (m^2)
+            ftype testRatio;    // innovation consistency test ratio
+            Vector3F beaconPosNED; // beacon NED position
+        } *fusionReport;
+    } rngBcn;
 #endif  // if EK3_FEATURE_BEACON_FUSION
 
 #if EK3_FEATURE_DRAG_FUSION
@@ -1442,26 +1484,6 @@ private:
         };
         uint16_t value;
     } gpsCheckStatus;
-
-    // states held by magnetometer fusion across time steps
-    // magnetometer X,Y,Z measurements are fused across three time steps
-    // to level computational load as this is an expensive operation
-    struct {
-        ftype q0;
-        ftype q1;
-        ftype q2;
-        ftype q3;
-        ftype magN;
-        ftype magE;
-        ftype magD;
-        ftype magXbias;
-        ftype magYbias;
-        ftype magZbias;
-        Matrix3F DCM;
-        Vector3F MagPred;
-        ftype R_MAG;
-        Vector9 SH_MAG;
-    } mag_state;
 
     // string representing last reason for prearm failure
     char prearm_fail_string[40];

@@ -41,6 +41,13 @@
 #include <AP_Mission/AP_Mission.h>
 #include <AP_Mission/AP_Mission_ChangeDetector.h>
 #include <AR_WPNav/AR_WPNav_OA.h>
+#include <AP_OpticalFlow/AP_OpticalFlow.h>
+#include <AC_PrecLand/AC_PrecLand_config.h>
+#include <AP_Follow/AP_Follow_config.h>
+#include <AP_ExternalControl/AP_ExternalControl_config.h>
+#if AP_EXTERNAL_CONTROL_ENABLED
+#include <AP_ExternalControl/AP_ExternalControl.h>
+#endif
 
 // Configuration
 #include "defines.h"
@@ -60,10 +67,10 @@
 #include "GCS_Mavlink.h"
 #include "GCS_Rover.h"
 #include "AP_Rally.h"
-#include "RC_Channel.h"                  // RC Channel Library
-#if PRECISION_LANDING == ENABLED
+#if AC_PRECLAND_ENABLED
 #include <AC_PrecLand/AC_PrecLand.h>
 #endif
+#include "RC_Channel.h"                  // RC Channel Library
 
 #include "mode.h"
 
@@ -81,6 +88,7 @@ public:
     friend class Mode;
     friend class ModeAcro;
     friend class ModeAuto;
+    friend class ModeCircle;
     friend class ModeGuided;
     friend class ModeHold;
     friend class ModeLoiter;
@@ -88,7 +96,9 @@ public:
     friend class ModeManual;
     friend class ModeRTL;
     friend class ModeSmartRTL;
+#if MODE_FOLLOW_ENABLED == ENABLED
     friend class ModeFollow;
+#endif
     friend class ModeSimple;
 #if MODE_DOCK_ENABLED == ENABLED
     friend class ModeDock;
@@ -137,6 +147,11 @@ private:
     // Arming/Disarming management class
     AP_Arming_Rover arming;
 
+    // dummy external control implementation
+#if AP_EXTERNAL_CONTROL_ENABLED
+    AP_ExternalControl external_control;
+#endif
+
 #if AP_OPTICALFLOW_ENABLED
     AP_OpticalFlow optflow;
 #endif
@@ -144,7 +159,7 @@ private:
 #if OSD_ENABLED || OSD_PARAM_ENABLED
     AP_OSD osd;
 #endif
-#if PRECISION_LANDING == ENABLED
+#if AC_PRECLAND_ENABLED
     AC_PrecLand precland;
 #endif
     // GCS handling
@@ -155,7 +170,7 @@ private:
     RC_Channels_Rover &rc() { return g2.rc_channels; }
 
     // The rover's current location
-    struct Location current_loc;
+    Location current_loc;
 
     // Camera
 #if AP_CAMERA_ENABLED
@@ -233,7 +248,9 @@ private:
     ModeSteering mode_steering;
     ModeRTL mode_rtl;
     ModeSmartRTL mode_smartrtl;
+#if MODE_FOLLOW_ENABLED == ENABLED
     ModeFollow mode_follow;
+#endif
     ModeSimple mode_simple;
 #if MODE_DOCK_ENABLED == ENABLED
     ModeDock mode_dock;
@@ -255,6 +272,7 @@ private:
     bool set_target_location(const Location& target_loc) override;
     bool set_target_velocity_NED(const Vector3f& vel_ned) override;
     bool set_steering_and_throttle(float steering, float throttle) override;
+    bool get_steering_and_throttle(float& steering, float& throttle) override;
     // set desired turn rate (degrees/sec) and speed (m/s). Used for scripting
     bool set_desired_turn_rate_and_speed(float turn_rate, float speed) override;
     bool set_desired_speed(float speed) override;
@@ -357,9 +375,14 @@ private:
     void init_ardupilot() override;
     void startup_ground(void);
     void update_ahrs_flyforward();
+    bool gcs_mode_enabled(const Mode::Number mode_num) const;
     bool set_mode(Mode &new_mode, ModeReason reason);
     bool set_mode(const uint8_t new_mode, ModeReason reason) override;
     uint8_t get_mode() const override { return (uint8_t)control_mode->mode_number(); }
+    bool current_mode_requires_mission() const override {
+        return control_mode == &mode_auto;
+    }
+
     void startup_INS_ground(void);
     void notify_mode(const Mode *new_mode);
     uint8_t check_digital_pin(uint8_t pin);

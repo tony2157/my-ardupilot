@@ -44,9 +44,13 @@ public:
     // external position backend types (used by _TYPE parameter)
     enum class VisualOdom_Type {
         None         = 0,
+#if AP_VISUALODOM_MAV_ENABLED
         MAV          = 1,
+#endif
+#if AP_VISUALODOM_INTELT265_ENABLED
         IntelT265    = 2,
         VOXL         = 3,
+#endif
     };
 
     // detect and initialise any sensors
@@ -86,15 +90,15 @@ public:
 
     // general purpose methods to consume position estimate data and send to EKF
     // distances in meters, roll, pitch and yaw are in radians
-    void handle_vision_position_estimate(uint64_t remote_time_us, uint32_t time_ms, float x, float y, float z, float roll, float pitch, float yaw, float posErr, float angErr, uint8_t reset_counter);
-    void handle_vision_position_estimate(uint64_t remote_time_us, uint32_t time_ms, float x, float y, float z, const Quaternion &attitude, float posErr, float angErr, uint8_t reset_counter);
+    void handle_pose_estimate(uint64_t remote_time_us, uint32_t time_ms, float x, float y, float z, float roll, float pitch, float yaw, float posErr, float angErr, uint8_t reset_counter);
+    void handle_pose_estimate(uint64_t remote_time_us, uint32_t time_ms, float x, float y, float z, const Quaternion &attitude, float posErr, float angErr, uint8_t reset_counter);
     
     // general purpose methods to consume velocity estimate data and send to EKF
     // velocity in NED meters per second
     void handle_vision_speed_estimate(uint64_t remote_time_us, uint32_t time_ms, const Vector3f &vel, uint8_t reset_counter);
 
-    // calibrate camera attitude to align with vehicle's AHRS/EKF attitude
-    void align_sensor_to_vehicle();
+    // request sensor's yaw be aligned with vehicle's AHRS/EKF attitude
+    void request_align_yaw_to_ahrs();
 
     // update position offsets to align to AHRS position
     // should only be called when this library is not being used as the position source

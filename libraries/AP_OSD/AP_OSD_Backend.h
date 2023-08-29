@@ -26,7 +26,7 @@ class AP_OSD_Backend
 
 public:
     //constructor
-    AP_OSD_Backend(AP_OSD &osd): _osd(osd) {};
+    AP_OSD_Backend(AP_OSD &osd): _osd(osd) {}
 
     //destructor
     virtual ~AP_OSD_Backend(void) {}
@@ -51,10 +51,12 @@ public:
     virtual void clear()
     {
         blink_phase = (blink_phase+1)%4;
-    };
+    }
 
     // copy the backend specific symbol set to the OSD lookup table
     virtual void init_symbol_set(uint8_t *symbols, const uint8_t size);
+    virtual bool is_compatible_with_backend_type(AP_OSD::osd_types type) const = 0;
+    virtual AP_OSD::osd_types get_backend_type() const = 0;
 
     // called by the OSD thread once
     virtual void osd_thread_run_once() { return; }

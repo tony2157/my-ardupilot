@@ -24,7 +24,6 @@ void Plane::failsafe_short_on_event(enum failsafe_state fstype, ModeReason reaso
     failsafe.state = fstype;
     failsafe.short_timer_ms = millis();
     failsafe.saved_mode_number = control_mode->mode_number();
-    gcs().send_text(MAV_SEVERITY_WARNING, "RC Short Failsafe On");
     switch (control_mode->mode_number())
     {
     case Mode::Number::MANUAL:
@@ -46,7 +45,6 @@ void Plane::failsafe_short_on_event(enum failsafe_state fstype, ModeReason reaso
         } else {
             set_mode(mode_circle, reason); // circle if action = 0 or 1 
         }
-        gcs().send_text(MAV_SEVERITY_INFO, "Flight mode = %s", control_mode->name());
         break;
 
 #if HAL_QUADPLANE_ENABLED
@@ -64,7 +62,6 @@ void Plane::failsafe_short_on_event(enum failsafe_state fstype, ModeReason reaso
         } else {
             set_mode(mode_qland, reason);
         }
-        gcs().send_text(MAV_SEVERITY_INFO, "Flight mode = %s", control_mode->name());
         break;
 #endif // HAL_QUADPLANE_ENABLED
 
@@ -88,7 +85,6 @@ void Plane::failsafe_short_on_event(enum failsafe_state fstype, ModeReason reaso
             } else {
                 set_mode(mode_circle, reason);
             }
-            gcs().send_text(MAV_SEVERITY_INFO, "Flight mode = %s", control_mode->name());
         }
          break;
     case Mode::Number::CIRCLE:  // these modes never take any short failsafe action and continue
@@ -102,17 +98,17 @@ void Plane::failsafe_short_on_event(enum failsafe_state fstype, ModeReason reaso
     case Mode::Number::INITIALISING:
         break;
     }
+    if (failsafe.saved_mode_number != control_mode->mode_number()) {
+        gcs().send_text(MAV_SEVERITY_WARNING, "RC Short Failsafe: switched to %s", control_mode->name());
+    } else {
+        gcs().send_text(MAV_SEVERITY_WARNING, "RC Short Failsafe On");
+    }
 }
 
 void Plane::failsafe_long_on_event(enum failsafe_state fstype, ModeReason reason)
 {
+
     // This is how to handle a long loss of control signal failsafe.
-    if (reason == ModeReason:: GCS_FAILSAFE) {
-        gcs().send_text(MAV_SEVERITY_WARNING, "GCS Failsafe On");
-    }
-    else {
-        gcs().send_text(MAV_SEVERITY_WARNING, "RC Long Failsafe On");
-    }
     //  If the GCS is locked up we allow control to revert to RC
     RC_Channels::clear_overrides();
     failsafe.state = fstype;
@@ -129,6 +125,14 @@ void Plane::failsafe_long_on_event(enum failsafe_state fstype, ModeReason reason
     case Mode::Number::CIRCLE:
     case Mode::Number::LOITER:
     case Mode::Number::THERMAL:
+    case Mode::Number::TAKEOFF:
+        if (plane.flight_stage == AP_FixedWing::FlightStage::TAKEOFF && !(g.fs_action_long == FS_ACTION_LONG_GLIDE || g.fs_action_long == FS_ACTION_LONG_PARACHUTE)) {
+            // don't failsafe if in inital climb of TAKEOFF mode and FS action is not parachute or glide
+            // long failsafe will be re-called if still in fs after initial climb
+            long_failsafe_pending = true;
+            break;
+        }
+
         if(plane.emergency_landing) {
             set_mode(mode_fbwa, reason); // emergency landing switch overrides normal action to allow out of range landing
             break;
@@ -136,9 +140,13 @@ void Plane::failsafe_long_on_event(enum failsafe_state fstype, ModeReason reason
         if(g.fs_action_long == FS_ACTION_LONG_PARACHUTE) {
 #if PARACHUTE == ENABLED
             parachute_release();
+            //stop motors to avoide parachute tangling
+            plane.arming.disarm(AP_Arming::Method::PARACHUTE_RELEASE, false);
 #endif
         } else if (g.fs_action_long == FS_ACTION_LONG_GLIDE) {
             set_mode(mode_fbwa, reason);
+        } else if (g.fs_action_long == FS_ACTION_LONG_AUTO) {
+            set_mode(mode_auto, reason);
         } else {
             set_mode(mode_rtl, reason);
         }
@@ -171,28 +179,36 @@ void Plane::failsafe_long_on_event(enum failsafe_state fstype, ModeReason reason
 
     case Mode::Number::AVOID_ADSB:
     case Mode::Number::GUIDED:
+
         if(g.fs_action_long == FS_ACTION_LONG_PARACHUTE) {
 #if PARACHUTE == ENABLED
             parachute_release();
+            //stop motors to avoide parachute tangling
+            plane.arming.disarm(AP_Arming::Method::PARACHUTE_RELEASE, false);
 #endif
         } else if (g.fs_action_long == FS_ACTION_LONG_GLIDE) {
             set_mode(mode_fbwa, reason);
+        } else if (g.fs_action_long == FS_ACTION_LONG_AUTO) {
+            set_mode(mode_auto, reason);
         } else if (g.fs_action_long == FS_ACTION_LONG_RTL) {
             set_mode(mode_rtl, reason);
         }
         break;
 
     case Mode::Number::RTL:
+        if (g.fs_action_long == FS_ACTION_LONG_AUTO) {
+            set_mode(mode_auto, reason);
+        }
+        break;
 #if HAL_QUADPLANE_ENABLED
     case Mode::Number::QLAND:
     case Mode::Number::QRTL:
     case Mode::Number::LOITER_ALT_QLAND:
 #endif
-    case Mode::Number::TAKEOFF:
     case Mode::Number::INITIALISING:
         break;
     }
-    gcs().send_text(MAV_SEVERITY_INFO, "Flight mode = %s", control_mode->name());
+    gcs().send_text(MAV_SEVERITY_WARNING, "%s Failsafe On: %s", (reason == ModeReason:: GCS_FAILSAFE) ? "GCS" : "RC Long", control_mode->name());
 }
 
 void Plane::failsafe_short_off_event(ModeReason reason)
@@ -209,6 +225,7 @@ void Plane::failsafe_short_off_event(ModeReason reason)
 
 void Plane::failsafe_long_off_event(ModeReason reason)
 {
+    long_failsafe_pending = false;
     // We're back in radio contact with RC or GCS
     if (reason == ModeReason:: GCS_FAILSAFE) {
         gcs().send_text(MAV_SEVERITY_WARNING, "GCS Failsafe Off");
@@ -280,7 +297,7 @@ void Plane::handle_battery_failsafe(const char *type_str, const int8_t action)
         }
 
         case Failsafe_Action_Terminate:
-#if ADVANCED_FAILSAFE == ENABLED
+#if AP_ADVANCEDFAILSAFE_ENABLED
             char battery_type_str[17];
             snprintf(battery_type_str, 17, "%s battery", type_str);
             afs.gcs_terminate(true, battery_type_str);

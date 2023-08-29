@@ -258,7 +258,7 @@ class AutoTestQuadPlane(AutoTest):
     def TestMotorMask(self):
         """Check operation of output_motor_mask"""
         """copter tailsitters will add condition: or (int(self.get_parameter('Q_TAILSIT_MOTMX')) & 1)"""
-        if not(int(self.get_parameter('Q_TILT_MASK')) & 1):
+        if not (int(self.get_parameter('Q_TILT_MASK')) & 1):
             self.progress("output_motor_mask not in use")
             return
         self.progress("Testing output_motor_mask")
@@ -266,7 +266,7 @@ class AutoTestQuadPlane(AutoTest):
 
         """Default channel for Motor1 is 5"""
         self.progress('Assert that SERVO5 is Motor1')
-        assert(33 == self.get_parameter('SERVO5_FUNCTION'))
+        assert 33 == self.get_parameter('SERVO5_FUNCTION')
 
         modes = ('MANUAL', 'FBWA', 'QHOVER')
         for mode in modes:
@@ -282,29 +282,22 @@ class AutoTestQuadPlane(AutoTest):
             self.disarm_vehicle()
             self.wait_ready_to_arm()
 
-    def fly_mission(self, filename, fence=None, height_accuracy=-1, include_terrain_timeout=False):
+    def fly_mission(self, filename, fence=None, height_accuracy=-1):
         """Fly a mission from a file."""
         self.progress("Flying mission %s" % filename)
-        self.load_mission(filename)
-        if fence is not None:
-            self.load_fence(fence)
+        num_wp = self.load_mission(filename)
         if self.mavproxy is not None:
             self.mavproxy.send('wp list\n')
-        self.install_terrain_handlers_context()
-        self.wait_ready_to_arm()
-        self.arm_vehicle()
+        if fence is not None:
+            self.load_fence(fence)
+            if self.mavproxy is not None:
+                self.mavproxy.send('fence list\n')
+        # self.install_terrain_handlers_context()
         self.change_mode('AUTO')
-        self.wait_waypoint(1, 19, max_dist=60, timeout=1200)
-
-        self.wait_disarmed(timeout=120) # give quadplane a long time to land
-        # wait for blood sample here
-        self.set_current_waypoint(20)
         self.wait_ready_to_arm()
         self.arm_vehicle()
-        self.wait_waypoint(20, 34, max_dist=60, timeout=1200)
-
+        self.wait_waypoint(1, num_wp-1)
         self.wait_disarmed(timeout=120) # give quadplane a long time to land
-        self.progress("Mission OK")
 
     def EXTENDED_SYS_STATE_SLT(self):
         self.set_message_rate_hz(mavutil.mavlink.MAVLINK_MSG_ID_EXTENDED_SYS_STATE, 10)
@@ -395,17 +388,20 @@ class AutoTestQuadPlane(AutoTest):
             break
         self.wait_disarmed()
 
-    def takeoff(self, height, mode):
+    def takeoff(self, height, mode, timeout=30):
         """climb to specified height and set throttle to 1500"""
         self.set_current_waypoint(0, check_afterwards=False)
         self.change_mode(mode)
         self.wait_ready_to_arm()
         self.arm_vehicle()
+        if mode == 'GUIDED':
+            self.user_takeoff(alt_min=height, timeout=timeout)
+            return
         self.set_rc(3, 1800)
         self.wait_altitude(height,
                            height+5,
                            relative=True,
-                           timeout=30)
+                           timeout=timeout)
         self.set_rc(3, 1500)
 
     def do_RTL(self):
@@ -769,6 +765,151 @@ class AutoTestQuadPlane(AutoTest):
         self.change_mode("RTL")
         self.wait_disarmed(timeout=300)
 
+    def LoiterAltQLand(self):
+        '''test loitering and qland with terrain involved'''
+        self.LoiterAltQLand_Terrain(
+            home="LakeGeorgeLookout",
+            ofs_n=0,
+            ofs_e=300,
+        )
+#        self.LoiterAltQLand_Terrain(
+#            home="KalaupapaCliffs",
+#            ofs_n=500,
+#            ofs_e=500,
+#        )
+        self.LoiterAltQLand_Relative()
+
+    def LoiterAltQLand_Relative(self):
+        '''test failsafe where vehicle loiters in fixed-wing mode to a
+        specific altitude then changes mode to QLAND'''
+        self.set_parameters({
+            'BATT_MONITOR': 4,  # LoiterAltQLand
+            'BATT_FS_LOW_ACT': 6,  # LoiterAltQLand
+        })
+        self.reboot_sitl()
+        takeoff_alt = 5
+        self.takeoff(takeoff_alt, mode='QLOITER')
+        loc = self.mav.location()
+        self.location_offset_ne(loc, 500, 500)
+        new_alt = 100
+        initial_altitude = self.get_altitude(relative=False, timeout=2)
+        self.run_cmd_int(
+            mavutil.mavlink.MAV_CMD_DO_REPOSITION,
+            0,
+            1,  # reposition flags; 1 means "change to guided"
+            0,
+            0,
+            int(loc.lat * 1e7),
+            int(loc.lng * 1e7),
+            new_alt,    # alt
+            frame=mavutil.mavlink.MAV_FRAME_GLOBAL_RELATIVE_ALT_INT,
+        )
+        self.wait_altitude(
+            new_alt-1,
+            new_alt+1,
+            timeout=60,
+            relative=True,
+            minimum_duration=10)
+        self.wait_location(loc, timeout=120, accuracy=100)
+        self.progress("Triggering failsafe")
+        self.set_parameter('BATT_LOW_VOLT', 50)
+        self.wait_mode(25)  # LoiterAltQLand
+        self.drain_mav()
+        m = self.assert_receive_message('POSITION_TARGET_GLOBAL_INT', very_verbose=True)
+        q_rtl_alt = self.get_parameter('Q_RTL_ALT')
+        expected_alt = initial_altitude - takeoff_alt + q_rtl_alt
+
+        if abs(m.alt - expected_alt) > 20:
+            raise NotAchievedException("Unexpected altitude; expected=%f got=%f" %
+                                       (expected_alt, m.alt))
+        self.assert_mode('LOITERALTQLAND')
+        self.wait_mode('QLAND')
+        alt = self.get_altitude(relative=True)
+        if abs(alt - q_rtl_alt) > 2:
+            raise NotAchievedException("qland too late; want=%f got=%f" %
+                                       (alt, q_rtl_alt))
+
+        self.wait_disarmed(timeout=300)
+
+    def LoiterAltQLand_Terrain(self,
+                               home=None,
+                               ofs_n=None,
+                               ofs_e=None,
+                               reposition_alt=100):
+        '''test failsafe where vehicle loiters in fixed-wing mode to a
+        specific altitude then changes mode to QLAND'''
+        self.context_push()
+        self.install_terrain_handlers_context()
+        self.set_parameters({
+            'BATT_MONITOR': 4,  # LoiterAltQLand
+            'BATT_FS_LOW_ACT': 6,  # LoiterAltQLand
+            'TERRAIN_FOLLOW': 1,  # enabled in all modes
+        })
+        self.customise_SITL_commandline(
+            ["--home", home]
+        )
+        takeoff_alt = 5
+        self.takeoff(takeoff_alt, mode='QLOITER')
+        loc = self.mav.location()
+        self.location_offset_ne(loc, ofs_n, ofs_e)
+        initial_altitude = self.get_altitude(relative=False, timeout=2)
+        self.run_cmd_int(
+            mavutil.mavlink.MAV_CMD_DO_REPOSITION,
+            0,
+            1,  # reposition flags; 1 means "change to guided"
+            0,
+            0,
+            int(loc.lat * 1e7),
+            int(loc.lng * 1e7),
+            reposition_alt,    # alt
+            frame=mavutil.mavlink.MAV_FRAME_GLOBAL_RELATIVE_ALT_INT,
+        )
+        self.wait_altitude(
+            reposition_alt-1,
+            reposition_alt+1,
+            timeout=60,
+            relative=True,
+            minimum_duration=10)
+
+        self.wait_location(loc, timeout=500, accuracy=100)
+
+        self.progress("Triggering failsafe")
+        self.set_parameter('BATT_LOW_VOLT', 50)
+        self.wait_mode(25)  # LoiterAltQLand
+        terrain_alt = self.get_terrain_height(verbose=True)
+        self.drain_mav()
+        m = self.assert_receive_message('POSITION_TARGET_GLOBAL_INT', very_verbose=True)
+        q_rtl_alt = self.get_parameter('Q_RTL_ALT')
+        expected_alt = terrain_alt + q_rtl_alt
+
+        if abs(m.alt - expected_alt) > 20:
+            raise NotAchievedException("Unexpected altitude; expected=%f got=%f" %
+                                       (expected_alt, m.alt))
+        self.assert_mode('LOITERALTQLAND')
+        self.wait_mode('QLAND')
+        alt = initial_altitude + self.get_altitude(relative=True)
+        if abs(alt - expected_alt) > 10:
+            raise NotAchievedException("qland too late; want=%f got=%f" %
+                                       (expected_alt, alt))
+
+        self.wait_disarmed(timeout=300)
+        self.zero_throttle()
+        self.reset_SITL_commandline()
+        self.context_pop()
+
+    def GUIDEDToAUTO(self):
+        '''Test using GUIDED mode for takeoff before shifting to auto'''
+        self.load_mission("mission.txt")
+        self.takeoff(30, mode='GUIDED')
+
+        # extra checks would go here
+        self.assert_not_receiving_message('CAMERA_FEEDBACK')
+
+        self.change_mode('AUTO')
+        self.wait_current_waypoint(3)
+        self.change_mode('QRTL')
+        self.wait_disarmed(timeout=240)
+
     def Tailsitter(self):
         '''tailsitter test'''
         self.set_parameter('Q_FRAME_CLASS', 10)
@@ -791,19 +932,24 @@ class AutoTestQuadPlane(AutoTest):
                 raise NotAchievedException("Changed throttle output on mode change to QHOVER")
         self.disarm_vehicle()
 
-    def ICEngine(self):
-        '''Test ICE Engine support'''
-        rc_engine_start_chan = 11
+    def setup_ICEngine_vehicle(self, start_chan):
+        '''restarts SITL with an IC Engine setup'''
         self.set_parameters({
-            'ICE_START_CHAN': rc_engine_start_chan,
+            'ICE_START_CHAN': start_chan,
         })
-        model = "quadplane-ice"
 
+        model = "quadplane-ice"
         self.customise_SITL_commandline(
             [],
             model=model,
             defaults_filepath=self.model_defaults_filepath(model),
-            wipe=False)
+            wipe=False,
+        )
+
+    def ICEngine(self):
+        '''Test ICE Engine support'''
+        rc_engine_start_chan = 11
+        self.setup_ICEngine_vehicle(start_chan=rc_engine_start_chan)
 
         self.wait_ready_to_arm()
         self.wait_rpm(1, 0, 0, minimum_duration=1)
@@ -821,7 +967,7 @@ class AutoTestQuadPlane(AutoTest):
         self.wait_rpm(1, 6500, 7500, minimum_duration=30, timeout=40)
         self.progress("Setting min-throttle")
         self.set_rc(3, 1000)
-        self.wait_rpm(1, 300, 400, minimum_duration=1)
+        self.wait_rpm(1, 65, 75, minimum_duration=1)
         self.progress("Setting engine-start RC switch to LOW")
         self.set_rc(rc_engine_start_chan, 1000)
         self.wait_rpm(1, 0, 0, minimum_duration=1)
@@ -842,24 +988,89 @@ class AutoTestQuadPlane(AutoTest):
     def ICEngineMission(self):
         '''Test ICE Engine Mission support'''
         rc_engine_start_chan = 11
-        self.set_parameters({
-            'ICE_START_CHAN': rc_engine_start_chan,
-        })
-        model = "quadplane-ice"
+        self.setup_ICEngine_vehicle(start_chan=rc_engine_start_chan)
 
-        self.customise_SITL_commandline(
-            [],
-            model=model,
-            defaults_filepath=self.model_defaults_filepath(model),
-            wipe=False)
-
-        self.reboot_sitl()
         self.load_mission("mission.txt")
         self.wait_ready_to_arm()
         self.set_rc(rc_engine_start_chan, 2000)
         self.arm_vehicle()
         self.change_mode('AUTO')
         self.wait_disarmed(timeout=300)
+
+    def MAV_CMD_DO_ENGINE_CONTROL(self):
+        '''test MAV_CMD_DO_ENGINE_CONTROL mavlink command'''
+
+        expected_idle_rpm_min = 65
+        expected_idle_rpm_max = 75
+        expected_starter_rpm_min = 345
+        expected_starter_rpm_max = 355
+
+        rc_engine_start_chan = 11
+        self.setup_ICEngine_vehicle(start_chan=rc_engine_start_chan)
+
+        self.wait_ready_to_arm()
+
+        for method in self.run_cmd, self.run_cmd_int:
+            self.change_mode('MANUAL')
+            self.set_rc(rc_engine_start_chan, 1500)  # allow motor to run
+            self.wait_rpm(1, 0, 0, minimum_duration=1)
+            self.arm_vehicle()
+            self.wait_rpm(1, 0, 0, minimum_duration=1)
+            self.start_subtest("Start motor")
+            method(mavutil.mavlink.MAV_CMD_DO_ENGINE_CONTROL, p1=1)
+            self.wait_rpm(1, expected_starter_rpm_min, expected_starter_rpm_max)
+            self.wait_rpm(1, expected_idle_rpm_min, expected_idle_rpm_max, minimum_duration=10)
+
+            # starting the motor while it is running is failure
+            # (probably wrong, but that's how this works):
+            self.start_subtest("try start motor again")
+            self.context_collect('STATUSTEXT')
+            method(mavutil.mavlink.MAV_CMD_DO_ENGINE_CONTROL, p1=1, want_result=mavutil.mavlink.MAV_RESULT_FAILED)
+            self.wait_statustext("already running", check_context=True)
+            self.context_stop_collecting('STATUSTEXT')
+            # shouldn't affect run state:
+            self.wait_rpm(1, expected_idle_rpm_min, expected_idle_rpm_max, minimum_duration=1)
+
+            self.start_subtest("Stop motor")
+            method(mavutil.mavlink.MAV_CMD_DO_ENGINE_CONTROL, p1=0)
+            self.wait_rpm(1, 0, 0, minimum_duration=1)
+
+            self.start_subtest("Stop motor (again)")
+            method(mavutil.mavlink.MAV_CMD_DO_ENGINE_CONTROL, p1=0)
+            self.wait_rpm(1, 0, 0, minimum_duration=1)
+
+            self.start_subtest("Check start chan control disable")
+            old_start_channel_value = self.get_rc_channel_value(rc_engine_start_chan)
+            self.set_rc(rc_engine_start_chan, 1000)
+            self.context_collect('STATUSTEXT')
+            method(mavutil.mavlink.MAV_CMD_DO_ENGINE_CONTROL, p1=1, want_result=mavutil.mavlink.MAV_RESULT_FAILED)
+            self.wait_statustext("start control disabled", check_context=True)
+            self.context_stop_collecting('STATUSTEXT')
+            self.set_rc(rc_engine_start_chan, old_start_channel_value)
+            self.wait_rpm(1, 0, 0, minimum_duration=1)
+
+            self.start_subtest("test start-at-height")
+            self.wait_rpm(1, 0, 0, minimum_duration=1)
+            self.context_collect('STATUSTEXT')
+            method(
+                mavutil.mavlink.MAV_CMD_DO_ENGINE_CONTROL,
+                p1=1,  # start
+                p3=15.5, # ... at 15.5 metres
+            )
+            self.wait_statustext("height set to 15.5m", check_context=True)
+            self.wait_rpm(1, 0, 0, minimum_duration=2)
+
+            self.takeoff(20, mode='GUIDED')
+            self.wait_rpm(1, expected_starter_rpm_min, expected_starter_rpm_max, minimum_duration=1)
+            self.wait_statustext("Engine running", check_context=True)
+            self.context_stop_collecting('STATUSTEXT')
+
+            # stop the motor again:
+            method(mavutil.mavlink.MAV_CMD_DO_ENGINE_CONTROL, p1=0)
+            self.wait_rpm(1, 0, 0, minimum_duration=1)
+
+            self.change_mode('QLAND')
+            self.wait_disarmed()
 
     def Ship(self):
         '''Ensure we can take off from simulated ship'''
@@ -933,13 +1144,155 @@ class AutoTestQuadPlane(AutoTest):
         self.set_message_rate_hz(mavutil.mavlink.MAVLINK_MSG_ID_EXTENDED_SYS_STATE, -1)
         self.disarm_vehicle()
 
+    def MAV_CMD_NAV_LOITER_TO_ALT(self, target_system=1, target_component=1):
+        '''ensure consecutive loiter to alts work'''
+        self.load_mission('mission.txt')
+        self.change_mode('AUTO')
+        self.wait_ready_to_arm()
+        self.arm_vehicle()
+        self.wait_current_waypoint(4, timeout=240)
+        self.assert_altitude(120, accuracy=5, relative=True)
+        self.delay_sim_time(30)
+        self.assert_altitude(120, accuracy=5, relative=True)
+        self.set_current_waypoint(5)
+        self.wait_altitude(altitude_min=65, altitude_max=75, relative=True)
+        if self.current_waypoint() != 5:
+            raise NotAchievedException("Should pass 90m before passing waypoint 5")
+        self.wait_disarmed(timeout=300)
+
     def Mission(self):
         '''fly the OBC 2016 mission in Dalby'''
-        self.fly_mission(
-            "Dalby-OBC2016.txt",
-            "Dalby-OBC2016-fence.txt",
-            include_terrain_timeout=True
-        )
+        self.load_mission("Dalby-OBC2016.txt")
+        self.load_fence("Dalby-OBC2016-fence.txt")
+        if self.mavproxy is not None:
+            self.mavproxy.send('wp list\n')
+        self.install_terrain_handlers_context()
+        self.wait_ready_to_arm()
+        self.arm_vehicle()
+        self.change_mode('AUTO')
+        self.wait_waypoint(1, 19, max_dist=60, timeout=1200)
+
+        self.wait_disarmed(timeout=120) # give quadplane a long time to land
+        # wait for blood sample here
+        self.set_current_waypoint(20)
+        self.wait_ready_to_arm()
+        self.arm_vehicle()
+        self.wait_waypoint(20, 34, max_dist=60, timeout=1200)
+
+        self.wait_disarmed(timeout=120) # give quadplane a long time to land
+        self.progress("Mission OK")
+
+    def VTOLLandSpiral(self):
+        '''check spiral-to-alt option for landing'''
+        self.fly_mission('mission.txt')
+        self.set_parameter('WP_LOITER_RAD', -self.get_parameter('WP_LOITER_RAD'))
+        self.set_current_waypoint(0, check_afterwards=False)
+        self.fly_mission('mission.txt')
+
+    def VTOLQuicktune(self):
+        '''VTOL Quicktune'''
+        applet_script = "VTOL-quicktune.lua"
+
+        self.install_applet_script(applet_script)
+
+        self.set_parameters({
+            "SCR_ENABLE": 1,
+            "SIM_SPEEDUP": 20, # need to give some cycles to lua
+            "RC7_OPTION": 300,
+        })
+
+        self.reboot_sitl()
+
+        self.context_push()
+        self.context_collect('STATUSTEXT')
+        self.set_parameters({
+            "QUIK_ENABLE" : 1,
+            "QUIK_DOUBLE_TIME" : 5, # run faster for autotest
+            })
+
+        self.scripting_restart()
+        self.wait_text("Quicktune for quadplane loaded", check_context=True)
+
+        self.wait_ready_to_arm()
+        self.change_mode("QLOITER")
+        self.arm_vehicle()
+        self.takeoff(20, 'QLOITER')
+
+        # use rc switch to start tune
+        self.set_rc(7, 1500)
+
+        self.wait_text("Tuning: starting tune", check_context=True)
+        for axis in ['RLL', 'PIT', 'YAW']:
+            self.wait_text("Starting %s tune" % axis, check_context=True)
+            self.wait_text("Tuning: %s_D done" % axis, check_context=True, timeout=120)
+            self.wait_text("Tuning: %s_P done" % axis, check_context=True, timeout=120)
+            self.wait_text("Tuning: %s done" % axis, check_context=True, timeout=120)
+        self.wait_text("Tuning: YAW done", check_context=True, timeout=120)
+
+        # to test aux function method, use aux fn for save
+        self.run_auxfunc(300, 2)
+        self.wait_text("Tuning: saved", check_context=True)
+        self.change_mode("QLAND")
+
+        self.wait_disarmed(timeout=120)
+        self.set_parameter("QUIK_ENABLE", 0)
+        self.context_pop()
+        self.remove_installed_script(applet_script)
+        self.reboot_sitl()
+
+    def RCDisableAirspeedUse(self):
+        '''check disabling airspeed using RC switch'''
+        self.set_parameter("RC9_OPTION", 106)
+        self.delay_sim_time(5)
+        self.set_rc(9, 1000)
+        self.wait_sensor_state(
+            mavutil.mavlink.MAV_SYS_STATUS_SENSOR_DIFFERENTIAL_PRESSURE,
+            True,
+            True,
+            True)
+        self.set_rc(9, 2000)
+        self.wait_sensor_state(
+            mavutil.mavlink.MAV_SYS_STATUS_SENSOR_DIFFERENTIAL_PRESSURE,
+            True,
+            False,
+            True)
+        self.set_rc(9, 1000)
+        self.wait_sensor_state(
+            mavutil.mavlink.MAV_SYS_STATUS_SENSOR_DIFFERENTIAL_PRESSURE,
+            True,
+            True,
+            True)
+
+        self.progress("Disabling airspeed sensor")
+        self.context_push()
+        self.set_rc(9, 2000)
+        self.set_parameters({
+            "COMPASS_ENABLE": 0,
+            "EK2_ENABLE": 0,
+            "AHRS_EKF_TYPE": 3,
+            "COMPASS_USE": 0,
+            "COMPASS_USE2": 0,
+            "COMPASS_USE3": 0,
+            "ARMING_CHECK": 589818,  # from a logfile, disables compass
+        })
+
+        self.reboot_sitl()
+
+        self.context_collect('STATUSTEXT')
+        self.wait_prearm_sys_status_healthy(timeout=120)
+        self.change_mode('QLOITER')
+        self.arm_vehicle()
+        self.set_rc(3, 2000)
+        self.wait_altitude(10, 30, relative=True)
+        self.change_mode('FBWA')
+        self.wait_statustext('Transition done')
+        # the vehicle stays in DCM until there's velocity - make sure
+        # we did go to EK3 evenutally, 'though:
+        self.wait_statustext('EKF3 active', check_context=True)
+
+        self.disarm_vehicle(force=True)
+        self.context_pop()
+        self.reboot_sitl()
 
     def tests(self):
         '''return list of all tests'''
@@ -959,8 +1312,15 @@ class AutoTestQuadPlane(AutoTest):
             self.Tailsitter,
             self.ICEngine,
             self.ICEngineMission,
+            self.MAV_CMD_DO_ENGINE_CONTROL,
             self.MidAirDisarmDisallowed,
+            self.GUIDEDToAUTO,
             self.BootInAUTO,
             self.Ship,
+            self.MAV_CMD_NAV_LOITER_TO_ALT,
+            self.LoiterAltQLand,
+            self.VTOLLandSpiral,
+            self.VTOLQuicktune,
+            self.RCDisableAirspeedUse,
         ])
         return ret

@@ -150,9 +150,6 @@ private:
     // Last time update_50Hz was called
     uint64_t _update_50hz_last_usec;
 
-    // Last time update_speed was called
-    uint64_t _update_speed_last_usec;
-
     // Last time update_pitch_throttle was called
     uint64_t _update_pitch_throttle_last_usec;
 
@@ -307,6 +304,9 @@ private:
     // Total energy rate filter state
     float _STEdotErrLast;
 
+    // time we started a takeoff
+    uint32_t _takeoff_start_ms;
+
     struct flags {
         // Underspeed condition
         bool underspeed:1;
@@ -403,9 +403,6 @@ private:
     // true when class variables used for flare control have been initialised
     // on flare entry
     bool _flare_initialised;
-
-    // slew height demand lag filter value when transition to land
-    float hgt_dem_lag_filter_slew;
 
     // percent traveled along the previous and next waypoints
     float _path_proportion;

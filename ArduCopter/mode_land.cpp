@@ -36,7 +36,7 @@ bool ModeLand::init(bool ignore_checks)
     // initialise yaw
     auto_yaw.set_mode(AutoYaw::Mode::HOLD);
 
-#if LANDING_GEAR_ENABLED == ENABLED
+#if AP_LANDINGGEAR_ENABLED
     // optionally deploy landing gear
     copter.landinggear.deploy_for_landing();
 #endif
@@ -46,7 +46,7 @@ bool ModeLand::init(bool ignore_checks)
     copter.fence.auto_disable_fence_for_landing();
 #endif
 
-#if PRECISION_LANDING == ENABLED
+#if AC_PRECLAND_ENABLED
     // initialise precland state machine
     copter.precland_statemachine.init();
 #endif

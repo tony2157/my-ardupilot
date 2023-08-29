@@ -19,25 +19,33 @@
 #include <GCS_MAVLink/GCS.h>
 #include <AP_Notify/AP_Notify.h>
 
+#define AP_MOTORS_SLEW_FILTER_CUTOFF 50.0f
+
 extern const AP_HAL::HAL& hal;
 
 // singleton instance
 AP_Motors *AP_Motors::_singleton;
 
 // Constructor
-AP_Motors::AP_Motors(uint16_t loop_rate, uint16_t speed_hz) :
-    _loop_rate(loop_rate),
+AP_Motors::AP_Motors(uint16_t speed_hz) :
     _speed_hz(speed_hz),
     _throttle_filter(),
+    _throttle_slew(),
+    _throttle_slew_filter(),
     _spool_desired(DesiredSpoolState::SHUT_DOWN),
-    _spool_state(SpoolState::SHUT_DOWN),
-    _air_density_ratio(1.0f)
+    _spool_state(SpoolState::SHUT_DOWN)
 {
     _singleton = this;
 
     // setup throttle filtering
     _throttle_filter.set_cutoff_frequency(0.0f);
     _throttle_filter.reset(0.0f);
+
+    _throttle_slew_filter.set_cutoff_frequency(AP_MOTORS_SLEW_FILTER_CUTOFF);
+    _throttle_slew_filter.reset(0.0f);
+
+    // setup throttle slew detector
+    _throttle_slew.reset();
 
     // init limit flags
     limit.roll = true;
@@ -210,6 +218,17 @@ void AP_Motors::set_limit_flag_pitch_roll_yaw(bool flag)
     limit.yaw = flag;
 }
 
+#if AP_SCRIPTING_ENABLED
+void AP_Motors::set_external_limits(bool roll, bool pitch, bool yaw, bool throttle_lower, bool throttle_upper)
+{
+    external_limits.roll = roll;
+    external_limits.pitch = pitch;
+    external_limits.yaw = yaw;
+    external_limits.throttle_lower = throttle_lower;
+    external_limits.throttle_upper = throttle_upper;
+}
+#endif
+
 // returns true if the configured PWM type is digital and should have fixed endpoints
 bool AP_Motors::is_digital_pwm_type() const
 {
@@ -272,6 +291,14 @@ bool AP_Motors::arming_checks(size_t buflen, char *buffer) const
     }
 
     return true;
+}
+
+bool AP_Motors::motor_test_checks(size_t buflen, char *buffer) const
+{
+    // Must pass base class arming checks (the function above)
+    // Do not run frame specific arming checks as motor test is less strict
+    // For example not all the outputs have to be assigned
+    return AP_Motors::arming_checks(buflen, buffer);
 }
 
 namespace AP {

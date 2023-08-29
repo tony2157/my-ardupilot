@@ -20,9 +20,11 @@ struct AP_FixedWing {
     AP_Int16 pitch_limit_max_cd;
     AP_Int16 pitch_limit_min_cd;
     AP_Int8  autotune_level;
+    AP_Int32 autotune_options;
     AP_Int8  stall_prevention;
     AP_Int16 loiter_radius;
     AP_Int16 pitch_trim_cd;
+    AP_Float takeoff_throttle_max_t;
 
     struct Rangefinder_State {
         bool in_range:1;

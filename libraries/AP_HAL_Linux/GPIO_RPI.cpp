@@ -160,15 +160,18 @@ void GPIO_RPI::closeMemoryDevice()
 
 void GPIO_RPI::init()
 {
-    const int rpi_version = UtilRPI::from(hal.util)->get_rpi_version();
+    const LINUX_BOARD_TYPE rpi_version = UtilRPI::from(hal.util)->detect_linux_board_type();
 
     GPIO_RPI::Address peripheral_base;
-    if(rpi_version == 1) {
+    if(rpi_version == LINUX_BOARD_TYPE::RPI_ZERO_1) {
         peripheral_base = Address::BCM2708_PERIPHERAL_BASE;
-    } else if (rpi_version == 2) {
+    } else if (rpi_version == LINUX_BOARD_TYPE::RPI_2_3_ZERO2) {
         peripheral_base = Address::BCM2709_PERIPHERAL_BASE;
-    } else {
+    } else if (rpi_version == LINUX_BOARD_TYPE::RPI_4) {
         peripheral_base = Address::BCM2711_PERIPHERAL_BASE;
+    } else {
+        AP_HAL::panic("Unknown rpi_version, cannot locate peripheral base address");
+        return;
     }
 
     if (!openMemoryDevice()) {

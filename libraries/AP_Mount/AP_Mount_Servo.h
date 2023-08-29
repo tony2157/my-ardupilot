@@ -5,10 +5,6 @@
 
 #include "AP_Mount_Backend.h"
 
-#ifndef HAL_MOUNT_SERVO_ENABLED
-#define HAL_MOUNT_SERVO_ENABLED HAL_MOUNT_ENABLED
-#endif
-
 #if HAL_MOUNT_SERVO_ENABLED
 
 #include <AP_Math/AP_Math.h>
@@ -48,9 +44,6 @@ private:
     // update body-frame angle outputs from earth-frame targets
     void update_angle_outputs(const MountTarget& angle_rad);
 
-    // returns closest angle to 'angle' taking into account limits.  all angles are in body-frame and degrees * 10
-    int16_t closest_limit(int16_t angle, int16_t angle_min, int16_t angle_max);
-
     ///  moves servo with the given function id to the specified angle.  all angles are in body-frame and degrees * 10
     void move_servo(uint8_t rc, int16_t angle, int16_t angle_min, int16_t angle_max);
 
@@ -63,7 +56,6 @@ private:
     SRV_Channel::Aux_servo_function_t    _pan_idx;   // SRV_Channel mount pan  function index
     SRV_Channel::Aux_servo_function_t    _open_idx;  // SRV_Channel mount open function index
 
-    MountTarget _angle_rad;         // angle target
-    Vector3f _angle_bf_output_deg;  // final body frame output angle in degrees
+    Vector3f _angle_bf_output_rad;  // final body frame output angle in radians
 };
 #endif // HAL_MOUNT_SERVO_ENABLED

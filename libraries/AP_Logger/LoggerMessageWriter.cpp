@@ -3,6 +3,10 @@
 #include <AP_Scheduler/AP_Scheduler.h>
 #include <AP_Vehicle/AP_Vehicle_Type.h>
 
+#if HAL_LOGGER_FENCE_ENABLED
+    #include <AC_Fence/AC_Fence.h>
+#endif
+
 #define FORCE_VERSION_H_INCLUDE
 #include "ap_version.h"
 #undef FORCE_VERSION_H_INCLUDE
@@ -25,7 +29,7 @@ void LoggerMessageWriter::reset()
 
 bool LoggerMessageWriter::out_of_time_for_writing_messages() const
 {
-#if HAL_SCHEDULER_ENABLED && !APM_BUILD_TYPE(APM_BUILD_UNKNOWN)
+#if AP_SCHEDULER_ENABLED
     return AP::scheduler().time_available_usec() < MIN_LOOP_TIME_REMAINING_FOR_MESSAGE_WRITE_US;
 #else
     return false;
@@ -62,7 +66,7 @@ bool LoggerMessageWriter_DFLogStart::out_of_time_for_writing_messages() const
 {
     if (stage == Stage::FORMATS) {
         // write out the FMT messages as fast as we can
-#if HAL_SCHEDULER_ENABLED && !APM_BUILD_TYPE(APM_BUILD_UNKNOWN)
+#if AP_SCHEDULER_ENABLED
         return AP::scheduler().time_available_usec() == 0;
 #else
         return false;
@@ -96,11 +100,13 @@ void LoggerMessageWriter_DFLogStart::process()
     case Stage::FORMATS:
         // write log formats so the log is self-describing
         while (next_format_to_send < _logger_backend->num_types()) {
-            if (!_logger_backend->Write_Format(_logger_backend->structure(next_format_to_send)) ||
-                check_process_limit(start_us)) {
+            if (!_logger_backend->Write_Format(_logger_backend->structure(next_format_to_send))) {
                 return; // call me again!
             }
             next_format_to_send++;
+            if (check_process_limit(start_us)) {
+                return; // call me again!
+            }
         }
         _fmt_done = true;
         stage = Stage::PARMS;
@@ -108,12 +114,14 @@ void LoggerMessageWriter_DFLogStart::process()
 
     case Stage::PARMS: {
         while (ap) {
-            if (!_logger_backend->Write_Parameter(ap, token, type, param_default) ||
-                check_process_limit(start_us)) {
+            if (!_logger_backend->Write_Parameter(ap, token, type, param_default)) {
                 return;
             }
             param_default = AP::logger().quiet_nanf();
             ap = AP_Param::next_scalar(&token, &type, &param_default);
+            if (check_process_limit(start_us)) {
+                return; // call me again!
+            }
         }
 
         _params_done = true;
@@ -123,33 +131,39 @@ void LoggerMessageWriter_DFLogStart::process()
 
     case Stage::UNITS:
         while (_next_unit_to_send < _logger_backend->num_units()) {
-            if (!_logger_backend->Write_Unit(_logger_backend->unit(_next_unit_to_send)) ||
-                check_process_limit(start_us)) {
+            if (!_logger_backend->Write_Unit(_logger_backend->unit(_next_unit_to_send))) {
                 return; // call me again!
             }
             _next_unit_to_send++;
+            if (check_process_limit(start_us)) {
+                return; // call me again!
+            }
         }
         stage = Stage::MULTIPLIERS;
         FALLTHROUGH;
 
     case Stage::MULTIPLIERS:
         while (_next_multiplier_to_send < _logger_backend->num_multipliers()) {
-            if (!_logger_backend->Write_Multiplier(_logger_backend->multiplier(_next_multiplier_to_send)) ||
-                check_process_limit(start_us)) {
+            if (!_logger_backend->Write_Multiplier(_logger_backend->multiplier(_next_multiplier_to_send))) {
                 return; // call me again!
             }
             _next_multiplier_to_send++;
+            if (check_process_limit(start_us)) {
+                return; // call me again!
+            }
         }
         stage = Stage::UNITS;
         FALLTHROUGH;
 
     case Stage::FORMAT_UNITS:
         while (_next_format_unit_to_send < _logger_backend->num_types()) {
-            if (!_logger_backend->Write_Format_Units(_logger_backend->structure(_next_format_unit_to_send)) ||
-                check_process_limit(start_us)) {
+            if (!_logger_backend->Write_Format_Units(_logger_backend->structure(_next_format_unit_to_send))) {
                 return; // call me again!
             }
             _next_format_unit_to_send++;
+            if (check_process_limit(start_us)) {
+                return; // call me again!
+            }
         }
         stage = Stage::RUNNING_SUBWRITERS;
         FALLTHROUGH;

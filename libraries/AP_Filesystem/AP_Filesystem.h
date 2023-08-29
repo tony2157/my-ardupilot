@@ -35,7 +35,7 @@
 #endif
 
 #if CONFIG_HAL_BOARD == HAL_BOARD_CHIBIOS
-#if HAVE_FILESYSTEM_SUPPORT
+#if AP_FILESYSTEM_FATFS_ENABLED
 #include "AP_Filesystem_FATFS.h"
 #endif
 
@@ -51,12 +51,7 @@ struct dirent {
 #include <unistd.h>
 
 #ifndef AP_FILESYSTEM_FORMAT_ENABLED
-// only enable for SDMMC filesystems for now as other types can't query
-// block size
-#ifndef HAL_USE_SDMMC
-#define HAL_USE_SDMMC 0
-#endif
-#define AP_FILESYSTEM_FORMAT_ENABLED HAL_USE_SDMMC
+#define AP_FILESYSTEM_FORMAT_ENABLED 1
 #endif
 
 #if CONFIG_HAL_BOARD == HAL_BOARD_LINUX || CONFIG_HAL_BOARD == HAL_BOARD_SITL
@@ -68,10 +63,6 @@ struct dirent {
 #endif
 
 #include "AP_Filesystem_backend.h"
-
-#ifndef AP_FILESYSTEM_FORMAT_ENABLED
-#define AP_FILESYSTEM_FORMAT_ENABLED 0
-#endif
 
 class AP_Filesystem {
 private:
@@ -93,6 +84,7 @@ public:
     int stat(const char *pathname, struct stat *stbuf);
     int unlink(const char *pathname);
     int mkdir(const char *pathname);
+    int rename(const char *oldpath, const char *newpath);
 
     DirHandle *opendir(const char *pathname);
     struct dirent *readdir(DirHandle *dirp);
@@ -116,9 +108,12 @@ public:
     // returns null-terminated string; cr or lf terminates line
     bool fgets(char *buf, uint8_t buflen, int fd);
 
-    // format filesystem
+    // format filesystem.  This is async, monitor get_format_status for progress
     bool format(void);
-    
+
+    // retrieve status of format process:
+    AP_Filesystem_Backend::FormatStatus get_format_status() const;
+
     /*
       load a full file. Use delete to free the data
      */

@@ -665,10 +665,8 @@ TEST(MathTest, VELCORRECTION)
 TEST(MathTest, LOWPASSALPHA)
 {
     const float accuracy = 1.0e-5f;
-    EXPECT_EQ(1.0f, calc_lowpass_alpha_dt(0.0f, 2.0f));
-    EXPECT_EQ(1.0f, calc_lowpass_alpha_dt(-1.0f, 2.0f));
+    EXPECT_EQ(0.0f, calc_lowpass_alpha_dt(0.0f, 2.0f));
     EXPECT_EQ(1.0f, calc_lowpass_alpha_dt(1.0f, 0.0f));
-    EXPECT_EQ(1.0f, calc_lowpass_alpha_dt(1.0f, -2.0f));
 
     EXPECT_NEAR(0.926288f, calc_lowpass_alpha_dt(1.0f, 2.0f), accuracy);
 }
@@ -680,6 +678,18 @@ TEST(MathTest, FIXEDWINGTURNRATE)
     EXPECT_NEAR(-318.65771484375f, fixedwing_turn_rate(-90, 10.0f), accuracy);
     EXPECT_NEAR(318.65771484375f, fixedwing_turn_rate(90, 10.0f), accuracy);
     EXPECT_NEAR(56.187965393066406f, fixedwing_turn_rate(45, 10.0f), accuracy);
+}
+
+TEST(CRCTest, parity)
+{
+    EXPECT_EQ(parity(0b1), 1);
+    EXPECT_EQ(parity(0b10), 1);
+    EXPECT_EQ(parity(0b100), 1);
+
+    EXPECT_EQ(parity(0b11), 0);
+    EXPECT_EQ(parity(0b110), 0);
+    EXPECT_EQ(parity(0b111), 1);
+    EXPECT_EQ(parity(0b11111111), 0);
 }
 
 AP_GTEST_PANIC()

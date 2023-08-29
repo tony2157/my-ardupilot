@@ -99,14 +99,21 @@ void ModeGuided::run()
 
 bool ModeGuided::allows_arming(AP_Arming::Method method) const
 {
-    // always allow arming from the ground station
-    if (method == AP_Arming::Method::MAVLINK) {
+    // always allow arming from the ground station or scripting
+    if (AP_Arming::method_is_GCS(method) || method == AP_Arming::Method::SCRIPTING) {
         return true;
     }
 
     // optionally allow arming from the transmitter
     return (copter.g2.guided_options & (uint32_t)Options::AllowArmingFromTX) != 0;
 };
+
+#if WEATHERVANE_ENABLED == ENABLED
+bool ModeGuided::allows_weathervaning() const
+{
+    return (copter.g2.guided_options.get() & (uint32_t)Options::AllowWeatherVaning) != 0;
+}
+#endif
 
 // initialises position controller to implement take-off
 // takeoff_alt_cm is interpreted as alt-above-home (in cm) or alt-above-terrain if a rangefinder is available
@@ -652,7 +659,7 @@ void ModeGuided::takeoff_run()
     auto_takeoff_run();
     if (auto_takeoff_complete && !takeoff_complete) {
         takeoff_complete = true;
-#if LANDING_GEAR_ENABLED == ENABLED
+#if AP_LANDINGGEAR_ENABLED
         // optionally retract landing gear
         copter.landinggear.retract_after_takeoff();
 #endif
@@ -729,7 +736,7 @@ void ModeGuided::accel_control_run()
             auto_yaw.set_mode(AutoYaw::Mode::HOLD);
         }
         pos_control->input_vel_accel_xy(guided_vel_target_cms.xy(), guided_accel_target_cmss.xy(), false);
-        pos_control->input_vel_accel_z(guided_vel_target_cms.z, guided_accel_target_cmss.z, false, false);
+        pos_control->input_vel_accel_z(guided_vel_target_cms.z, guided_accel_target_cmss.z, false);
     } else {
         // update position controller with new target
         pos_control->input_accel_xy(guided_accel_target_cmss);
@@ -797,7 +804,7 @@ void ModeGuided::velaccel_control_run()
         // set position errors to zero
         pos_control->stop_pos_xy_stabilisation();
     }
-    pos_control->input_vel_accel_z(guided_vel_target_cms.z, guided_accel_target_cmss.z, false, false);
+    pos_control->input_vel_accel_z(guided_vel_target_cms.z, guided_accel_target_cmss.z, false);
 
     // call velocity controller which includes z axis controller
     pos_control->update_xy_controller();
@@ -827,7 +834,7 @@ void ModeGuided::pause_control_run()
 
     // set the vertical velocity and acceleration targets to zero
     float vel_z = 0.0;
-    pos_control->input_vel_accel_z(vel_z, 0.0, false, false);
+    pos_control->input_vel_accel_z(vel_z, 0.0, false);
 
     // call velocity controller which includes z axis controller
     pos_control->update_xy_controller();
@@ -1080,7 +1087,6 @@ uint32_t ModeGuided::wp_distance() const
         return get_horizontal_distance_cm(inertial_nav.get_position_xy_cm(), guided_pos_target_cm.tofloat().xy());
     case SubMode::PosVelAccel:
         return pos_control->get_pos_error_xy_cm();
-        break;
     default:
         return 0;
     }
@@ -1095,7 +1101,6 @@ int32_t ModeGuided::wp_bearing() const
         return get_bearing_cd(inertial_nav.get_position_xy_cm(), guided_pos_target_cm.tofloat().xy());
     case SubMode::PosVelAccel:
         return pos_control->get_bearing_to_target_cd();
-        break;
     case SubMode::TakeOff:
     case SubMode::Accel:
     case SubMode::VelAccel:

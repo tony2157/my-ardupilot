@@ -30,6 +30,7 @@ public:
         NONE                        = 0,
         TSYS01                      = 1,
         MCP9600                     = 2,
+        MAX31865                    = 3,
     };
 
     // option to map to another system component
@@ -39,6 +40,7 @@ public:
         Motor                       = 2,
         Battery_Index               = 3,
         Battery_ID_SerialNumber     = 4,
+        Pitot_tube                  = 5,
     };
 
     AP_Enum<Type> type;             // 0=disabled, others see frontend enum TYPE

@@ -111,13 +111,13 @@ public:
 
     // get our current position estimate. Return true if a position is available,
     // otherwise false. This call fills in lat, lng and alt
-    virtual bool get_location(struct Location &loc) const WARN_IF_UNUSED = 0;
+    virtual bool get_location(class Location &loc) const WARN_IF_UNUSED = 0;
 
     // get latest altitude estimate above ground level in meters and validity flag
     virtual bool get_hagl(float &height) const WARN_IF_UNUSED { return false; }
 
     // return a wind estimation vector, in m/s
-    virtual Vector3f wind_estimate(void) const = 0;
+    virtual bool wind_estimate(Vector3f &wind) const = 0;
 
     // return an airspeed estimate if available. return true
     // if we have an estimate
@@ -139,12 +139,6 @@ public:
     virtual bool airspeed_vector_true(Vector3f &vec) const WARN_IF_UNUSED {
         return false;
     }
-
-    // return a synthetic airspeed estimate (one derived from sensors
-    // other than an actual airspeed sensor), if available. return
-    // true if we have a synthetic airspeed.  ret will not be modified
-    // on failure.
-    virtual bool synthetic_airspeed(float &ret) const WARN_IF_UNUSED = 0;
 
     // get apparent to true airspeed ratio
     float get_EAS2TAS(void) const;
@@ -183,7 +177,7 @@ public:
 
     // Get a derivative of the vertical position in m/s which is kinematically consistent with the vertical position is required by some control loops.
     // This is different to the vertical velocity from the EKF which is not always consistent with the vertical position due to the various errors that are being corrected for.
-    virtual bool get_vert_pos_rate(float &velocity) const = 0;
+    virtual bool get_vert_pos_rate_D(float &velocity) const = 0;
 
     // returns the estimated magnetic field offsets in body frame
     virtual bool get_mag_field_correction(Vector3f &ret) const WARN_IF_UNUSED {
@@ -199,10 +193,10 @@ public:
     }
 
     //
-    virtual bool set_origin(const struct Location &loc) {
+    virtual bool set_origin(const Location &loc) {
         return false;
     }
-    virtual bool get_origin(struct Location &ret) const = 0;
+    virtual bool get_origin(Location &ret) const = 0;
 
     // return a position relative to origin in meters, North/East/Down
     // order. This will only be accurate if have_inertial_nav() is
@@ -290,7 +284,7 @@ public:
         return false;
     }
 
-    virtual bool get_filter_status(nav_filter_status &status) const {
+    virtual bool get_filter_status(union nav_filter_status &status) const {
         return false;
     }
 
@@ -325,4 +319,5 @@ public:
     // this is not related to terrain following
     virtual void set_terrain_hgt_stable(bool stable) {}
 
+    virtual void get_control_limits(float &ekfGndSpdLimit, float &controlScaleXY) const = 0;
 };

@@ -45,7 +45,7 @@ bool AP_Arming_Blimp::barometer_checks(bool display_failure)
 
     bool ret = true;
     // check Baro
-    if ((checks_to_perform == ARMING_CHECK_ALL) || (checks_to_perform & ARMING_CHECK_BARO)) {
+    if (check_enabled(ARMING_CHECK_BARO)) {
         // Check baro & inav alt are within 1m if EKF is operating in an absolute position mode.
         // Do not check if intending to operate in a ground relative height mode as EKF will output a ground relative height
         // that may differ from the baro height due to baro drift.
@@ -65,7 +65,7 @@ bool AP_Arming_Blimp::ins_checks(bool display_failure)
 {
     bool ret = AP_Arming::ins_checks(display_failure);
 
-    if ((checks_to_perform == ARMING_CHECK_ALL) || (checks_to_perform & ARMING_CHECK_INS)) {
+    if (check_enabled(ARMING_CHECK_INS)) {
 
         // get ekf attitude (if bad, it's usually the gyro biases)
         if (!pre_arm_ekf_attitude_check()) {
@@ -84,7 +84,7 @@ bool AP_Arming_Blimp::board_voltage_checks(bool display_failure)
     }
 
     // check battery voltage
-    if ((checks_to_perform == ARMING_CHECK_ALL) || (checks_to_perform & ARMING_CHECK_VOLTAGE)) {
+    if (check_enabled(ARMING_CHECK_VOLTAGE)) {
         if (blimp.battery.has_failsafed()) {
             check_failed(ARMING_CHECK_VOLTAGE, display_failure, "Battery failsafe");
             return false;
@@ -102,12 +102,12 @@ bool AP_Arming_Blimp::board_voltage_checks(bool display_failure)
 bool AP_Arming_Blimp::parameter_checks(bool display_failure)
 {
     // check various parameter values
-    if ((checks_to_perform == ARMING_CHECK_ALL) || (checks_to_perform & ARMING_CHECK_PARAMETERS)) {
+    if (check_enabled(ARMING_CHECK_PARAMETERS)) {
 
         // failsafe parameter checks
         if (blimp.g.failsafe_throttle) {
             // check throttle min is above throttle failsafe trigger and that the trigger is above ppm encoder's loss-of-signal value of 900
-            if (blimp.channel_down->get_radio_min() <= blimp.g.failsafe_throttle_value+10 || blimp.g.failsafe_throttle_value < 910) {
+            if (blimp.channel_up->get_radio_min() <= blimp.g.failsafe_throttle_value+10 || blimp.g.failsafe_throttle_value < 910) {
                 check_failed(ARMING_CHECK_PARAMETERS, display_failure, "Check FS_THR_VALUE");
                 return false;
             }
@@ -159,7 +159,7 @@ bool AP_Arming_Blimp::gps_checks(bool display_failure)
     }
 
     // return true immediately if gps check is disabled
-    if (!(checks_to_perform == ARMING_CHECK_ALL || checks_to_perform & ARMING_CHECK_GPS)) {
+    if (!check_enabled(ARMING_CHECK_GPS)) {
         AP_Notify::flags.pre_arm_gps_check = true;
         return true;
     }

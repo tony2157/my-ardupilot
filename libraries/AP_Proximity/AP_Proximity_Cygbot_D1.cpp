@@ -1,6 +1,8 @@
-#include "AP_Proximity_Cygbot_D1.h"
+#include "AP_Proximity_config.h"
 
-#if HAL_PROXIMITY_ENABLED && AP_PROXIMITY_CYGBOT_ENABLED
+#if AP_PROXIMITY_CYGBOT_ENABLED
+
+#include "AP_Proximity_Cygbot_D1.h"
 
 // update the state of the sensor
 void AP_Proximity_Cygbot_D1::update()
@@ -43,7 +45,7 @@ void AP_Proximity_Cygbot_D1::read_sensor_data()
 {
     uint32_t nbytes = _uart->available();
     while (nbytes-- > 0) {
-        uint8_t byte = _uart->read();
+        int16_t byte = _uart->read();
         if (!parse_byte(byte)) {
             // reset
             reset();
@@ -182,4 +184,4 @@ void AP_Proximity_Cygbot_D1::reset()
     _temp_boundary.reset();
 }
 
-#endif // HAL_PROXIMITY_ENABLED
+#endif // AP_PROXIMITY_CYGBOT_ENABLED

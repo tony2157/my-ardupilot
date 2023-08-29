@@ -425,12 +425,14 @@ AP_GPS_UBLOX::_request_next_config(void)
 
 
     case STEP_M10: {
-        // special handling of M10 config
-        const config_list *list = config_M10;
-        const uint8_t list_length = ARRAY_SIZE(config_M10);
-        Debug("Sending M10 settings");
-        if (!_configure_config_set(list, list_length, CONFIG_M10, UBX_VALSET_LAYER_RAM | UBX_VALSET_LAYER_BBR)) {
-            _next_message--;
+        if (_hardware_generation == UBLOX_M10) {
+            // special handling of M10 config
+            const config_list *list = config_M10;
+            const uint8_t list_length = ARRAY_SIZE(config_M10);
+            Debug("Sending M10 settings");
+            if (!_configure_config_set(list, list_length, CONFIG_M10, UBX_VALSET_LAYER_RAM | UBX_VALSET_LAYER_BBR)) {
+                _next_message--;
+            }
         }
         break;
     }
@@ -992,6 +994,40 @@ AP_GPS_UBLOX::_parse_gps(void)
                 }
             }
         }
+        if(_msg_id == MSG_ACK_NACK) {
+            switch(_buffer.nack.clsID) {
+            case CLASS_CFG:
+                switch(_buffer.nack.msgID) {
+                case MSG_CFG_VALGET:
+                    if (active_config.list != nullptr) {
+                        /*
+                          likely this device does not support fetching multiple keys at once, go one at a time
+                        */
+                        if (active_config.fetch_index == -1) {
+                            Debug("NACK starting %u", unsigned(active_config.count));
+                            active_config.fetch_index = 0;
+                        } else {
+                            // the device does not support the config key we asked for,
+                            // consider the bit as done
+                            active_config.done_mask |= (1U<<active_config.fetch_index);
+                            Debug("NACK %d 0x%x done=0x%x",
+                                     int(active_config.fetch_index),
+                                     unsigned(active_config.list[active_config.fetch_index].key),
+                                     unsigned(active_config.done_mask));
+                            if (active_config.done_mask == (1U<<active_config.count)-1) {
+                                // all done!
+                                _unconfigured_messages &= ~active_config.unconfig_bit;
+                            }
+                            active_config.fetch_index++;
+                        }
+                        if (active_config.fetch_index < active_config.count) {
+                            _configure_valget(active_config.list[active_config.fetch_index].key);
+                        }
+                    }
+                    break;
+                }
+            }
+        }
         return false;
     }
 
@@ -1224,6 +1260,16 @@ AP_GPS_UBLOX::_parse_gps(void)
                             _unconfigured_messages &= ~active_config.unconfig_bit;
                         }
                     }
+                    if (active_config.fetch_index >= 0 &&
+                        active_config.fetch_index < active_config.count &&
+                        id == active_config.list[active_config.fetch_index].key) {
+                        active_config.fetch_index++;
+                        if (active_config.fetch_index < active_config.count) {
+                            _configure_valget(active_config.list[active_config.fetch_index].key);
+                            Debug("valget %d 0x%x", int(active_config.fetch_index),
+                                  unsigned(active_config.list[active_config.fetch_index].key));
+                        }
+                    }
                 }
 
                 // step over the value
@@ -1432,6 +1478,10 @@ AP_GPS_UBLOX::_parse_gps(void)
 #if GPS_MOVING_BASELINE
     case MSG_RELPOSNED:
         {
+            if (role != AP_GPS::GPS_ROLE_MB_ROVER) {
+                // ignore RELPOSNED if not configured as a rover
+                break;
+            }
             // note that we require the yaw to come from a fixed solution, not a float solution
             // yaw from a float solution would only be acceptable with a very large separation between
             // GPS modules
@@ -1587,8 +1637,7 @@ AP_GPS_UBLOX::_parse_gps(void)
         state.velocity.x = _buffer.velned.ned_north * 0.01f;
         state.velocity.y = _buffer.velned.ned_east * 0.01f;
         state.velocity.z = _buffer.velned.ned_down * 0.01f;
-        state.ground_course = wrap_360(degrees(atan2f(state.velocity.y, state.velocity.x)));
-        state.ground_speed = state.velocity.xy().length();
+        velocity_to_speed_course(state);
         state.have_speed_accuracy = true;
         state.speed_accuracy = _buffer.velned.speed_accuracy*0.01f;
 #if UBLOX_FAKE_3DLOCK
@@ -1804,7 +1853,11 @@ AP_GPS_UBLOX::_configure_valget(ConfigKey key)
 }
 
 /*
- *  configure F9 based key/value pair for a complete config list
+ *  configure F9 based key/value pair for a complete configuration set
+ *
+ *  this method requests each configuration variable from the GPS.
+ *  When we handle the reply in _parse_gps we may then choose to set a
+ *  MSG_CFG_VALSET back to the GPS if we don't like its response.
  */
 bool
 AP_GPS_UBLOX::_configure_config_set(const config_list *list, uint8_t count, uint32_t unconfig_bit, uint8_t layers)
@@ -1814,6 +1867,11 @@ AP_GPS_UBLOX::_configure_config_set(const config_list *list, uint8_t count, uint
     active_config.done_mask = 0;
     active_config.unconfig_bit = unconfig_bit;
     active_config.layers = layers;
+    // we start by fetching multiple values at once (with fetch_index
+    // -1) then if we get a NACK for VALGET we switch to fetching one
+    // value at a time. This copes with the M10S which can only fetch
+    // one value at a time
+    active_config.fetch_index = -1;
 
     uint8_t buf[sizeof(ubx_cfg_valget)+count*sizeof(ConfigKey)];
     struct ubx_cfg_valget msg {};

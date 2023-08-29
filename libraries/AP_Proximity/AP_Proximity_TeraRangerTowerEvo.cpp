@@ -13,10 +13,13 @@
    along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "AP_Proximity_config.h"
+
+#if AP_PROXIMITY_TERARANGERTOWEREVO_ENABLED
+
 #include <AP_HAL/AP_HAL.h>
 #include "AP_Proximity_TeraRangerTowerEvo.h"
 
-#if HAL_PROXIMITY_ENABLED
 #include <AP_Math/crc.h>
 #include <ctype.h>
 #include <stdio.h>
@@ -116,8 +119,11 @@ bool AP_Proximity_TeraRangerTowerEvo::read_sensor_data()
     }
 
     while (nbytes-- > 0) {
-        char c = _uart->read();
-        if (c == 'T' ) {
+        int16_t c = _uart->read();
+        if (c==-1) {
+            return false;
+        }
+        if (char(c) == 'T' ) {
             buffer_count = 0;
         }
         buffer[buffer_count++] = c;
@@ -161,4 +167,4 @@ void AP_Proximity_TeraRangerTowerEvo::update_sector_data(int16_t angle_deg, uint
     _last_distance_received_ms = AP_HAL::millis();
 }
 
-#endif // HAL_PROXIMITY_ENABLED
+#endif // AP_PROXIMITY_TERARANGERTOWEREVO_ENABLED

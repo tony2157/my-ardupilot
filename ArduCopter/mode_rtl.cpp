@@ -28,7 +28,7 @@ bool ModeRTL::init(bool ignore_checks)
     // this will be set true if prec land is later active
     copter.ap.prec_land_active = false;
 
-#if PRECISION_LANDING == ENABLED
+#if AC_PRECLAND_ENABLED
     // initialise precland state machine
     copter.precland_statemachine.init();
 #endif
@@ -49,10 +49,12 @@ void ModeRTL::restart_without_terrain()
 ModeRTL::RTLAltType ModeRTL::get_alt_type() const
 {
     // sanity check parameter
-    if (g.rtl_alt_type < 0 || g.rtl_alt_type > (int)RTLAltType::RTL_ALTTYPE_TERRAIN) {
-        return RTLAltType::RTL_ALTTYPE_RELATIVE;
+    switch ((ModeRTL::RTLAltType)g.rtl_alt_type) {
+    case RTLAltType::RTL_ALTTYPE_RELATIVE ... RTLAltType::RTL_ALTTYPE_TERRAIN:
+        return g.rtl_alt_type;
     }
-    return (RTLAltType)g.rtl_alt_type.get();
+    // user has an invalid value
+    return RTLAltType::RTL_ALTTYPE_RELATIVE;
 }
 
 // rtl_run - runs the return-to-launch controller
@@ -247,7 +249,7 @@ void ModeRTL::descent_start()
     // initialise yaw
     auto_yaw.set_mode(AutoYaw::Mode::HOLD);
 
-#if LANDING_GEAR_ENABLED == ENABLED
+#if AP_LANDINGGEAR_ENABLED
     // optionally deploy landing gear
     copter.landinggear.deploy_for_landing();
 #endif
@@ -339,7 +341,7 @@ void ModeRTL::land_start()
     // initialise yaw
     auto_yaw.set_mode(AutoYaw::Mode::HOLD);
 
-#if LANDING_GEAR_ENABLED == ENABLED
+#if AP_LANDINGGEAR_ENABLED
     // optionally deploy landing gear
     copter.landinggear.deploy_for_landing();
 #endif
@@ -550,6 +552,24 @@ bool ModeRTL::use_pilot_yaw(void) const
     const bool land_repositioning = g.land_repositioning && (_state == SubMode::FINAL_DESCENT);
     const bool final_landing = _state == SubMode::LAND;
     return allow_yaw_option || land_repositioning || final_landing;
+}
+
+bool ModeRTL::set_speed_xy(float speed_xy_cms)
+{
+    copter.wp_nav->set_speed_xy(speed_xy_cms);
+    return true;
+}
+
+bool ModeRTL::set_speed_up(float speed_up_cms)
+{
+    copter.wp_nav->set_speed_up(speed_up_cms);
+    return true;
+}
+
+bool ModeRTL::set_speed_down(float speed_down_cms)
+{
+    copter.wp_nav->set_speed_down(speed_down_cms);
+    return true;
 }
 
 #endif

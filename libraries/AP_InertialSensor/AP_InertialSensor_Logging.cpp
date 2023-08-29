@@ -95,6 +95,7 @@ void AP_InertialSensor::Write_Vibration() const
     }
 }
 
+#if AP_INERTIALSENSOR_BATCHSAMPLER_ENABLED
 // Write information about a series of IMU readings to log:
 bool AP_InertialSensor::BatchSampler::Write_ISBH(const float sample_rate_hz) const
 {
@@ -110,7 +111,7 @@ bool AP_InertialSensor::BatchSampler::Write_ISBH(const float sample_rate_hz) con
         sensor_type    : (uint8_t)type,
         instance       : instance_to_write,
         multiplier     : multiplier,
-        sample_count   : (uint16_t)_required_count,
+        sample_count   : (uint16_t)_real_required_count,
         sample_us      : measurement_started_us,
         sample_rate_hz : sample_rate_hz,
     };
@@ -133,6 +134,7 @@ bool AP_InertialSensor::BatchSampler::Write_ISBD() const
 
     return AP::logger().WriteBlock_first_succeed(&pkt, sizeof(pkt));
 }
+#endif
 
 // @LoggerMessage: FTN
 // @Description: Filter Tuning Message - per motor

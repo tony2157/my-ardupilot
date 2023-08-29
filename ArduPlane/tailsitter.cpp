@@ -223,6 +223,8 @@ void Tailsitter::setup()
     _have_elevator = SRV_Channels::function_assigned(SRV_Channel::k_elevator);
     _have_aileron = SRV_Channels::function_assigned(SRV_Channel::k_aileron);
     _have_rudder = SRV_Channels::function_assigned(SRV_Channel::k_rudder);
+    _have_elevon = SRV_Channels::function_assigned(SRV_Channel::k_elevon_left) || SRV_Channels::function_assigned(SRV_Channel::k_elevon_right);
+    _have_v_tail = SRV_Channels::function_assigned(SRV_Channel::k_vtail_left) || SRV_Channels::function_assigned(SRV_Channel::k_vtail_right);
 
     // set defaults for dual/single motor tailsitter
     if (quadplane.frame_class == AP_Motors::MOTOR_FRAME_TAILSITTER) {
@@ -294,17 +296,17 @@ void Tailsitter::output(void)
     // handle forward flight modes and transition to VTOL modes
     if (!active() || in_vtol_transition()) {
         // get FW controller throttle demand and mask of motors enabled during forward flight
-        if (hal.util->get_soft_armed() && in_vtol_transition() && !quadplane.throttle_wait) {
+        if (plane.arming.is_armed_and_safety_off() && in_vtol_transition() && !quadplane.throttle_wait) {
             /*
               during transitions to vtol mode set the throttle to hover thrust, center the rudder
             */
             if (!is_negative(transition_throttle_vtol)) { 
                 // Q_TAILSIT_THR_VT is positive use it until transition is complete
-                throttle = motors->actuator_to_thrust(MIN(transition_throttle_vtol*0.01,1.0));
+                throttle = motors->thr_lin.actuator_to_thrust(MIN(transition_throttle_vtol*0.01,1.0));
             } else {
                 throttle = motors->get_throttle_hover();
                 // work out equivelent motors throttle level for cruise
-                throttle = MAX(throttle,motors->actuator_to_thrust(plane.aparm.throttle_cruise.get() * 0.01));
+                throttle = MAX(throttle,motors->thr_lin.actuator_to_thrust(plane.aparm.throttle_cruise.get() * 0.01));
             }
 
             SRV_Channels::set_output_scaled(SRV_Channel::k_rudder, 0.0);
@@ -319,7 +321,7 @@ void Tailsitter::output(void)
 
                 // convert the hover throttle to the same output that would result if used via AP_Motors
                 // apply expo, battery scaling and SPIN min/max.
-                throttle = motors->thrust_to_actuator(throttle);
+                throttle = motors->thr_lin.thrust_to_actuator(throttle);
 
                 // override AP_MotorsTailsitter throttles during back transition
 
@@ -362,9 +364,24 @@ void Tailsitter::output(void)
         quadplane.motors_output(true);
 
         if (quadplane.option_is_set(QuadPlane::OPTION::TAILSIT_Q_ASSIST_MOTORS_ONLY)) {
-            // only use motors for Q assist, control surfaces remain under plane control
-            // zero copter I terms and use plane
-            quadplane.attitude_control->reset_rate_controller_I_terms();
+            // only use motors for Q assist, control surfaces remain under plane control. Zero copter I terms and use plane.
+            // Smoothly relax to zero so there is no step change in output, must also set limit flags so integrator cannot build faster than the relax.
+            // Assume there is always roll and pitch control surfaces, otherwise motors only assist should not be set.
+            const float dt = quadplane.attitude_control->get_dt();
+            quadplane.attitude_control->get_rate_pitch_pid().relax_integrator(0.0, dt, AC_ATTITUDE_RATE_RELAX_TC);
+            motors->limit.pitch = true;
+            quadplane.attitude_control->get_rate_yaw_pid().relax_integrator(0.0, dt, AC_ATTITUDE_RATE_RELAX_TC);
+            motors->limit.yaw = true;
+
+            if (_have_rudder || _have_v_tail) {
+                // there are yaw control  surfaces, zero motor I term
+                quadplane.attitude_control->get_rate_roll_pid().relax_integrator(0.0, dt, AC_ATTITUDE_RATE_RELAX_TC);
+                motors->limit.roll = true;
+            } else {
+                // no yaw control surfaces, zero plane I terms and use motors
+                // We skip the outputing to surfaces for this axis from the copter controller but there are none setup
+                plane.yawController.reset_I();
+            }
 
             // output tilt motors
             tilt_left = 0.0f;
@@ -400,7 +417,7 @@ void Tailsitter::output(void)
     SRV_Channels::set_output_scaled(SRV_Channel::k_elevator, (motors->get_pitch()+motors->get_pitch_ff())*SERVO_MAX*VTOL_pitch_scale);
     SRV_Channels::set_output_scaled(SRV_Channel::k_rudder, (motors->get_roll()+motors->get_roll_ff())*SERVO_MAX*VTOL_roll_scale);
 
-    if (hal.util->get_soft_armed()) {
+    if (plane.arming.is_armed_and_safety_off()) {
         // scale surfaces for throttle
         speed_scaling();
     } else if (tailsitter_motors != nullptr) {
@@ -447,18 +464,18 @@ void Tailsitter::output(void)
     if (is_positive(headroom)) {
         if (fabsf(aileron_mix) > headroom) {
             aileron_mix *= headroom / fabsf(aileron_mix);
-            yaw_lim = true;
+            yaw_lim |= _have_elevon;
         }
         if (fabsf(rudder_mix) > headroom) {
             rudder_mix *= headroom / fabsf(rudder_mix);
-            roll_lim = true;
+            roll_lim |= _have_v_tail;
         }
     } else {
         aileron_mix = 0.0;
         rudder_mix = 0.0;
-        roll_lim = true;
-        pitch_lim = true;
-        yaw_lim = true;
+        yaw_lim |= _have_elevon;
+        pitch_lim |= _have_elevon || _have_v_tail;
+        roll_lim |= _have_v_tail;
     }
     SRV_Channels::set_output_scaled(SRV_Channel::k_elevon_left, elevator_mix - aileron_mix);
     SRV_Channels::set_output_scaled(SRV_Channel::k_elevon_right, elevator_mix + aileron_mix);
@@ -483,7 +500,7 @@ void Tailsitter::output(void)
  */
 bool Tailsitter::transition_fw_complete(void)
 {
-    if (!hal.util->get_soft_armed()) {
+    if (!plane.arming.is_armed_and_safety_off()) {
         // instant trainsition when disarmed, no message
         return true;
     }
@@ -509,7 +526,7 @@ bool Tailsitter::transition_fw_complete(void)
  */
 bool Tailsitter::transition_vtol_complete(void) const
 {
-    if (!hal.util->get_soft_armed()) {
+    if (!plane.arming.is_armed_and_safety_off()) {
         // instant trainsition when disarmed, no message
         return true;
     }
@@ -782,7 +799,7 @@ void Tailsitter_Transition::update()
     case TRANSITION_ANGLE_WAIT_FW: {
         if (tailsitter.transition_fw_complete()) {
             transition_state = TRANSITION_DONE;
-            if (hal.util->get_soft_armed()) {
+            if (plane.arming.is_armed_and_safety_off()) {
                 fw_limit_start_ms = now;
                 fw_limit_initial_pitch = constrain_float(quadplane.ahrs.pitch_sensor,-8500,8500);
                 plane.nav_pitch_cd = fw_limit_initial_pitch;
@@ -839,7 +856,7 @@ void Tailsitter_Transition::VTOL_update()
             return;
         }
         // transition to VTOL complete, if armed set vtol rate limit starting point
-        if (hal.util->get_soft_armed()) {
+        if (plane.arming.is_armed_and_safety_off()) {
             vtol_limit_start_ms = now;
             vtol_limit_initial_pitch = quadplane.ahrs_view->pitch_sensor;
         }
@@ -863,7 +880,7 @@ bool Tailsitter_Transition::show_vtol_view() const
     return show_vtol;
 }
 
-void Tailsitter_Transition::set_FW_roll_pitch(int32_t& nav_pitch_cd, int32_t& nav_roll_cd, bool& allow_stick_mixing)
+void Tailsitter_Transition::set_FW_roll_pitch(int32_t& nav_pitch_cd, int32_t& nav_roll_cd)
 {
     uint32_t now = AP_HAL::millis();
     if (tailsitter.in_vtol_transition(now)) {
@@ -875,7 +892,6 @@ void Tailsitter_Transition::set_FW_roll_pitch(int32_t& nav_pitch_cd, int32_t& na
         // multiply by 0.1 to convert (degrees/second * milliseconds) to centi degrees
         nav_pitch_cd = constrain_float(vtol_transition_initial_pitch + (tailsitter.transition_rate_vtol * dt) * 0.1f, -8500, 8500);
         nav_roll_cd = 0;
-        allow_stick_mixing = false;
 
     } else if (transition_state == TRANSITION_DONE) {
         // still in FW, reset transition starting point
@@ -891,10 +907,22 @@ void Tailsitter_Transition::set_FW_roll_pitch(int32_t& nav_pitch_cd, int32_t& na
             } else {
                 nav_pitch_cd = pitch_limit_cd;
                 nav_roll_cd = 0;
-                allow_stick_mixing = false;
             }
         }
     }
+}
+
+bool Tailsitter_Transition::allow_stick_mixing() const
+{
+    // Transitioning into VTOL flight, inital pitch up
+    if (tailsitter.in_vtol_transition()) {
+        return false;
+    }
+    // Transitioning into fixed wing flight, leveling off
+    if ((transition_state == TRANSITION_DONE) && (fw_limit_start_ms != 0)) {
+        return false;
+    }
+    return true;
 }
 
 bool Tailsitter_Transition::set_VTOL_roll_pitch_limit(int32_t& nav_roll_cd, int32_t& nav_pitch_cd)

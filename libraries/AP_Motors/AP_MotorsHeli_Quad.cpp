@@ -46,10 +46,10 @@ void AP_MotorsHeli_Quad::set_update_rate( uint16_t speed_hz )
 }
 
 // init_outputs
-bool AP_MotorsHeli_Quad::init_outputs()
+void AP_MotorsHeli_Quad::init_outputs()
 {
     if (initialised_ok()) {
-        return true;
+        return;
     }
 
     for (uint8_t i=0; i<AP_MOTORS_HELI_QUAD_NUM_MOTORS; i++) {
@@ -60,42 +60,7 @@ bool AP_MotorsHeli_Quad::init_outputs()
     // set rotor servo range
     _main_rotor.init_servo();
 
-    // set signal value for main rotor external governor to know when to use autorotation bailout ramp up
-    if (_main_rotor._rsc_mode.get() == ROTOR_CONTROL_MODE_SETPOINT  ||  _main_rotor._rsc_mode.get() == ROTOR_CONTROL_MODE_PASSTHROUGH) {
-        _main_rotor.set_ext_gov_arot_bail(_main_rotor._ext_gov_arot_pct.get());
-    } else {
-        _main_rotor.set_ext_gov_arot_bail(0);
-    }
-
     set_initialised_ok(_frame_class == MOTOR_FRAME_HELI_QUAD);
-
-    return true;
-}
-
-// output_test_seq - spin a motor at the pwm value specified
-//  motor_seq is the motor's sequence number from 1 to the number of motors on the frame
-//  pwm value is an actual pwm value that will be output, normally in the range of 1000 ~ 2000
-void AP_MotorsHeli_Quad::_output_test_seq(uint8_t motor_seq, int16_t pwm)
-{
-    // output to motors and servos
-    switch (motor_seq) {
-    case 1 ... AP_MOTORS_HELI_QUAD_NUM_MOTORS:
-        rc_write(AP_MOTORS_MOT_1 + (motor_seq-1), pwm);
-        break;
-    case AP_MOTORS_HELI_QUAD_NUM_MOTORS+1:
-        // main rotor
-        rc_write(AP_MOTORS_HELI_RSC, pwm);
-        break;
-    default:
-        // do nothing
-        break;
-    }
-}
-
-// set_desired_rotor_speed
-void AP_MotorsHeli_Quad::set_desired_rotor_speed(float desired_speed)
-{
-    _main_rotor.set_desired_speed(desired_speed);
 }
 
 // calculate_armed_scalars
@@ -108,7 +73,6 @@ void AP_MotorsHeli_Quad::calculate_armed_scalars()
     // keeps user from changing RSC mode while armed
     if (_main_rotor._rsc_mode.get() != _main_rotor.get_control_mode()) {
         _main_rotor.reset_rsc_mode_param();
-        gcs().send_text(MAV_SEVERITY_CRITICAL, "RSC control mode change failed");
         _heliflags.save_rsc_mode = true;
     }
     // saves rsc mode parameter when disarmed if it had been reset while armed
@@ -117,13 +81,12 @@ void AP_MotorsHeli_Quad::calculate_armed_scalars()
         _heliflags.save_rsc_mode = false;
     }
 
-    // set bailout ramp time
-    _main_rotor.use_bailout_ramp_time(_heliflags.enable_bailout);
-
-    // allow use of external governor autorotation bailout window on main rotor
-    if (_main_rotor._ext_gov_arot_pct.get() > 0  &&  (_main_rotor._rsc_mode.get() == ROTOR_CONTROL_MODE_SETPOINT  ||  _main_rotor._rsc_mode.get() == ROTOR_CONTROL_MODE_PASSTHROUGH)){
-        // RSC only needs to know that the vehicle is in an autorotation if using the bailout window on an external governor
+    if (_heliflags.in_autorotation) {
         _main_rotor.set_autorotation_flag(_heliflags.in_autorotation);
+        // set bailout ramp time
+        _main_rotor.use_bailout_ramp_time(_heliflags.enable_bailout);
+    }else {
+        _main_rotor.set_autorotation_flag(false);
     }
 }
 
@@ -179,18 +142,6 @@ void AP_MotorsHeli_Quad::calculate_roll_pitch_collective_factors()
         _yawFactor[CH_1+i]        = clockwise?-0.25:0.25;
         _collectiveFactor[CH_1+i] = 1;
     }
-}
-
-// get_motor_mask - returns a bitmask of which outputs are being used for motors or servos (1 means being used)
-//  this can be used to ensure other pwm outputs (i.e. for servos) do not conflict
-uint32_t AP_MotorsHeli_Quad::get_motor_mask()
-{
-    uint32_t mask = 0;
-    for (uint8_t i=0; i<AP_MOTORS_HELI_QUAD_NUM_MOTORS; i++) {
-        mask |= 1U << (AP_MOTORS_MOT_1+i);
-    }
-    mask |= 1U << AP_MOTORS_HELI_RSC;
-    return mask;
 }
 
 // update_motor_controls - sends commands to motor controllers

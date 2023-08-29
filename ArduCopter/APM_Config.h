@@ -9,9 +9,6 @@
 //#define AC_OAPATHPLANNER_ENABLED DISABLED         // disable path planning around obstacles
 //#define PARACHUTE             DISABLED            // disable parachute release to save 1k of flash
 //#define NAV_GUIDED            DISABLED            // disable external navigation computer ability to control vehicle through MAV_CMD_NAV_GUIDED mission commands
-//#define PRECISION_LANDING     DISABLED            // disable precision landing using companion computer or IRLock sensor
-//#define BEACON_ENABLED        DISABLED            // disable beacon support
-//#define WINCH_ENABLED         DISABLED            // disable winch support
 //#define STATS_ENABLED         DISABLED            // disable statistics support
 //#define MODE_ACRO_ENABLED     DISABLED            // disable acrobatic mode support
 //#define MODE_AUTO_ENABLED     DISABLED            // disable auto mode support
@@ -31,7 +28,6 @@
 //#define MODE_THROW_ENABLED    DISABLED            // disable throw mode support
 //#define MODE_ZIGZAG_ENABLED   DISABLED            // disable zigzag mode support
 //#define OSD_ENABLED           DISABLED            // disable on-screen-display support
-//#define LANDING_GEAR_ENABLED  DISABLED            // disable landing gear support
 
 // features below are disabled by default on all boards
 //#define CAL_ALWAYS_REBOOT                         // flight controller will reboot after compass or accelerometer calibration completes

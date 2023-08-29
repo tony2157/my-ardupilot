@@ -26,6 +26,7 @@
 
 #include "AP_TemperatureSensor_TSYS01.h"
 #include "AP_TemperatureSensor_MCP9600.h"
+#include "AP_TemperatureSensor_MAX31865.h"
 
 #include <AP_Logger/AP_Logger.h>
 #include <AP_Vehicle/AP_Vehicle_Type.h>
@@ -116,13 +117,14 @@ void AP_TemperatureSensor::init()
     }
 
  // For Sub set the Default: Type to TSYS01 and I2C_ADDR of 0x77
-#if APM_BUILD_TYPE(APM_BUILD_ArduSub)
+#if APM_BUILD_TYPE(APM_BUILD_ArduSub) && AP_TEMPERATURE_SENSOR_TSYS01_ENABLED
     AP_Param::set_default_by_name("TEMP1_TYPE", (float)AP_TemperatureSensor_Params::Type::TSYS01);
     AP_Param::set_default_by_name("TEMP1_ADDR", TSYS01_ADDR_CSB0);
 #endif
 
     // create each instance
     for (uint8_t instance = 0; instance < AP_TEMPERATURE_SENSOR_MAX_INSTANCES; instance++) {
+        _state[instance].instance = instance;
 
         switch (get_type(instance)) {
 #if AP_TEMPERATURE_SENSOR_TSYS01_ENABLED
@@ -135,6 +137,11 @@ void AP_TemperatureSensor::init()
                 drivers[instance] = new AP_TemperatureSensor_MCP9600(*this, _state[instance], _params[instance]);
                 break;
 #endif
+#if AP_TEMPERATURE_SENSOR_MAX31865_ENABLED
+            case AP_TemperatureSensor_Params::Type::MAX31865:
+                drivers[instance] = new AP_TemperatureSensor_MAX31865(*this, _state[instance], _params[instance]);
+                break;
+#endif
             case AP_TemperatureSensor_Params::Type::NONE:
             default:
                 break;
@@ -142,7 +149,6 @@ void AP_TemperatureSensor::init()
 
         // call init function for each backend
         if (drivers[instance] != nullptr) {
-            _state[instance].instance = instance;
             drivers[instance]->init();
             // _num_instances is actually the index for looping over instances
             // the user may have TEMP_TYPE=0 and TEMP2_TYPE=7, in which case
@@ -150,6 +156,11 @@ void AP_TemperatureSensor::init()
             // this is safe
             _num_instances = instance + 1;
         }
+    }
+    
+    if (_num_instances > 0) {
+        // param count could have changed
+        AP_Param::invalidate_count();
     }
 }
 

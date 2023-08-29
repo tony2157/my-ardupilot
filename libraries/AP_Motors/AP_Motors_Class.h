@@ -3,6 +3,7 @@
 #include <AP_Common/AP_Common.h>
 #include <AP_Math/AP_Math.h>
 #include <Filter/Filter.h>         // filter library
+#include <Filter/DerivativeFilter.h>
 #include <GCS_MAVLink/GCS_MAVLink.h>
 
 // offsets for motors in motor_out and _motor_filtered arrays
@@ -103,13 +104,14 @@ public:
     void get_frame_and_type_string(char *buffer, uint8_t buflen) const;
 
     // Constructor
-    AP_Motors(uint16_t loop_rate, uint16_t speed_hz = AP_MOTORS_SPEED_DEFAULT);
+    AP_Motors(uint16_t speed_hz = AP_MOTORS_SPEED_DEFAULT);
 
     // singleton support
     static AP_Motors    *get_singleton(void) { return _singleton; }
 
     // check initialisation succeeded
     virtual bool        arming_checks(size_t buflen, char *buffer) const;
+    virtual bool        motor_test_checks(size_t buflen, char *buffer) const;
     bool                initialised_ok() const { return _initialised_ok; }
     void                set_initialised_ok(bool val) { _initialised_ok = val; }
 
@@ -137,6 +139,7 @@ public:
     void                set_throttle(float throttle_in) { _throttle_in = throttle_in; };   // range 0 ~ 1
     void                set_throttle_avg_max(float throttle_avg_max) { _throttle_avg_max = constrain_float(throttle_avg_max, 0.0f, 1.0f); };   // range 0 ~ 1
     void                set_throttle_filter_cutoff(float filt_hz) { _throttle_filter.set_cutoff_frequency(filt_hz); }
+    void                set_slew_filter_cutoff(float filt_hz) { _throttle_slew_filter.set_cutoff_frequency(filt_hz); }
     void                set_forward(float forward_in) { _forward_in = forward_in; }; // range -1 ~ +1
     void                set_lateral(float lateral_in) { _lateral_in = lateral_in; };     // range -1 ~ +1
 
@@ -153,6 +156,7 @@ public:
     float               get_throttle_out() const { return _throttle_out; }
     float               get_throttle() const { return constrain_float(_throttle_filter.get(), 0.0f, 1.0f); }
     float               get_throttle_bidirectional() const { return constrain_float(2 * (_throttle_filter.get() - 0.5f), -1.0f, 1.0f); }
+    float               get_throttle_slew_rate() const { return _throttle_slew_rate; }
     float               get_forward() const { return _forward_in; }
     float               get_lateral() const { return _lateral_in; }
     virtual float       get_throttle_hover() const = 0;
@@ -185,20 +189,28 @@ public:
     // get_spool_state - get current spool state
     enum SpoolState  get_spool_state(void) const { return _spool_state; }
 
-    // set_density_ratio - sets air density as a proportion of sea level density
-    void                set_air_density_ratio(float ratio) { _air_density_ratio = ratio; }
+    // set_dt / get_dt - dt is the time since the last time the motor mixers were updated
+    //   _dt should be set based on the time of the last IMU read used by these controllers
+    //   the motor mixers should run on each loop to ensure normal operation
+    void set_dt(float dt) { _dt = dt; }
+    float get_dt() const { return _dt; }
 
     // structure for holding motor limit flags
     struct AP_Motors_limit {
-        uint8_t roll            : 1; // we have reached roll or pitch limit
-        uint8_t pitch           : 1; // we have reached roll or pitch limit
-        uint8_t yaw             : 1; // we have reached yaw limit
-        uint8_t throttle_lower  : 1; // we have reached throttle's lower limit
-        uint8_t throttle_upper  : 1; // we have reached throttle's upper limit
+        bool roll;           // we have reached roll or pitch limit
+        bool pitch;          // we have reached roll or pitch limit
+        bool yaw;            // we have reached yaw limit
+        bool throttle_lower; // we have reached throttle's lower limit
+        bool throttle_upper; // we have reached throttle's upper limit
     } limit;
 
     // set limit flag for pitch, roll and yaw
     void set_limit_flag_pitch_roll_yaw(bool flag);
+
+#if AP_SCRIPTING_ENABLED
+    // set limit flag for pitch, roll and yaw
+    void set_external_limits(bool roll, bool pitch, bool yaw, bool throttle_lower, bool throttle_upper);
+#endif
 
     //
     // virtual functions that should be implemented by child classes
@@ -230,9 +242,6 @@ public:
 
     // pilot input in the -1 ~ +1 range for roll, pitch and yaw. 0~1 range for throttle
     void                set_radio_passthrough(float roll_input, float pitch_input, float throttle_input, float yaw_input);
-
-    // set loop rate. Used to support loop rate as a parameter
-    void                set_loop_rate(uint16_t loop_rate) { _loop_rate = loop_rate; }
 
     // return the roll factor of any motor, this is used for tilt rotors and tail sitters
     // using copter motors for forward flight
@@ -269,6 +278,11 @@ public:
     // write log, to be called at 10hz
     virtual void Log_Write() {};
 
+    enum MotorOptions : uint8_t {
+        BATT_RAW_VOLTAGE = (1 << 0U)
+    };
+    bool has_option(MotorOptions option) { return _options.get() & uint8_t(option); }
+
 protected:
     // output functions that should be overloaded by child classes
     virtual void        output_armed_stabilizing() = 0;
@@ -293,7 +307,7 @@ protected:
     virtual void save_params_on_disarm() {}
 
     // internal variables
-    uint16_t            _loop_rate;                 // rate in Hz at which output() function is called (normally 400hz)
+    float               _dt;                        // time difference (in seconds) since the last loop time
     uint16_t            _speed_hz;                  // speed in hz to send updates to motors
     float               _roll_in;                   // desired roll control from attitude controllers, -1 ~ +1
     float               _roll_in_ff;                // desired roll feed forward control from attitude controllers, -1 ~ +1
@@ -303,15 +317,15 @@ protected:
     float               _yaw_in_ff;                 // desired yaw feed forward control from attitude controller, -1 ~ +1
     float               _throttle_in;               // last throttle input from set_throttle caller
     float               _throttle_out;              // throttle after mixing is complete
+    float               _throttle_slew_rate;        // throttle slew rate from input
     float               _forward_in;                // last forward input from set_forward caller
     float               _lateral_in;                // last lateral input from set_lateral caller
     float               _throttle_avg_max;          // last throttle input from set_throttle_avg_max
-    LowPassFilterFloat  _throttle_filter;           // throttle input filter
+    LowPassFilterFloat  _throttle_filter;           // pilot throttle input filter
+    DerivativeFilterFloat_Size7  _throttle_slew;    // throttle output slew detector
+    LowPassFilterFloat  _throttle_slew_filter;      // filter for the output of the throttle slew
     DesiredSpoolState   _spool_desired;             // desired spool state
     SpoolState          _spool_state;               // current spool mode
-
-    // air pressure compensation variables
-    float               _air_density_ratio;     // air density / sea level density - decreases in altitude
 
     // mask of what channels need fast output
     uint32_t            _motor_fast_mask;
@@ -331,6 +345,9 @@ protected:
     bool                _thrust_boost;          // true if thrust boost is enabled to handle motor failure
     bool                _thrust_balanced;       // true when output thrust is well balanced
     float               _thrust_boost_ratio;    // choice between highest and second highest motor output for output mixing (0 ~ 1). Zero is normal operation
+
+    // motor options
+    AP_Int16            _options;
 
     MAV_TYPE _mav_type; // MAV_TYPE_GENERIC = 0;
 
@@ -358,6 +375,9 @@ protected:
 #if AP_SCRIPTING_ENABLED
     // Custom frame string set from scripting
     char* custom_frame_string;
+
+    // external limits from scripting
+    AP_Motors_limit external_limits;
 #endif
 
 private:

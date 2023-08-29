@@ -133,7 +133,7 @@ void GCS_MAVLINK_Plane::send_attitude() const
     float p = ahrs.pitch;
     float y = ahrs.yaw;
 
-    if (!(plane.g2.flight_options & FlightOptions::GCS_REMOVE_TRIM_PITCH_CD)) {
+    if (!(plane.flight_option_enabled(FlightOptions::GCS_REMOVE_TRIM_PITCH_CD))) {
         p -= radians(plane.g.pitch_trim_cd * 0.01f);
     }
 
@@ -696,10 +696,10 @@ void GCS_MAVLINK_Plane::handle_change_alt_request(AP_Mission::Mission_Command &c
 }
 
 
-MAV_RESULT GCS_MAVLINK_Plane::handle_command_preflight_calibration(const mavlink_command_long_t &packet)
+MAV_RESULT GCS_MAVLINK_Plane::handle_command_preflight_calibration(const mavlink_command_long_t &packet, const mavlink_message_t &msg)
 {
     plane.in_calibration = true;
-    MAV_RESULT ret = GCS_MAVLINK::handle_command_preflight_calibration(packet);
+    MAV_RESULT ret = GCS_MAVLINK::handle_command_preflight_calibration(packet, msg);
     plane.in_calibration = false;
 
     return ret;
@@ -711,7 +711,7 @@ void GCS_MAVLINK_Plane::packetReceived(const mavlink_status_t &status,
 #if HAL_ADSB_ENABLED
     plane.avoidance_adsb.handle_msg(msg);
 #endif
-#if AP_SCRIPTING_ENABLED
+#if AP_SCRIPTING_ENABLED && AP_FOLLOW_ENABLED
     // pass message to follow library
     plane.g2.follow.handle_msg(msg);
 #endif
@@ -727,6 +727,14 @@ bool GCS_MAVLINK_Plane::set_home_to_current_location(bool _lock)
     if (_lock) {
         AP::ahrs().lock_home();
     }
+    if ((plane.control_mode == &plane.mode_rtl)
+#if HAL_QUADPLANE_ENABLED
+            || (plane.control_mode == &plane.mode_qrtl)
+#endif
+                                                        ) {
+        // if in RTL head to the updated home location
+        plane.control_mode->enter();
+    }
     return true;
 }
 bool GCS_MAVLINK_Plane::set_home(const Location& loc, bool _lock)
@@ -736,6 +744,14 @@ bool GCS_MAVLINK_Plane::set_home(const Location& loc, bool _lock)
     }
     if (_lock) {
         AP::ahrs().lock_home();
+    }
+    if ((plane.control_mode == &plane.mode_rtl)
+#if HAL_QUADPLANE_ENABLED
+            || (plane.control_mode == &plane.mode_qrtl)
+#endif
+                                                        ) {
+        // if in RTL head to the updated home location
+        plane.control_mode->enter();
     }
     return true;
 }
@@ -934,7 +950,7 @@ MAV_RESULT GCS_MAVLINK_Plane::handle_command_int_guided_slew_commands(const mavl
 
 }
 
-MAV_RESULT GCS_MAVLINK_Plane::handle_command_int_packet(const mavlink_command_int_t &packet)
+MAV_RESULT GCS_MAVLINK_Plane::handle_command_int_packet(const mavlink_command_int_t &packet, const mavlink_message_t &msg)
 {
     switch(packet.command) {
 
@@ -947,22 +963,30 @@ MAV_RESULT GCS_MAVLINK_Plane::handle_command_int_packet(const mavlink_command_in
     case MAV_CMD_GUIDED_CHANGE_HEADING:
         return handle_command_int_guided_slew_commands(packet);
 
+#if AP_SCRIPTING_ENABLED && AP_FOLLOW_ENABLED
     case MAV_CMD_DO_FOLLOW:
-#if AP_SCRIPTING_ENABLED
         // param1: sysid of target to follow
         if ((packet.param1 > 0) && (packet.param1 <= 255)) {
             plane.g2.follow.set_target_sysid((uint8_t)packet.param1);
             return MAV_RESULT_ACCEPTED;
         }
+        return MAV_RESULT_DENIED;
 #endif
-        return MAV_RESULT_FAILED;
-        
+
+#if AP_ICENGINE_ENABLED
+    case MAV_CMD_DO_ENGINE_CONTROL:
+        if (!plane.g2.ice_control.engine_control(packet.param1, packet.param2, packet.param3)) {
+            return MAV_RESULT_FAILED;
+        }
+        return MAV_RESULT_ACCEPTED;
+#endif
+
     default:
-        return GCS_MAVLINK::handle_command_int_packet(packet);
+        return GCS_MAVLINK::handle_command_int_packet(packet, msg);
     }
 }
 
-MAV_RESULT GCS_MAVLINK_Plane::handle_command_long_packet(const mavlink_command_long_t &packet)
+MAV_RESULT GCS_MAVLINK_Plane::handle_command_long_packet(const mavlink_command_long_t &packet, const mavlink_message_t &msg)
 {
     switch(packet.command) {
 
@@ -1020,81 +1044,7 @@ MAV_RESULT GCS_MAVLINK_Plane::handle_command_long_packet(const mavlink_command_l
         return MAV_RESULT_FAILED;
 
     case MAV_CMD_DO_GO_AROUND:
-        {
-            uint16_t mission_id = plane.mission.get_current_nav_cmd().id;
-            bool is_in_landing = (plane.flight_stage == AP_FixedWing::FlightStage::LAND) ||
-                                 (mission_id == MAV_CMD_NAV_LAND) ||
-                                 (mission_id == MAV_CMD_NAV_VTOL_LAND);
-            if (is_in_landing) {
-                // fly a user planned abort pattern if available
-                if (plane.mission.jump_to_abort_landing_sequence()) {
-                    return MAV_RESULT_ACCEPTED;
-                }
-
-                // only fly a fixed wing abort if we aren't doing quadplane stuff, or potentially
-                // shooting a quadplane approach
-#if HAL_QUADPLANE_ENABLED
-                const bool attempt_go_around =
-                    (!plane.quadplane.available()) ||
-                    ((!plane.quadplane.in_vtol_auto()) &&
-                     (!plane.quadplane.landing_with_fixed_wing_spiral_approach()));
-#else
-                const bool attempt_go_around = true;
-#endif
-                if (attempt_go_around) {
-                    // Initiate an aborted landing. This will trigger a pitch-up and
-                    // climb-out to a safe altitude holding heading then one of the
-                    // following actions will occur, check for in this order:
-                    // - If MAV_CMD_CONTINUE_AND_CHANGE_ALT is next command in mission,
-                    //      increment mission index to execute it
-                    // - else if DO_LAND_START is available, jump to it
-                    // - else decrement the mission index to repeat the landing approach
-
-                    if (!is_zero(packet.param1)) {
-                        plane.auto_state.takeoff_altitude_rel_cm = packet.param1 * 100;
-                    }
-                    if (plane.landing.request_go_around()) {
-                        plane.auto_state.next_wp_crosstrack = false;
-                        return MAV_RESULT_ACCEPTED;
-                    }
-                }
-            }
-        }
-        return MAV_RESULT_FAILED;
-
-    case MAV_CMD_DO_SET_HOME: {
-        // param1 : use current (1=use current location, 0=use specified location)
-        // param5 : latitude
-        // param6 : longitude
-        // param7 : altitude (absolute)
-        if (is_equal(packet.param1,1.0f)) {
-            if (!plane.set_home_persistently(AP::gps().location())) {
-                return MAV_RESULT_FAILED;
-            }
-            AP::ahrs().lock_home();
-        } else {
-            // ensure param1 is zero
-            if (!is_zero(packet.param1)) {
-                return MAV_RESULT_FAILED;
-            }
-            Location new_home_loc;
-            if (!location_from_command_t(packet, MAV_FRAME_GLOBAL, new_home_loc)) {
-                return MAV_RESULT_DENIED;
-            }
-            if (!set_home(new_home_loc, true)) {
-                return MAV_RESULT_FAILED;
-            }
-        }
-        if ((plane.control_mode == &plane.mode_rtl)
-#if HAL_QUADPLANE_ENABLED
-                || (plane.control_mode == &plane.mode_qrtl)
-#endif
-                                                            ) {
-            // if in RTL head to the updated home location
-            plane.control_mode->enter();
-        }
-        return MAV_RESULT_ACCEPTED;
-    }
+        return plane.trigger_land_abort(packet.param1) ? MAV_RESULT_ACCEPTED : MAV_RESULT_FAILED;
 
     case MAV_CMD_DO_AUTOTUNE_ENABLE:
         // param1 : enable/disable
@@ -1152,26 +1102,8 @@ MAV_RESULT GCS_MAVLINK_Plane::handle_command_long_packet(const mavlink_command_l
         return MAV_RESULT_ACCEPTED;
 #endif
 
-#if AP_ICENGINE_ENABLED
-    case MAV_CMD_DO_ENGINE_CONTROL:
-        if (!plane.g2.ice_control.engine_control(packet.param1, packet.param2, packet.param3)) {
-            return MAV_RESULT_FAILED;
-        }
-        return MAV_RESULT_ACCEPTED;
-#endif
-
-#if AP_SCRIPTING_ENABLED
-    case MAV_CMD_DO_FOLLOW:
-        // param1: sysid of target to follow
-        if ((packet.param1 > 0) && (packet.param1 <= 255)) {
-            plane.g2.follow.set_target_sysid((uint8_t)packet.param1);
-            return MAV_RESULT_ACCEPTED;
-        }
-        return MAV_RESULT_FAILED;
-#endif
-        
     default:
-        return GCS_MAVLINK::handle_command_long_packet(packet);
+        return GCS_MAVLINK::handle_command_long_packet(packet, msg);
     }
 }
 
@@ -1374,6 +1306,7 @@ MAV_RESULT GCS_MAVLINK_Plane::handle_command_do_set_mission_current(const mavlin
     return result;
 }
 
+#if AP_MAVLINK_MISSION_SET_CURRENT_ENABLED
 void GCS_MAVLINK_Plane::handle_mission_set_current(AP_Mission &mission, const mavlink_message_t &msg)
 {
     // if you change this you must change handle_command_do_set_mission_current
@@ -1383,6 +1316,7 @@ void GCS_MAVLINK_Plane::handle_mission_set_current(AP_Mission &mission, const ma
         plane.mission.resume();
     }
 }
+#endif
 
 uint64_t GCS_MAVLINK_Plane::capabilities() const
 {
@@ -1401,7 +1335,7 @@ uint64_t GCS_MAVLINK_Plane::capabilities() const
 int16_t GCS_MAVLINK_Plane::high_latency_target_altitude() const
 {
     AP_AHRS &ahrs = AP::ahrs();
-    struct Location global_position_current;
+    Location global_position_current;
     UNUSED_RESULT(ahrs.get_location(global_position_current));
 
 #if HAL_QUADPLANE_ENABLED

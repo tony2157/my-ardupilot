@@ -26,6 +26,7 @@
 #include "SIM_IntelligentEnergy24.h"
 #include "SIM_Ship.h"
 #include "SIM_GPS.h"
+#include "SIM_DroneCANDevice.h"
 
 namespace SITL {
 
@@ -209,11 +210,24 @@ public:
     AP_Float gps_init_lon_ofs;
     AP_Float gps_init_alt_ofs;
 
+    // log number for GPS::update_file()
+    AP_Int16 gps_log_num;
+
     AP_Float batt_voltage; // battery voltage base
     AP_Float batt_capacity_ah; // battery capacity in Ah
     AP_Int8  rc_fail;     // fail RC input
     AP_Int8  rc_chancount; // channel count
     AP_Int8  float_exception; // enable floating point exception checks
+    AP_Int32 can_servo_mask; // mask of servos/escs coming from CAN
+
+#if HAL_NUM_CAN_IFACES
+    enum class CANTransport : uint8_t {
+      MulticastUDP = 0,
+      SocketCAN = 1
+    };
+    AP_Enum<CANTransport> can_transport[HAL_NUM_CAN_IFACES];
+#endif
+
     AP_Int8  flow_enable; // enable simulated optflow
     AP_Int16 flow_rate; // optflow data rate (Hz)
     AP_Int8  flow_delay; // optflow data delay
@@ -232,6 +246,8 @@ public:
     AP_Int16 loop_rate_hz;
     AP_Int16 loop_time_jitter_us;
     AP_Int32 on_hardware_output_enable_mask;  // mask of output channels passed through to actual hardware
+
+    AP_Float uart_byte_loss_pct;
 
 #ifdef SFML_JOYSTICK
     AP_Int8 sfml_joystick_id;
@@ -254,6 +270,8 @@ public:
         AP_Float wcof_xn;
         AP_Float wcof_yp;
         AP_Float wcof_yn;
+        AP_Float wcof_zp;
+        AP_Float wcof_zn;
     };
     BaroParm baro[BARO_MAX_INSTANCES];
 
@@ -384,19 +402,6 @@ public:
         AP_Float hdg; // 0 to 360
     } opos;
 
-    AP_Int8 _safety_switch_state;
-
-    AP_HAL::Util::safety_state safety_switch_state() const {
-        return (AP_HAL::Util::safety_state)_safety_switch_state.get();
-    }
-    void force_safety_off() {
-        _safety_switch_state.set((uint8_t)AP_HAL::Util::SAFETY_ARMED);
-    }
-    bool force_safety_on() {
-        _safety_switch_state.set((uint8_t)AP_HAL::Util::SAFETY_DISARMED);
-        return true;
-    }
-
     uint16_t irlock_port;
 
     time_t start_time_UTC;
@@ -441,6 +446,9 @@ public:
     RichenPower richenpower_sim;
     IntelligentEnergy24 ie24_sim;
     FETtecOneWireESC fetteconewireesc_sim;
+#if AP_TEST_DRONECAN_DRIVERS
+    DroneCANDevice dronecan_sim;
+#endif
 
     // ESC telemetry
     AP_Int8 esc_telem;
@@ -481,12 +489,13 @@ public:
     AP_Float imu_temp_end;
     AP_Float imu_temp_tconst;
     AP_Float imu_temp_fixed;
-    AP_InertialSensor::TCal imu_tcal[INS_MAX_INSTANCES];
+    AP_InertialSensor_TCal imu_tcal[INS_MAX_INSTANCES];
 #endif
 
     // IMU control parameters
     AP_Float gyro_noise[INS_MAX_INSTANCES];  // in degrees/second
     AP_Vector3f gyro_scale[INS_MAX_INSTANCES];  // percentage
+    AP_Vector3f gyro_bias[INS_MAX_INSTANCES]; // in rad/s
     AP_Float accel_noise[INS_MAX_INSTANCES]; // in m/s/s
     AP_Vector3f accel_bias[INS_MAX_INSTANCES]; // in m/s/s
     AP_Vector3f accel_scale[INS_MAX_INSTANCES]; // in m/s/s
@@ -501,6 +510,17 @@ public:
 
     // Master instance to use servos from with slave instances
     AP_Int8 ride_along_master;
+
+#if AP_SIM_INS_FILE_ENABLED
+    enum INSFileMode {
+        INS_FILE_NONE = 0,
+        INS_FILE_READ = 1,
+        INS_FILE_WRITE = 2,
+        INS_FILE_READ_STOP_ON_EOF = 3,
+    };
+    AP_Int8 gyro_file_rw;
+    AP_Int8 accel_file_rw;
+#endif
 };
 
 } // namespace SITL

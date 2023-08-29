@@ -14,10 +14,13 @@
  */
 
 /*
- *  main loop scheduler for APM
+ *  main loop scheduler for ArduPilot
  *  Author: Andrew Tridgell, January 2013
  *
  */
+
+#include "AP_Scheduler_config.h"
+
 #include "AP_Scheduler.h"
 
 #include <AP_HAL/AP_HAL.h>
@@ -154,6 +157,7 @@ void AP_Scheduler::init(const AP_Scheduler::Task *tasks, uint8_t num_tasks, uint
 void AP_Scheduler::tick(void)
 {
     _tick_counter++;
+    _tick_counter32++;
 }
 
 #if CONFIG_HAL_BOARD == HAL_BOARD_SITL

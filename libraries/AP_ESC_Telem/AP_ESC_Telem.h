@@ -2,7 +2,6 @@
 
 #include <AP_HAL/AP_HAL.h>
 #include <AP_Param/AP_Param.h>
-#include <AP_TemperatureSensor/AP_TemperatureSensor_config.h>
 #include <SRV_Channel/SRV_Channel_config.h>
 #include "AP_ESC_Telem_Backend.h"
 
@@ -40,7 +39,7 @@ public:
     float get_average_motor_rpm() const { return get_average_motor_rpm(0xFFFFFFFF); }
 
     // determine whether all the motors in servo_channel_mask are running
-    bool are_motors_running(uint32_t servo_channel_mask, float min_rpm) const;
+    bool are_motors_running(uint32_t servo_channel_mask, float min_rpm, float max_rpm) const;
 
     // get an individual ESC's temperature in centi-degrees if available, returns true on success
     bool get_temperature(uint8_t esc_index, int16_t& temp) const;
@@ -98,6 +97,9 @@ public:
     // can also be called from scripting
     void update_rpm(const uint8_t esc_index, const float new_rpm, const float error_rate);
 
+    // callback to update the data in the frontend, should be called by the driver when new data is available
+    void update_telem_data(const uint8_t esc_index, const AP_ESC_Telem_Backend::TelemetryData& new_data, const uint16_t data_mask);
+
 #if AP_SCRIPTING_ENABLED
     /*
       set RPM scale factor from script
@@ -107,18 +109,14 @@ public:
 
 private:
 
-    // callback to update the data in the frontend, should be called by the driver when new data is available
-    void update_telem_data(const uint8_t esc_index, const AP_ESC_Telem_Backend::TelemetryData& new_data, const uint16_t data_mask);
+    // helper that validates RPM data
+    static bool rpm_data_within_timeout (const volatile AP_ESC_Telem_Backend::RpmData &instance, const uint32_t now_us, const uint32_t timeout_us);
+    static bool was_rpm_data_ever_reported (const volatile AP_ESC_Telem_Backend::RpmData &instance);
 
     // rpm data
     volatile AP_ESC_Telem_Backend::RpmData _rpm_data[ESC_TELEM_MAX_ESCS];
     // telemetry data
     volatile AP_ESC_Telem_Backend::TelemetryData _telem_data[ESC_TELEM_MAX_ESCS];
-
-#if AP_TEMPERATURE_SENSOR_ENABLED
-    bool _temperature_is_external[ESC_TELEM_MAX_ESCS];
-    bool _motor_temp_is_external[ESC_TELEM_MAX_ESCS];
-#endif
 
     uint32_t _last_telem_log_ms[ESC_TELEM_MAX_ESCS];
     uint32_t _last_rpm_log_us[ESC_TELEM_MAX_ESCS];
@@ -142,4 +140,3 @@ namespace AP {
 };
 
 #endif // HAL_WITH_ESC_TELEM
-

@@ -62,7 +62,7 @@ void AP_AHRS::load_watchdog_home()
         _home.set_alt_cm(pd.home_alt_cm, Location::AltFrame::ABSOLUTE);
         _home_is_set = true;
         _home_locked = true;
-        gcs().send_text(MAV_SEVERITY_INFO, "Restored watchdog home");
+        GCS_SEND_TEXT(MAV_SEVERITY_INFO, "Restored watchdog home");
     }
 }
 
@@ -185,7 +185,7 @@ AP_AHRS_DCM::reset(bool recover_eulers)
         pitch = pd.pitch_rad;
         yaw = pd.yaw_rad;
         _dcm_matrix.from_euler(roll, pitch, yaw);
-        gcs().send_text(MAV_SEVERITY_INFO, "Restored watchdog attitude %.0f %.0f %.0f",
+        GCS_SEND_TEXT(MAV_SEVERITY_INFO, "Restored watchdog attitude %.0f %.0f %.0f",
                         degrees(roll), degrees(pitch), degrees(yaw));
     } else if (recover_eulers && !isnan(roll) && !isnan(pitch) && !isnan(yaw)) {
         _dcm_matrix.from_euler(roll, pitch, yaw);
@@ -485,10 +485,12 @@ AP_AHRS_DCM::drift_correction_yaw(void)
 
     Compass &compass = AP::compass();
 
+#if COMPASS_CAL_ENABLED
     if (compass.is_calibrating()) {
         // don't do any yaw correction while calibrating
         return;
     }
+#endif
     
     if (AP_AHRS_DCM::use_compass()) {
         /*
@@ -1022,7 +1024,7 @@ void AP_AHRS_DCM::estimate_wind(void)
 
 // return our current position estimate using
 // dead-reckoning or GPS
-bool AP_AHRS_DCM::get_location(struct Location &loc) const
+bool AP_AHRS_DCM::get_location(Location &loc) const
 {
     loc.lat = _last_lat;
     loc.lng = _last_lng;
@@ -1147,9 +1149,11 @@ bool AP_AHRS::set_home(const Location &loc)
 
     Log_Write_Home_And_Origin();
 
+#if HAL_GCS_ENABLED
     // send new home and ekf origin to GCS
     gcs().send_message(MSG_HOME);
     gcs().send_message(MSG_ORIGIN);
+#endif
 
     AP_HAL::Util::PersistentData &pd = hal.util->persistent_data;
     pd.home_lat = loc.lat;
@@ -1183,7 +1187,7 @@ bool AP_AHRS_DCM::get_velocity_NED(Vector3f &vec) const
 
 // Get a derivative of the vertical position in m/s which is kinematically consistent with the vertical position is required by some control loops.
 // This is different to the vertical velocity from the EKF which is not always consistent with the vertical position due to the various errors that are being corrected for.
-bool AP_AHRS_DCM::get_vert_pos_rate(float &velocity) const
+bool AP_AHRS_DCM::get_vert_pos_rate_D(float &velocity) const
 {
     Vector3f velned;
     if (!get_velocity_NED(velned)) {
@@ -1253,4 +1257,17 @@ bool AP_AHRS_DCM::get_relative_position_D_origin(float &posD) const
 
 void AP_AHRS_DCM::send_ekf_status_report(GCS_MAVLINK &link) const
 {
+}
+
+// return true if DCM has a yaw source available
+bool AP_AHRS_DCM::yaw_source_available(void) const
+{
+    return AP::compass().use_for_yaw();
+}
+
+void AP_AHRS_DCM::get_control_limits(float &ekfGndSpdLimit, float &ekfNavVelGainScaler) const
+{
+    // lower gains in VTOL controllers when flying on DCM
+    ekfGndSpdLimit = 50.0;
+    ekfNavVelGainScaler = 0.5;
 }

@@ -63,8 +63,7 @@ bool AP_Arming_Sub::ins_checks(bool display_failure)
     }
 
     // additional sub-specific checks
-    if ((checks_to_perform & ARMING_CHECK_ALL) ||
-        (checks_to_perform & ARMING_CHECK_INS)) {
+    if (check_enabled(ARMING_CHECK_INS)) {
         char failure_msg[50] = {};
         if (!AP::ahrs().pre_arm_check(false, failure_msg, sizeof(failure_msg))) {
             check_failed(ARMING_CHECK_INS, display_failure, "AHRS: %s", failure_msg);
@@ -135,7 +134,7 @@ bool AP_Arming_Sub::arm(AP_Arming::Method method, bool do_arming_checks)
     sub.motors.armed(true);
 
     // log flight mode in case it was changed while vehicle was disarmed
-    AP::logger().Write_Mode(sub.control_mode, sub.control_mode_reason);
+    AP::logger().Write_Mode((uint8_t)sub.control_mode, sub.control_mode_reason);
 
     // reenable failsafe
     sub.mainloop_failsafe_enable();

@@ -26,6 +26,8 @@
 #if HAL_ADSB_SAGETECH_MXS_ENABLED
 #include <GCS_MAVLink/GCS.h>
 #include <AP_AHRS/AP_AHRS.h>
+#include <AP_SerialManager/AP_SerialManager.h>
+#include <AP_GPS/AP_GPS.h>
 #include <AP_RTC/AP_RTC.h>
 #include <stdio.h>
 #include <time.h>
@@ -78,11 +80,11 @@ void AP_ADSB_Sagetech_MXS::update()
     // -----------------------------
     uint32_t nbytes = MIN(_port->available(), 10 * PAYLOAD_MXS_MAX_SIZE);
     while (nbytes-- > 0) {
-        const int16_t data = _port->read();
-        if (data < 0) {
+        uint8_t data;
+        if (!_port->read(data)) {
             break;
         }
-        parse_byte((uint8_t)data);
+        parse_byte(data);
     }
 
     const uint32_t now_ms = AP_HAL::millis();
@@ -109,7 +111,7 @@ void AP_ADSB_Sagetech_MXS::update()
             }
 
         } else if (last.packet_initialize_ms > MXS_INIT_TIMEOUT && !mxs_state.init_failed) {
-            gcs().send_text(MAV_SEVERITY_CRITICAL, "ADSB Sagetech MXS: Initialization Timeout. Failed to initialize.");
+            GCS_SEND_TEXT(MAV_SEVERITY_CRITICAL, "ADSB Sagetech MXS: Initialization Timeout. Failed to initialize.");
             mxs_state.init_failed = true;
         }
 
@@ -312,7 +314,7 @@ void AP_ADSB_Sagetech_MXS::msg_write(const uint8_t *data, const uint16_t len) co
 
 void AP_ADSB_Sagetech_MXS::auto_config_operating()
 {
-// Configure the Default Operation Message Data
+    // Configure the Default Operation Message Data
     mxs_state.op.squawk = AP_ADSB::convert_base_to_decimal(8, _frontend.out_state.cfg.squawk_octal);
     mxs_state.op.opMode = sg_op_mode_t::modeOff;                                      // MXS needs to start in OFF mode to accept installation message
     mxs_state.op.savePowerUp = true;                                                  // Save power-up state in non-volatile
@@ -334,9 +336,10 @@ void AP_ADSB_Sagetech_MXS::auto_config_operating()
 
     mxs_state.op.identOn = false;
 
-    float vertRate;
-    if (AP::ahrs().get_vert_pos_rate(vertRate)) {
-        mxs_state.op.climbRate = vertRate * SAGETECH_SCALE_M_PER_SEC_TO_FT_PER_MIN;
+    float vertRateD;
+    if (AP::ahrs().get_vert_pos_rate_D(vertRateD)) {
+        // convert from down to up, and scale appropriately:
+        mxs_state.op.climbRate = -1 * vertRateD * SAGETECH_SCALE_M_PER_SEC_TO_FT_PER_MIN;
         mxs_state.op.climbValid = true;
     } else {
         mxs_state.op.climbValid = false;
@@ -420,15 +423,15 @@ void AP_ADSB_Sagetech_MXS::auto_config_flightid()
 void AP_ADSB_Sagetech_MXS::handle_ack(const sg_ack_t ack)
 {
     if ((ack.ackId != last.msg.id) || (ack.ackType != last.msg.type)) {
-        // gcs().send_text(MAV_SEVERITY_WARNING, "ADSB Sagetech MXS: ACK: Message %d of type %02x not acknowledged.", last.msg.id, last.msg.type);
+        // GCS_SEND_TEXT(MAV_SEVERITY_WARNING, "ADSB Sagetech MXS: ACK: Message %d of type %02x not acknowledged.", last.msg.id, last.msg.type);
     }
     // System health
     if (ack.failXpdr && !last.failXpdr) {
-        gcs().send_text(MAV_SEVERITY_WARNING, "ADSB Sagetech MXS: Transponder Failure");
+        GCS_SEND_TEXT(MAV_SEVERITY_WARNING, "ADSB Sagetech MXS: Transponder Failure");
         _frontend.out_state.tx_status.fault |= UAVIONIX_ADSB_OUT_STATUS_FAULT_TX_SYSTEM_FAIL;
     }
     if (ack.failSystem && !last.failSystem) {
-        gcs().send_text(MAV_SEVERITY_WARNING, "ADSB Sagetech MXS: System Failure");
+        GCS_SEND_TEXT(MAV_SEVERITY_WARNING, "ADSB Sagetech MXS: System Failure");
         _frontend.out_state.tx_status.fault |= UAVIONIX_ADSB_OUT_STATUS_FAULT_TX_SYSTEM_FAIL;
     }
     last.failXpdr = ack.failXpdr;
@@ -528,7 +531,7 @@ void AP_ADSB_Sagetech_MXS::send_install_msg()
 {
     // MXS must be in OFF mode to change ICAO or Registration
     if (mxs_state.op.opMode != modeOff) {
-        // gcs().send_text(MAV_SEVERITY_WARNING, "ADSB Sagetech MXS: unable to send installation data while not in OFF mode.");
+        // GCS_SEND_TEXT(MAV_SEVERITY_WARNING, "ADSB Sagetech MXS: unable to send installation data while not in OFF mode.");
         return;
     }
 
@@ -591,9 +594,9 @@ void AP_ADSB_Sagetech_MXS::send_operating_msg()
         mxs_state.op.altitude = 0;
     }
 
-    float vertRate;
-    if (AP::ahrs().get_vert_pos_rate(vertRate)) {
-        mxs_state.op.climbRate = vertRate * SAGETECH_SCALE_M_PER_SEC_TO_FT_PER_MIN;
+    float vertRateD;
+    if (AP::ahrs().get_vert_pos_rate_D(vertRateD)) {
+        mxs_state.op.climbRate = -1 * vertRateD * SAGETECH_SCALE_M_PER_SEC_TO_FT_PER_MIN;
         mxs_state.op.climbValid = true;
     } else {
         mxs_state.op.climbValid = false;

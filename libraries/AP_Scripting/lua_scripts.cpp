@@ -13,6 +13,10 @@
    along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "AP_Scripting_config.h"
+
+#if AP_SCRIPTING_ENABLED
+
 #include "lua_scripts.h"
 #include <AP_HAL/AP_HAL.h>
 #include "AP_Scripting.h"
@@ -23,6 +27,7 @@
 #define DISABLE_INTERRUPTS_FOR_SCRIPT_RUN 0
 
 extern const AP_HAL::HAL& hal;
+#define ENABLE_DEBUG_MODULE 0
 
 bool lua_scripts::overtime;
 jmp_buf lua_scripts::panic_jmp;
@@ -34,12 +39,13 @@ uint32_t lua_scripts::last_print_ms;
 lua_scripts::lua_scripts(const AP_Int32 &vm_steps, const AP_Int32 &heap_size, const AP_Int8 &debug_options, struct AP_Scripting::terminal_s &_terminal)
     : _vm_steps(vm_steps),
       _debug_options(debug_options),
-     terminal(_terminal) {
-    _heap = hal.util->allocate_heap_memory(heap_size);
+     terminal(_terminal)
+{
+    _heap.create(heap_size, 4);
 }
 
 lua_scripts::~lua_scripts() {
-    free(_heap);
+    _heap.destroy();
 }
 
 void lua_scripts::hook(lua_State *L, lua_Debug *ar) {
@@ -69,7 +75,7 @@ void lua_scripts::set_and_print_new_error_message(MAV_SEVERITY severity, const c
     // reset buffer and print count
     print_error_count = 0;
     if (error_msg_buf) {
-        hal.util->heap_realloc(_heap, error_msg_buf, 0);
+        _heap.deallocate(error_msg_buf);
         error_msg_buf = nullptr;
     }
 
@@ -92,7 +98,7 @@ void lua_scripts::set_and_print_new_error_message(MAV_SEVERITY severity, const c
     }
 
     // allocate buffer on scripting heap
-    error_msg_buf = (char *)hal.util->heap_realloc(_heap, nullptr, len+1);
+    error_msg_buf = (char *)_heap.allocate(len+1);
     if (!error_msg_buf) {
         // allocation failed
         va_end(arg_list);
@@ -170,7 +176,7 @@ lua_scripts::script_info *lua_scripts::load_script(lua_State *L, char *filename)
     const int loadMem = lua_gc(L, LUA_GCCOUNT, 0) * 1024 + lua_gc(L, LUA_GCCOUNTB, 0);
     const uint32_t loadStart = AP_HAL::micros();
 
-    script_info *new_script = (script_info *)hal.util->heap_realloc(_heap, nullptr, sizeof(script_info));
+    script_info *new_script = (script_info *)_heap.allocate(sizeof(script_info));
     if (new_script == nullptr) {
         // No memory, shouldn't happen, we even attempted to do a GC
         set_and_print_new_error_message(MAV_SEVERITY_CRITICAL, "Insufficent memory loading %s", filename);
@@ -197,6 +203,12 @@ lua_scripts::script_info *lua_scripts::load_script(lua_State *L, char *filename)
 void lua_scripts::create_sandbox(lua_State *L) {
     lua_newtable(L);
     luaopen_base_sandbox(L);
+
+#if ENABLE_DEBUG_MODULE
+    lua_pushstring(L, "debug");
+    luaopen_debug(L);
+    lua_settable(L, -3);
+#endif
     lua_pushstring(L, "math");
     luaopen_math(L);
     lua_settable(L, -3);
@@ -212,8 +224,11 @@ void lua_scripts::create_sandbox(lua_State *L) {
     lua_pushstring(L, "utf8");
     luaopen_utf8(L);
     lua_settable(L, -3);
-    load_generated_sandbox(L);
+    lua_pushstring(L, "package");
+    luaopen_package(L);
+    lua_settable(L, -3);
 
+    load_generated_sandbox(L);
 }
 
 void lua_scripts::load_all_scripts_in_dir(lua_State *L, const char *dirname) {
@@ -242,7 +257,7 @@ void lua_scripts::load_all_scripts_in_dir(lua_State *L, const char *dirname) {
 
         // FIXME: because chunk name fetching is not working we are allocating and storing an extra string we shouldn't need to
         size_t size = strlen(dirname) + strlen(de->d_name) + 2;
-        char * filename = (char *) hal.util->heap_realloc(_heap, nullptr, size);
+        char * filename = (char *) _heap.allocate(size);
         if (filename == nullptr) {
             continue;
         }
@@ -251,7 +266,7 @@ void lua_scripts::load_all_scripts_in_dir(lua_State *L, const char *dirname) {
         // we have something that looks like a lua file, attempt to load it
         script_info * script = load_script(L, filename);
         if (script == nullptr) {
-            hal.util->heap_realloc(_heap, filename, 0);
+            _heap.deallocate(filename);
             continue;
         }
         reschedule_script(script);
@@ -293,6 +308,7 @@ void lua_scripts::run_next_script(lua_State *L) {
 
     // pop the function to the top of the stack
     lua_rawgeti(L, LUA_REGISTRYINDEX, script->lua_ref);
+    AP::scripting()->set_current_ref(script->lua_ref);
 
     if(lua_pcall(L, 0, LUA_MULTRET, 0)) {
         if (overtime) {
@@ -371,8 +387,8 @@ void lua_scripts::remove_script(lua_State *L, script_info *script) {
         // state could be null if we are force killing all scripts
         luaL_unref(L, LUA_REGISTRYINDEX, script->lua_ref);
     }
-    hal.util->heap_realloc(_heap, script->name, 0);
-    hal.util->heap_realloc(_heap, script, 0);
+    _heap.deallocate(script->name);
+    _heap.deallocate(script);
 }
 
 void lua_scripts::reschedule_script(script_info *script) {
@@ -410,11 +426,11 @@ void lua_scripts::reschedule_script(script_info *script) {
     previous->next = script;
 }
 
-void *lua_scripts::_heap;
+MultiHeap lua_scripts::_heap;
 
 void *lua_scripts::alloc(void *ud, void *ptr, size_t osize, size_t nsize) {
-    (void)ud; (void)osize;  /* not used */
-    return hal.util->heap_realloc(_heap, ptr, nsize);
+    (void)ud; /* not used */
+    return _heap.change_size(ptr, osize, nsize);
 }
 
 void lua_scripts::repl_cleanup (void) {
@@ -433,7 +449,7 @@ void lua_scripts::repl_cleanup (void) {
 void lua_scripts::run(void) {
     bool succeeded_initial_load = false;
 
-    if (_heap == nullptr) {
+    if (!_heap.available()) {
         gcs().send_text(MAV_SEVERITY_INFO, "Lua: Unable to allocate a heap");
         return;
     }
@@ -582,8 +598,10 @@ void lua_scripts::run(void) {
 
     error_msg_buf_sem.take_blocking();
     if (error_msg_buf != nullptr) {
-        hal.util->heap_realloc(_heap, error_msg_buf, 0);
+        _heap.deallocate(error_msg_buf);
         error_msg_buf = nullptr;
     }
     error_msg_buf_sem.give();
 }
+
+#endif  // AP_SCRIPTING_ENABLED

@@ -189,7 +189,6 @@ define AP_PERIPH_MSP_PORT_DEFAULT 4
 
 # ----------------- rangefinder,ADSB ----------------------
 define HAL_PERIPH_ENABLE_RANGEFINDER
-define RANGEFINDER_MAX_INSTANCES 1
 
 # disable rangefinder by default
 define AP_PERIPH_RANGEFINDER_PORT_DEFAULT -1
@@ -227,3 +226,5 @@ define HAL_BATT2_VOLT_SCALE 11.0
 # -------------------- Buzzer+NeoPixels --------------d------
 define HAL_PERIPH_ENABLE_RC_OUT
 define HAL_PERIPH_ENABLE_NOTIFY
+
+define DEFAULT_NTF_LED_TYPES 455

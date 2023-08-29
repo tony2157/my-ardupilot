@@ -171,8 +171,8 @@ T constrain_value(const T amt, const T low, const T high);
 template <typename T>
 T constrain_value_line(const T amt, const T low, const T high, uint32_t line);
 
-#define constrain_float(amt, low, high) constrain_value_line(float(amt), float(low), float(high), uint32_t(__LINE__))
-#define constrain_ftype(amt, low, high) constrain_value_line(ftype(amt), ftype(low), ftype(high), uint32_t(__LINE__))
+#define constrain_float(amt, low, high) constrain_value_line(float(amt), float(low), float(high), uint32_t(__AP_LINE__))
+#define constrain_ftype(amt, low, high) constrain_value_line(ftype(amt), ftype(low), ftype(high), uint32_t(__AP_LINE__))
 
 inline int16_t constrain_int16(const int16_t amt, const int16_t low, const int16_t high)
 {
@@ -366,7 +366,7 @@ float fixedwing_turn_rate(float bank_angle_deg, float airspeed);
 float degF_to_Kelvin(float temp_f);
 
 /*
-  conversion functions to prevent undefined behaviour
+  constraining conversion functions to prevent undefined behaviour
  */
 int16_t float_to_int16(const float v);
 uint16_t float_to_uint16(const float v);
@@ -375,3 +375,17 @@ uint32_t float_to_uint32(const float v);
 uint32_t double_to_uint32(const double v);
 int32_t double_to_int32(const double v);
 
+/*
+  Convert from float to int32_t without breaking Wstrict-aliasing due to type punning
+*/
+int32_t float_to_int32_le(const float& value) WARN_IF_UNUSED;
+
+/*
+  Convert from uint32_t to float without breaking Wstrict-aliasing due to type punning
+*/
+float int32_to_float_le(const uint32_t& value) WARN_IF_UNUSED;
+
+/*
+  Convert from uint64_t to double without breaking Wstrict-aliasing due to type punning
+*/
+double uint64_to_double_le(const uint64_t& value) WARN_IF_UNUSED;

@@ -14,23 +14,19 @@
  */
 #pragma once
 
-#include <AP_Common/AP_Common.h>
 #include <AP_HAL/AP_HAL_Boards.h>
-#include <AP_Common/Location.h>
 #include <AP_Filesystem/AP_Filesystem_config.h>
-#include <GCS_MAVLink/GCS_MAVLink.h>
 
 #ifndef AP_TERRAIN_AVAILABLE
-#if HAVE_FILESYSTEM_SUPPORT && defined(HAL_BOARD_TERRAIN_DIRECTORY)
-#define AP_TERRAIN_AVAILABLE 1
-#else
-#define AP_TERRAIN_AVAILABLE 0
-#endif
+#define AP_TERRAIN_AVAILABLE AP_FILESYSTEM_FILE_READING_ENABLED
 #endif
 
 #if AP_TERRAIN_AVAILABLE
 
+#include <AP_Common/AP_Common.h>
+#include <AP_Common/Location.h>
 #include <AP_Param/AP_Param.h>
+#include <GCS_MAVLink/GCS_MAVLink.h>
 
 #define TERRAIN_DEBUG 0
 

@@ -32,10 +32,9 @@ private:
     void handleMessage(const mavlink_message_t &msg) override { handle_common_message(msg); }
     bool handle_guided_request(AP_Mission::Mission_Command &cmd) override { return true; }
     MAV_RESULT handle_preflight_reboot(const mavlink_command_long_t &packet, const mavlink_message_t &msg) override;
+    uint8_t sysid_my_gcs() const override;
 
 protected:
-
-    uint8_t sysid_my_gcs() const override;
 
     // Periph information:
     MAV_MODE base_mode() const override { return (MAV_MODE)MAV_MODE_FLAG_CUSTOM_MODE_ENABLED; }
@@ -70,20 +69,12 @@ protected:
     }
 
 private:
-    GCS_MAVLINK_Periph *chan(const uint8_t ofs) override {
-        if (ofs > _num_gcs) {
-            INTERNAL_ERROR(AP_InternalError::error_t::gcs_offset);
-            return nullptr;
-        }
-        return (GCS_MAVLINK_Periph *)_chan[ofs];
-    };
-    const GCS_MAVLINK_Periph *chan(const uint8_t ofs) const override {
-        if (ofs > _num_gcs) {
-            INTERNAL_ERROR(AP_InternalError::error_t::gcs_offset);
-            return nullptr;
-        }
-        return (GCS_MAVLINK_Periph *)_chan[ofs];
-    };
+    // the following define expands to a pair of methods to retrieve a
+    // pointer to an object of the correct subclass for the link at
+    // offset ofs.  These are of the form:
+    // GCS_MAVLINK_XXXX *chan(const uint8_t ofs) override;
+    // const GCS_MAVLINK_XXXX *chan(const uint8_t ofs) override const;
+    GCS_MAVLINK_CHAN_METHOD_DEFINITIONS(GCS_MAVLINK_Periph);
 
     MAV_TYPE frame_type() const override { return MAV_TYPE_GENERIC; }
     uint32_t custom_mode() const override { return 3; } // magic number

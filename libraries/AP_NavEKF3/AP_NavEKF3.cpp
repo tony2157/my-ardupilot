@@ -25,7 +25,7 @@
 #define GYRO_P_NSE_DEFAULT      1.5E-02f
 #define ACC_P_NSE_DEFAULT       3.5E-01f
 #define GBIAS_P_NSE_DEFAULT     1.0E-03f
-#define ABIAS_P_NSE_DEFAULT     3.0E-03f
+#define ABIAS_P_NSE_DEFAULT     2.0E-02f
 #define MAGB_P_NSE_DEFAULT      1.0E-04f
 #define MAGE_P_NSE_DEFAULT      1.0E-03f
 #define VEL_I_GATE_DEFAULT      500
@@ -51,7 +51,7 @@
 #define GYRO_P_NSE_DEFAULT      1.5E-02f
 #define ACC_P_NSE_DEFAULT       3.5E-01f
 #define GBIAS_P_NSE_DEFAULT     1.0E-03f
-#define ABIAS_P_NSE_DEFAULT     3.0E-03f
+#define ABIAS_P_NSE_DEFAULT     2.0E-02f
 #define MAGB_P_NSE_DEFAULT      1.0E-04f
 #define MAGE_P_NSE_DEFAULT      1.0E-03f
 #define VEL_I_GATE_DEFAULT      500
@@ -77,7 +77,7 @@
 #define GYRO_P_NSE_DEFAULT      1.5E-02f
 #define ACC_P_NSE_DEFAULT       3.5E-01f
 #define GBIAS_P_NSE_DEFAULT     1.0E-03f
-#define ABIAS_P_NSE_DEFAULT     3.0E-03f
+#define ABIAS_P_NSE_DEFAULT     2.0E-02f
 #define MAGB_P_NSE_DEFAULT      1.0E-04f
 #define MAGE_P_NSE_DEFAULT      1.0E-03f
 #define VEL_I_GATE_DEFAULT      500
@@ -103,7 +103,7 @@
 #define GYRO_P_NSE_DEFAULT      1.5E-02f
 #define ACC_P_NSE_DEFAULT       3.5E-01f
 #define GBIAS_P_NSE_DEFAULT     1.0E-03f
-#define ABIAS_P_NSE_DEFAULT     3.0E-03f
+#define ABIAS_P_NSE_DEFAULT     2.0E-02f
 #define MAGB_P_NSE_DEFAULT      1.0E-04f
 #define MAGE_P_NSE_DEFAULT      1.0E-03f
 #define VEL_I_GATE_DEFAULT      500
@@ -165,7 +165,7 @@ const AP_Param::GroupInfo NavEKF3::var_info[] = {
 
     // @Param: VEL_I_GATE
     // @DisplayName: GPS velocity innovation gate size
-    // @Description: This sets the percentage number of standard deviations applied to the GPS velocity measurement innovation consistency check. Decreasing it makes it more likely that good measurements will be rejected. Increasing it makes it more likely that bad measurements will be accepted.
+    // @Description: This sets the percentage number of standard deviations applied to the GPS velocity measurement innovation consistency check. Decreasing it makes it more likely that good measurements will be rejected. Increasing it makes it more likely that bad measurements will be accepted. If EK3_GLITCH_RAD set to 0 the velocity innovations will be clipped instead of rejected if they exceed the gate size and a smaller value of EK3_VEL_I_GATE not exceeding 300 is recommended to limit the effect of GPS transient errors.
     // @Range: 100 1000
     // @Increment: 25
     // @User: Advanced
@@ -182,7 +182,7 @@ const AP_Param::GroupInfo NavEKF3::var_info[] = {
 
     // @Param: POS_I_GATE
     // @DisplayName: GPS position measurement gate size
-    // @Description: This sets the percentage number of standard deviations applied to the GPS position measurement innovation consistency check. Decreasing it makes it more likely that good measurements will be rejected. Increasing it makes it more likely that bad measurements will be accepted.
+    // @Description: This sets the percentage number of standard deviations applied to the GPS position measurement innovation consistency check. Decreasing it makes it more likely that good measurements will be rejected. Increasing it makes it more likely that bad measurements will be accepted. If EK3_GLITCH_RAD has been set to 0 the horizontal position innovations will be clipped instead of rejected if they exceed the gate size so a smaller value of EK3_POS_I_GATE not exceeding 300 is recommended to limit the effect of GPS transient errors.
     // @Range: 100 1000
     // @Increment: 25
     // @User: Advanced
@@ -190,7 +190,7 @@ const AP_Param::GroupInfo NavEKF3::var_info[] = {
 
     // @Param: GLITCH_RAD
     // @DisplayName: GPS glitch radius gate size (m)
-    // @Description: This controls the maximum radial uncertainty in position between the value predicted by the filter and the value measured by the GPS before the filter position and velocity states are reset to the GPS. Making this value larger allows the filter to ignore larger GPS glitches but also means that non-GPS errors such as IMU and compass can create a larger error in position before the filter is forced back to the GPS position.
+    // @Description: This controls the maximum radial uncertainty in position between the value predicted by the filter and the value measured by the GPS before the filter position and velocity states are reset to the GPS. Making this value larger allows the filter to ignore larger GPS glitches but also means that non-GPS errors such as IMU and compass can create a larger error in position before the filter is forced back to the GPS position. If EK3_GLITCH_RAD set to 0 the GPS innovations will be clipped instead of rejected if they exceed the gate size set by EK3_VEL_I_GATE and EK3_POS_I_GATE which can be useful if poor quality sensor data is causing GPS rejection and loss of navigation but does make the EKF more susceptible to GPS glitches. If setting EK3_GLITCH_RAD to 0 it is recommended to reduce EK3_VEL_I_GATE and EK3_POS_I_GATE to 300.
     // @Range: 10 100
     // @Increment: 5
     // @User: Advanced
@@ -207,8 +207,8 @@ const AP_Param::GroupInfo NavEKF3::var_info[] = {
 
     // @Param: ALT_M_NSE
     // @DisplayName: Altitude measurement noise (m)
-    // @Description: This is the RMS value of noise in the altitude measurement. Increasing it reduces the weighting of the baro measurement and will make the filter respond more slowly to baro measurement errors, but will make it more sensitive to GPS and accelerometer errors.
-    // @Range: 0.1 10.0
+    // @Description: This is the RMS value of noise in the altitude measurement. Increasing it reduces the weighting of the baro measurement and will make the filter respond more slowly to baro measurement errors, but will make it more sensitive to GPS and accelerometer errors. A larger value for EK3_ALT_M_NSE may be required when operating with EK3_SRCx_POSZ = 0. This parameter also sets the noise for the 'synthetic' zero height measurement that is used when EK3_SRCx_POSZ = 0.
+    // @Range: 0.1 100.0
     // @Increment: 0.1
     // @User: Advanced
     // @Units: m
@@ -216,7 +216,7 @@ const AP_Param::GroupInfo NavEKF3::var_info[] = {
 
     // @Param: HGT_I_GATE
     // @DisplayName: Height measurement gate size
-    // @Description: This sets the percentage number of standard deviations applied to the height measurement innovation consistency check. Decreasing it makes it more likely that good measurements will be rejected. Increasing it makes it more likely that bad measurements will be accepted.
+    // @Description: This sets the percentage number of standard deviations applied to the height measurement innovation consistency check. Decreasing it makes it more likely that good measurements will be rejected. Increasing it makes it more likely that bad measurements will be accepted.  If EK3_GLITCH_RAD set to 0 the vertical position innovations will be clipped instead of rejected if they exceed the gate size and a smaller value of EK3_HGT_I_GATE not exceeding 300 is recommended to limit the effect of height sensor transient errors.
     // @Range: 100 1000
     // @Increment: 25
     // @User: Advanced
@@ -227,7 +227,6 @@ const AP_Param::GroupInfo NavEKF3::var_info[] = {
     // @Description: This is the number of msec that the Height measurements lag behind the inertial measurements.
     // @Range: 0 250
     // @Increment: 10
-    // @RebootRequired: True
     // @User: Advanced
     // @Units: ms
     // @RebootRequired: True
@@ -331,7 +330,6 @@ const AP_Param::GroupInfo NavEKF3::var_info[] = {
     // @Description: This is the number of msec that the optical flow measurements lag behind the inertial measurements. It is the time from the end of the optical flow averaging period and does not include the time delay due to the 100msec of averaging within the flow sensor.
     // @Range: 0 250
     // @Increment: 10
-    // @RebootRequired: True
     // @User: Advanced
     // @Units: ms
     // @RebootRequired: True
@@ -370,7 +368,7 @@ const AP_Param::GroupInfo NavEKF3::var_info[] = {
     // @Param: ABIAS_P_NSE
     // @DisplayName: Accelerometer bias stability (m/s^3)
     // @Description: This noise controls the growth of the vertical accelerometer delta velocity bias state error estimate. Increasing it makes accelerometer bias estimation faster and noisier.
-    // @Range: 0.00001 0.005
+    // @Range: 0.00001 0.02
     // @User: Advanced
     // @Units: m/s/s/s
     AP_GROUPINFO("ABIAS_P_NSE", 28, NavEKF3, _accelBiasProcessNoise, ABIAS_P_NSE_DEFAULT),
@@ -516,7 +514,6 @@ const AP_Param::GroupInfo NavEKF3::var_info[] = {
     // @Description: This is the number of msec that the range beacon measurements lag behind the inertial measurements.
     // @Range: 0 250
     // @Increment: 10
-    // @RebootRequired: True
     // @User: Advanced
     // @Units: ms
     // @RebootRequired: True
@@ -794,7 +791,7 @@ bool NavEKF3::InitialiseFilter(void)
         num_cores = 0;
 
         // count IMUs from mask
-        for (uint8_t i=0; i<MAX_EKF_CORES; i++) {
+        for (uint8_t i=0; i<INS_MAX_INSTANCES; i++) {
             if (_imuMask & (1U<<i)) {
                 coreSetupRequired[num_cores] = true;
                 coreImuIndex[num_cores] = i;
@@ -806,6 +803,7 @@ bool NavEKF3::InitialiseFilter(void)
         if (AP::dal().available_memory() < sizeof(NavEKF3_core)*num_cores + 4096) {
             GCS_SEND_TEXT(MAV_SEVERITY_CRITICAL, "EKF3 not enough memory");
             _enable.set(0);
+            num_cores = 0;
             return false;
         }
 
@@ -813,6 +811,7 @@ bool NavEKF3::InitialiseFilter(void)
         core = (NavEKF3_core*)AP::dal().malloc_type(sizeof(NavEKF3_core)*num_cores, AP::dal().MEM_FAST);
         if (core == nullptr) {
             _enable.set(0);
+            num_cores = 0;
             GCS_SEND_TEXT(MAV_SEVERITY_CRITICAL, "EKF3 allocation failed");
             return false;
         }
@@ -1139,7 +1138,7 @@ bool NavEKF3::pre_arm_check(bool requires_position, char *failure_msg, uint8_t f
     }
     for (uint8_t i = 0; i < num_cores; i++) {
         if (!core[i].healthy()) {
-            const char *failure = core[primary].prearm_failure_reason();
+            const char *failure = core[i].prearm_failure_reason();
             if (failure != nullptr) {
                 AP::dal().snprintf(failure_msg, failure_msg_len, failure);
             } else {
@@ -1359,7 +1358,7 @@ bool NavEKF3::getMagOffsets(uint8_t mag_idx, Vector3f &magOffsets) const
 // If a calculated location isn't available, return a raw GPS measurement
 // The status will return true if a calculation or raw measurement is available
 // The getFilterStatus() function provides a more detailed description of data health and must be checked if data is to be used for flight control
-bool NavEKF3::getLLH(struct Location &loc) const
+bool NavEKF3::getLLH(Location &loc) const
 {
     if (!core) {
         return false;
@@ -1370,7 +1369,7 @@ bool NavEKF3::getLLH(struct Location &loc) const
 // Return the latitude and longitude and height used to set the NED origin
 // All NED positions calculated by the filter are relative to this location
 // Returns false if the origin has not been set
-bool NavEKF3::getOriginLLH(struct Location &loc) const
+bool NavEKF3::getOriginLLH(Location &loc) const
 {
     if (!core) {
         return false;
@@ -1408,6 +1407,26 @@ bool NavEKF3::setOriginLLH(const Location &loc)
     // return true if any core accepts the new origin
     return ret;
 }
+
+bool NavEKF3::setLatLng(const Location &loc, float posAccuracy, uint32_t timestamp_ms)
+{
+#if EK3_FEATURE_POSITION_RESET
+    AP::dal().log_SetLatLng(loc, posAccuracy, timestamp_ms);
+
+    if (!core) {
+        return false;
+    }
+    bool ret = false;
+    for (uint8_t i=0; i<num_cores; i++) {
+        ret |= core[i].setLatLng(loc, posAccuracy, timestamp_ms);
+    }
+    // return true if any core accepts the new origin
+    return ret;
+#else
+    return false;
+#endif // EK3_FEATURE_POSITION_RESET
+}
+
 
 // return estimated height above ground level
 // return false if ground height is not being estimated.
