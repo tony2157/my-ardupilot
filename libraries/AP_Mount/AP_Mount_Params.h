@@ -32,4 +32,9 @@ public:
     AP_Int8     sysid_default;      // target sysid for mount to follow
     AP_Int32    dev_id;             // Device id taking into account bus
     AP_Int8     options;            // mount options bitmask
+
+    // ARRC params
+    AP_Float    ARRC_elev;          // AUT elevation
+    AP_Float    ARRC_z_offset;      // Gimbal Z offset wrt the CG (down is negative)
+    Matrix3d    rotM_offset;        // ARRC Rotation matrix offset applied to the gimbal after calibration
 };

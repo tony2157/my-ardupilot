@@ -74,7 +74,8 @@ void ModeAuto::exit()
         copter.mode_auto.mission.stop();
     }
 #if HAL_MOUNT_ENABLED
-    copter.camera_mount.set_mode_to_default();
+    // ARRC: keep gimbal tracking enable at all times
+    // copter.camera_mount.set_mode_to_default();
 #endif  // HAL_MOUNT_ENABLED
 
     auto_RTL = false;

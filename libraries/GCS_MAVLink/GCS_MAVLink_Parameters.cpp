@@ -371,6 +371,9 @@ static const ap_message STREAM_EXTRA3_msgs[] = {
 #if !APM_BUILD_TYPE(APM_BUILD_AntennaTracker)
     MSG_VIBRATION,
 #endif
+#if APM_BUILD_COPTER_OR_HELI
+    MSG_ARRC_SDR,
+#endif
 };
 
 static const ap_message STREAM_PARAMS_msgs[] = {
