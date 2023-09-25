@@ -29,6 +29,8 @@ param set SERIAL5_PROTOCOL 5
 
 #include <sys/time.h>
 #include "SIM_SerialDevice.h"
+#include <AP_HAL/AP_HAL.h>
+#include <random>
 
 namespace SITL {
 
@@ -58,6 +60,87 @@ struct GPS_Data {
     float speed_2d() const WARN_IF_UNUSED;
 };
 
+// Stochastic model for GNSS bias and noise
+class GNSSStochasticModel {
+    std::mt19937 generator; // Mersenne Twister random engine
+    std::normal_distribution<double> gnss_velocity_distribution;
+
+public:
+    GNSSStochasticModel(double vel_std, double noise_std)
+        : gnss_velocity_distribution(0.0, vel_std),
+          gnss_vel_std(vel_std), lambda(1.0), last_now(AP_HAL::millis()),
+          lat_bias(0.0), lng_bias(0.0), vertical_bias(0.0){
+        // Seed random engine with a high-quality random seed
+        std::random_device rd;
+        generator.seed(rd());
+    }
+
+    void set_gnss_velocity_std(double vel_std, double l) {
+        gnss_vel_std = vel_std;
+        lambda = l;
+        lat_bias = 0.0;
+        lng_bias = 0.0;
+        vertical_bias = 0.0;
+    }
+
+    void updateBias() {
+        // Update bias using a random walk
+        gnss_velocity_distribution = std::normal_distribution<double>(-lat_bias*lambda, gnss_vel_std);
+        double v_lat_bias = gnss_velocity_distribution(generator);
+        lat_bias += v_lat_bias*(double)(AP_HAL::millis() - last_now)/1000.0;
+
+        gnss_velocity_distribution = std::normal_distribution<double>(-lng_bias*lambda, gnss_vel_std);
+        double v_lng_bias = gnss_velocity_distribution(generator);
+        lng_bias += v_lng_bias*(double)(AP_HAL::millis() - last_now)/1000.0;
+
+        gnss_velocity_distribution = std::normal_distribution<double>(-vertical_bias*lambda, gnss_vel_std);
+        double v_vertical_bias = 1.5*gnss_velocity_distribution(generator);
+        vertical_bias += v_vertical_bias*(double)(AP_HAL::millis() - last_now)/1000.0;
+
+        last_now = AP_HAL::millis();
+    }
+
+    double getLatBias() const {
+        return lat_bias;
+    }
+
+    double getLngBias() const {
+        return lng_bias;
+    }
+
+    double getVerticalBias() const {
+        return vertical_bias;
+    }
+
+    double lat_bias;
+    double lng_bias;
+    double vertical_bias;
+    double gnss_vel_std;
+    double lambda;
+    uint32_t last_now;
+};
+
+class LowFrequencyNoise {
+    std::vector<double> history;
+    size_t max_history_size;
+
+public:
+    LowFrequencyNoise(size_t history_size) : max_history_size(history_size) {}
+
+    double addAndGetSmoothedNoise(double noise) {
+        if (history.size() >= max_history_size) {
+            history.erase(history.begin());
+        }
+        history.push_back(noise);
+
+        // Calculate the average
+        double sum = 0.0;
+        for (double n : history) {
+            sum += n;
+        }
+        return sum / history.size();
+    }
+};
 
 class GPS_Backend {
 public:

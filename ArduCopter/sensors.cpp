@@ -1,5 +1,9 @@
 #include "Copter.h"
 
+void Copter::init_ARRC_SDR(){
+    ARRC_SDR.init();
+}
+
 // return barometric altitude in centimeters
 void Copter::read_barometer(void)
 {

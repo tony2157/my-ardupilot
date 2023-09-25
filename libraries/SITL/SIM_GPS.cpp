@@ -37,6 +37,33 @@ extern const AP_HAL::HAL& hal;
 
 using namespace SITL;
 
+class LowFrequencyNoise {
+    std::vector<double> history;
+    size_t max_history_size;
+
+public:
+    LowFrequencyNoise(size_t history_size) : max_history_size(history_size) {}
+
+    double addAndGetSmoothedNoise(double noise) {
+        if (history.size() >= max_history_size) {
+            history.erase(history.begin());
+        }
+        history.push_back(noise);
+
+        // Calculate the average
+        double sum = 0.0;
+        for (double n : history) {
+            sum += n;
+        }
+        return sum / history.size();
+    }
+};
+
+// Create noise filters with history size for smoothing
+LowFrequencyNoise lat_noise_filter(5);
+LowFrequencyNoise lon_noise_filter(5);
+LowFrequencyNoise height_noise_filter(3);
+
 // ensure the backend we have allocated matches the one that's configured:
 GPS_Backend::GPS_Backend(GPS &_front, uint8_t _instance) :
     instance{_instance},
@@ -57,9 +84,11 @@ ssize_t GPS_Backend::read_from_autopilot(char *buffer, size_t size) const
 
 GPS::GPS(uint8_t _instance) :
     SerialDevice(8192, 2048),
-    instance{_instance}
-{
-}
+    instance{_instance},
+    gnss_model(1, 3),
+    lat_noise_filter(3),
+    lon_noise_filter(3),
+    height_noise_filter(3) {}
 
 uint32_t GPS::device_baud() const
 {
@@ -356,15 +385,36 @@ void GPS::update()
 
     last_write_update_ms = now_ms;
 
+    const double EARTH_RADIUS = 6378137.0; // in meters
+    // const double DEG_TO_RAD = 0.01745329252;
+    // const double RAD_TO_DEG = 57.29577951;
+
+    const float epsilon = 1e-6; // Adjust the value of epsilon based on precision needs
+    if (std::abs(_sitl->gps_accuracy[0] - (float)gnss_model.gnss_vel_std) > epsilon ||
+        std::abs(_sitl->gps_accuracy[1] - (float)gnss_model.lambda) > epsilon) {
+        gnss_model.set_gnss_velocity_std(_sitl->gps_accuracy[0], _sitl->gps_accuracy[1]);
+    }
+
+    gnss_model.updateBias();
+
+    double raw_lat_offset = (gnss_model.getLatBias()) / EARTH_RADIUS * RAD_TO_DEG;
+    double raw_lon_offset = (gnss_model.getLngBias()) / (EARTH_RADIUS * cos(latitude * DEG_TO_RAD)) * RAD_TO_DEG;
+    double raw_height_offset = gnss_model.getVerticalBias();
+
+    // Smooth the noise using the filter
+    double lat_offset = lat_noise_filter.addAndGetSmoothedNoise(raw_lat_offset);
+    double lon_offset = lon_noise_filter.addAndGetSmoothedNoise(raw_lon_offset);
+    double height_offset = height_noise_filter.addAndGetSmoothedNoise(raw_height_offset);
+
+    d.latitude = latitude + lat_offset;
+    d.longitude = longitude + lon_offset;
     d.num_sats = _sitl->gps_numsats[idx];
-    d.latitude = latitude;
-    d.longitude = longitude;
     d.yaw_deg = _sitl->state.yawDeg;
     d.roll_deg = _sitl->state.rollDeg;
     d.pitch_deg = _sitl->state.pitchDeg;
 
     // add an altitude error controlled by a slow sine wave
-    d.altitude = altitude + _sitl->gps_noise[idx] * sinf(now_ms * 0.0005f) + _sitl->gps_alt_offset[idx];
+    d.altitude = altitude + height_offset; // _sitl->gps_noise[idx] * sinf(now_ms * 0.0005f) + _sitl->gps_alt_offset[idx];
 
     // Add offset to c.g. velocity to get velocity at antenna and add simulated error
     Vector3f velErrorNED = _sitl->gps_vel_err[idx];

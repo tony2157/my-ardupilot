@@ -69,6 +69,7 @@ void AP_Mount::init()
 
     // create each instance
     for (uint8_t instance=0; instance<AP_MOUNT_MAX_INSTANCES; instance++) {
+        _params[instance].rotM_offset.identity(); // ARRC mod
         switch (get_mount_type(instance)) {
         case Type::None:
             break;
@@ -811,6 +812,39 @@ void AP_Mount::clear_roi_target(uint8_t instance)
         return;
     }
     backend->clear_roi_target();
+}
+
+// ARRC set fixed yaw angle after antenna alignment
+void AP_Mount::set_fixed_yaw_angle(uint8_t instance, float fixed_yaw)
+{
+    auto *backend = get_instance(instance);
+    if (backend == nullptr) {
+        return;
+    }
+    // send command to backend
+    backend->set_fixed_yaw_angle(fixed_yaw);
+}
+
+// ARRC set Rotation matrix offset after antenna alignment
+void AP_Mount::set_RotM_offset(uint8_t instance, Matrix3d rotm_off)
+{
+    auto *backend = get_instance(instance);
+    if (backend == nullptr) {
+        return;
+    }
+    // send command to backend
+    backend->set_RotM_offset(rotm_off);
+}
+
+// ARRC get AUT elevation
+float AP_Mount::get_AUT_elevation(uint8_t instance) const
+{
+    auto *backend = get_instance(instance);
+    if (backend == nullptr) {
+        return 0;
+    }
+    // send command to backend
+    return backend->get_AUT_elevation();
 }
 
 //

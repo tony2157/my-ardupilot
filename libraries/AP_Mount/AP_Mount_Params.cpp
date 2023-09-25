@@ -142,7 +142,7 @@ const AP_Param::GroupInfo AP_Mount_Params::var_info[] = {
     // @Range: 0.0 0.2
     // @Increment: .005
     // @User: Standard
-    AP_GROUPINFO("_LEAD_RLL", 12, AP_Mount_Params, roll_stb_lead, 0.0f),
+    AP_GROUPINFO("_ARRC_AZTH", 12, AP_Mount_Params, roll_stb_lead, 0.0f),
 
     // @Param: _LEAD_PTCH
     // @DisplayName: Mount Pitch stabilization lead time
@@ -151,27 +151,45 @@ const AP_Param::GroupInfo AP_Mount_Params::var_info[] = {
     // @Range: 0.0 0.2
     // @Increment: .005
     // @User: Standard
-    AP_GROUPINFO("_LEAD_PTCH", 13, AP_Mount_Params, pitch_stb_lead, 0.0f),
+    AP_GROUPINFO("_ARRC_GMODE", 13, AP_Mount_Params, pitch_stb_lead, 0.0f),
+
+    // @Param: _ARRC_ELEV
+    // @DisplayName: AUT elevation
+    // @Description: Elevation angle of the AUT in degrees
+    // @Units: deg
+    // @Range: 0.0 90
+    // @Increment: .1
+    // @User: Standard
+    AP_GROUPINFO("_ARRC_ELEV", 14, AP_Mount_Params, ARRC_elev, 0.0f),
+
+    // @Param: _ARRC_ZOFF
+    // @DisplayName: Offset between UAS CoM and Probe
+    // @Description: Separation distance between UAS CoM and Probe in meters
+    // @Units: m
+    // @Range: 0.0 10
+    // @Increment: .01
+    // @User: Standard
+    AP_GROUPINFO("_ARRC_ZOFF", 15, AP_Mount_Params, ARRC_z_offset, 0.0f),
 
     // @Param: _SYSID_DFLT
     // @DisplayName: Mount Target sysID
     // @Description: Default Target sysID for the mount to point to
     // @RebootRequired: True
     // @User: Standard
-    AP_GROUPINFO("_SYSID_DFLT", 14, AP_Mount_Params, sysid_default, 0),
+    AP_GROUPINFO("_SYSID_DFLT", 16, AP_Mount_Params, sysid_default, 0),
 
     // @Param: _DEVID
     // @DisplayName: Mount Device ID
     // @Description: Mount device ID, taking into account its type, bus and instance
     // @User: Advanced
-    AP_GROUPINFO_FLAGS("_DEVID", 15, AP_Mount_Params, dev_id, 0, AP_PARAM_FLAG_INTERNAL_USE_ONLY),
+    AP_GROUPINFO_FLAGS("_DEVID", 17, AP_Mount_Params, dev_id, 0, AP_PARAM_FLAG_INTERNAL_USE_ONLY),
 
     // @Param: _OPTIONS
     // @DisplayName: Mount options
     // @Description: Mount options bitmask
     // @Bitmask: 0:RC lock state from previous mode
     // @User: Standard
-    AP_GROUPINFO("_OPTIONS", 16, AP_Mount_Params, options, 0),
+    AP_GROUPINFO("_OPTIONS", 18, AP_Mount_Params, options, 0),
 
     AP_GROUPEND
 };
