@@ -73,6 +73,9 @@
 #include <AP_OpticalFlow/AP_OpticalFlow.h>
 #include <AP_Winch/AP_Winch_config.h>
 
+// ARRC libraries declaration
+#include <AC_ARRC_SDR/AC_ARRC_SDR.h>
+
 // Configuration
 #include "defines.h"
 #include "config.h"
@@ -172,10 +175,10 @@
 #include "avoidance_adsb.h"
 #endif
 // Local modules
-#include "Parameters.h"
 #if USER_PARAMS_ENABLED
 #include "UserParameters.h"
 #endif
+#include "Parameters.h"
 #include "mode.h"
 
 class Copter : public AP_Vehicle {
@@ -259,6 +262,9 @@ private:
     // flight modes convenience array
     AP_Int8 *flight_modes;
     const uint8_t num_flight_modes = 6;
+
+    // ARRC_SDR sensor class declaration
+    AC_ARRC_SDR ARRC_SDR;
 
     struct RangeFinderState {
         bool enabled:1;
@@ -967,14 +973,20 @@ private:
 
     // UserCode.cpp
     void userhook_init();
-    void userhook_FastLoop();
-    void userhook_50Hz();
+    void user_ARRC_gimbal();
+    void user_ARRC_SDR_logger();
     void userhook_MediumLoop();
     void userhook_SlowLoop();
     void userhook_SuperSlowLoop();
     void userhook_auxSwitch1(const RC_Channel::AuxSwitchPos ch_flag);
     void userhook_auxSwitch2(const RC_Channel::AuxSwitchPos ch_flag);
     void userhook_auxSwitch3(const RC_Channel::AuxSwitchPos ch_flag);
+
+    //ARRC Mavlink message
+    void send_arrc_gcs_message(mavlink_channel_t chan);
+
+    //ARRC Libraries sensor code initializer
+    void init_ARRC_SDR(void);
 
 #if MODE_ACRO_ENABLED == ENABLED
 #if FRAME_CONFIG == HELI_FRAME
