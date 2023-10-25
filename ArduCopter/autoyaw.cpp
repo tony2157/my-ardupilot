@@ -368,6 +368,9 @@ float Mode::AutoYaw::rate_cds()
     case Mode::RATE:
     case Mode::WEATHERVANE:
         break;
+    case Mode::AUTO_YAW_INTO_WIND:
+    case Mode::AUTO_YAW_WIND_CT2:
+        return _yaw_rate_cds;
     }
 
     // return zero turn rate (this should never happen)
@@ -411,6 +414,8 @@ AC_AttitudeControl::HeadingCommand Mode::AutoYaw::get_heading()
         case Mode::RESETTOARMEDYAW:
         case Mode::ANGLE_RATE:
         case Mode::CIRCLE:
+        case Mode::AUTO_YAW_INTO_WIND:
+        case Mode::AUTO_YAW_WIND_CT2:
             heading.heading_mode = AC_AttitudeControl::HeadingMode::Angle_And_Rate;
             break;
     }
