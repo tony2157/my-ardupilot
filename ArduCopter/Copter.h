@@ -73,7 +73,7 @@
 #include <AP_Winch/AP_Winch_config.h>
 
 // ARRC libraries declaration
-#include <AC_ARRC_LB680A/AC_ARRC_LB680A.h>
+#include <AC_ARRC_SDR/AC_ARRC_SDR.h>
 
 // Configuration
 #include "defines.h"
@@ -255,8 +255,8 @@ private:
     AP_Int8 *flight_modes;
     const uint8_t num_flight_modes = 6;
 
-    // LB680A sensor class declaration
-    AC_ARRC_LB680A ARRC_LB680A;
+    // ARRC_SDR sensor class declaration
+    AC_ARRC_SDR ARRC_SDR;
 
     struct RangeFinderState {
         bool enabled:1;
@@ -944,7 +944,7 @@ private:
     // UserCode.cpp
     void userhook_init();
     void user_ARRC_gimbal();
-    void user_ARRC_LB680A_logger();
+    void user_ARRC_SDR_logger();
     void userhook_MediumLoop();
     void userhook_SlowLoop();
     void userhook_SuperSlowLoop();
@@ -952,8 +952,11 @@ private:
     void userhook_auxSwitch2(const RC_Channel::AuxSwitchPos ch_flag);
     void userhook_auxSwitch3(const RC_Channel::AuxSwitchPos ch_flag);
 
+    //ARRC Mavlink message
+    void send_arrc_gcs_message(mavlink_channel_t chan);
+
     //ARRC Libraries sensor code initializer
-    void init_ARRC_LB680A(void);
+    void init_ARRC_SDR(void);
 
 #if MODE_ACRO_ENABLED == ENABLED
 #if FRAME_CONFIG == HELI_FRAME

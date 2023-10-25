@@ -71,7 +71,7 @@ void Copter::user_ARRC_gimbal()
 
             // Collect power measurements during a time period
             if((AP_HAL::millis() - gimbal_now) < (uint32_t)(gimbal_init_wait + (gimbal_sample_time+gimbal_wait)*(gimbal_iter/gimbal_step+1))){ 
-                gimbal_probe_samples[gimbal_iter/gimbal_step] = gimbal_probe_samples[gimbal_iter/gimbal_step] + copter.ARRC_LB680A.get_pwr();
+                gimbal_probe_samples[gimbal_iter/gimbal_step] = gimbal_probe_samples[gimbal_iter/gimbal_step] + copter.ARRC_SDR.get_pwr_c();
                 gimbal_num_samples++;
                 return;
             }
@@ -209,18 +209,20 @@ float correlation(const float* v1, const float* v2, int n) {
 
 #endif
 
-#ifdef USER_LB680A_LOOP
-void Copter::user_ARRC_LB680A_logger()
+#ifdef USER_ARRC_SDR_LOOP
+void Copter::user_ARRC_SDR_logger()
 {
     // Read Power in dBm. Write sensors packet into the SD card
     // RFExplorer Power Data Logger ///////////////////////////////////////////////////////////////////////////////////////////
-    struct log_LB680A pkt_temp = {
-        LOG_PACKET_HEADER_INIT(LOG_LB680A_MSG),
-        time_stamp              : copter.ARRC_LB680A.get_timestamp(),      //Store time in microseconds
-        pwr                     : copter.ARRC_LB680A.get_pwr(),           //Store power in dBm
-        pkpwr                   : copter.ARRC_LB680A.get_pkpwr(),          //Store peak power in dBm
-        avgpwr                  : copter.ARRC_LB680A.get_avgpwr(),          //Store average power dBm
-        dcyc                    : copter.ARRC_LB680A.get_dcyc(),          //Store duty cycle
+    struct log_ARRC_SDR pkt_temp = {
+        LOG_PACKET_HEADER_INIT(LOG_ARRC_SDR_MSG),
+        local_timestamp         : copter.ARRC_SDR.get_local_timestamp(),      //Store time in microseconds
+        boot_time               : copter.ARRC_SDR.get_boot_timestamp(),
+        unix_time               : copter.ARRC_SDR.get_unix_timestamp(),
+        pwr_c                   : copter.ARRC_SDR.get_pwr_c(),           //Store power in dBm
+        pwr_x                   : copter.ARRC_SDR.get_pwr_x(),           //Store power in dBm
+        phi_c                   : copter.ARRC_SDR.get_phi_c(),           //Store power in dBm
+        phi_x                   : copter.ARRC_SDR.get_phi_x(),           //Store power in dBm
     };
     logger.WriteBlock(&pkt_temp, sizeof(pkt_temp));   //Send package to SD card
 }

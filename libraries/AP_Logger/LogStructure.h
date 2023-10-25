@@ -687,14 +687,16 @@ struct PACKED log_VER {
     uint8_t build_type;
 };
 
-// ARRC LB680A SD card log message
-struct PACKED log_LB680A {
+// ARRC ARRC_SDR SD card log message
+struct PACKED log_ARRC_SDR {
     LOG_PACKET_HEADER;
-    uint64_t time_stamp;
-    float pwr;
-    float pkpwr;
-    float avgpwr;
-    float dcyc;
+    uint64_t local_timestamp;
+    uint32_t boot_time;
+    uint64_t unix_time;
+    float pwr_c;
+    float pwr_x;
+    float phi_c;
+    float phi_x;
 };
 
 
@@ -1358,8 +1360,8 @@ LOG_STRUCTURE_FROM_AIS \
       "VER",   "QBHBBBBIZHB", "TimeUS,BT,BST,Maj,Min,Pat,FWT,GH,FWS,APJ,BU", "s----------", "F----------", false }, \
     { LOG_MOTBATT_MSG, sizeof(log_MotBatt), \
       "MOTB", "QfffffB",  "TimeUS,LiftMax,BatVolt,ThLimit,ThrAvMx,ThrOut,FailFlags", "s------", "F------" , true }, \
-    { LOG_LB680A_MSG, sizeof(log_LB680A), \
-      "LB68", "Qffff","TimeUS,Pwr,PkPwr,AvgPwr,Dcyc","s----","F0000"}
+    { LOG_ARRC_SDR_MSG, sizeof(log_ARRC_SDR), \
+      "LB68", "QIQffff","TimeUS,BootMS,UnixUS,Pwr_c,Pwr_x,Phi_c,Phi_x","s------","F000000"}
 
 // message types 0 to 63 reserved for vehicle specific use
 
@@ -1446,7 +1448,7 @@ enum LogMessages : uint8_t {
     LOG_RCOUT2_MSG,
     LOG_RCOUT3_MSG,
     LOG_IDS_FROM_FENCE,
-    LOG_LB680A_MSG,
+    LOG_ARRC_SDR_MSG,
 
     _LOG_LAST_MSG_
 };
