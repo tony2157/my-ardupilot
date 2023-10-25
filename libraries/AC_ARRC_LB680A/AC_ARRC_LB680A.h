@@ -13,7 +13,7 @@ public:
     void init(uint16_t dfreq, uint16_t davg, uint16_t dmode);
 
     // search for onboard computer in GCS_MAVLink routing table
-    void find_RPi();
+    //void find_RPi();
 
     // mavlink message handler
     float get_pwr(void) { return _pwr; }

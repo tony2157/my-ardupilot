@@ -239,7 +239,7 @@ const AP_Scheduler::Task Copter::scheduler_tasks[] = {
 // #ifdef USER_LB680A_LOOP
 //     SCHED_TASK(user_ARRC_LB680A_logger,         50,     75, 156),
 // #endif
-    SCHED_TASK_CLASS(AC_ARRC_LB680A,             &copter.ARRC_LB680A,        find_RPi,          1,  75, 156),
+//    SCHED_TASK_CLASS(AC_ARRC_LB680A,             &copter.ARRC_LB680A,        find_RPi,          1,  75, 156),
 #ifdef USERHOOK_MEDIUMLOOP
     SCHED_TASK(userhook_MediumLoop,   10,     75, 159),
 #endif
