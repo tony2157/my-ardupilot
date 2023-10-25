@@ -336,6 +336,8 @@ float Mode::AutoYaw::rate_cds() const
     case Mode::ANGLE_RATE:
     case Mode::RATE:
     case Mode::WEATHERVANE:
+    case Mode::AUTO_YAW_INTO_WIND:
+    case Mode::AUTO_YAW_WIND_CT2:
         return _yaw_rate_cds;
 
     case Mode::LOOK_AT_NEXT_WP:
@@ -386,6 +388,8 @@ AC_AttitudeControl::HeadingCommand Mode::AutoYaw::get_heading()
         case Mode::RESETTOARMEDYAW:
         case Mode::ANGLE_RATE:
         case Mode::CIRCLE:
+        case Mode::AUTO_YAW_INTO_WIND:
+        case Mode::AUTO_YAW_WIND_CT2:
             heading.heading_mode = AC_AttitudeControl::HeadingMode::Angle_And_Rate;
             break;
     }
