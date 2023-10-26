@@ -40,6 +40,19 @@ const AP_Param::GroupInfo UserParameters::var_info[] = {
     // GPS-based Lidar activation
     AP_GROUPINFO("_LIDAR_ALT", 19, UserParameters, gpslidar_alt, 80.0f),
     AP_GROUPINFO("_LIDAR_HUM", 20, UserParameters, gpslidar_hum, 90.0f),
+    // BLISS sensor coefficients
+    AP_GROUPINFO("_SEN_A1", 23, UserParameters, _senA_c1, 10104.8989f),
+    AP_GROUPINFO("_SEN_A2", 24, UserParameters, _senA_c2, 2620.50421f),
+    AP_GROUPINFO("_SEN_A3", 25, UserParameters, _senA_c3, 0.0f),
+    AP_GROUPINFO("_SEN_A4", 26, UserParameters, _senA_c4, 1.48891207f),
+    AP_GROUPINFO("_SEN_B1", 27, UserParameters, _senB_c1, 10104.8989f),
+    AP_GROUPINFO("_SEN_B2", 28, UserParameters, _senB_c2, 2620.50421f),
+    AP_GROUPINFO("_SEN_B3", 29, UserParameters, _senB_c3, 0.0f),
+    AP_GROUPINFO("_SEN_B4", 30, UserParameters, _senB_c4, 1.48891207f),
+    AP_GROUPINFO("_SEN_C1", 31, UserParameters, _senC_c1, 10104.8989f),
+    AP_GROUPINFO("_SEN_C2", 32, UserParameters, _senC_c2, 2620.50421f),
+    AP_GROUPINFO("_SEN_C3", 33, UserParameters, _senC_c3, 0.0f),
+    AP_GROUPINFO("_SEN_C4", 34, UserParameters, _senC_c4, 1.48891207f),
     
     AP_GROUPEND
 };

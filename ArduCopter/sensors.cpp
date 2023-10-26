@@ -6,28 +6,28 @@ void Copter::init_CASS_imet(){
 
     //CS3D SENSORS (dummy values)
     //IMET temp number 57560:
-    coeff[0][0] = 9.98873354e-04f;
-    coeff[0][1] = 2.63219974e-04f;
-    coeff[0][2] = 0.0f;
-    coeff[0][3] = 1.47120693e-07f;
+    coeff[0][0] = g2.user_parameters.get_user_senA_c1()*1e-7f;
+    coeff[0][1] = g2.user_parameters.get_user_senA_c2()*1e-7f;
+    coeff[0][2] = g2.user_parameters.get_user_senA_c3()*1e-7f;
+    coeff[0][3] = g2.user_parameters.get_user_senA_c4()*1e-7f;
 
     //IMET temp number 57551:
-    coeff[1][0] = 1.02017189e-03f;
-    coeff[1][1] = 2.60496203e-04f;
-    coeff[1][2] = 0.0f;
-    coeff[1][3] = 1.52569843e-07f;
+    coeff[1][0] = g2.user_parameters.get_user_senB_c1()*1e-7f;
+    coeff[1][1] = g2.user_parameters.get_user_senB_c2()*1e-7f;
+    coeff[1][2] = g2.user_parameters.get_user_senB_c3()*1e-7f;
+    coeff[1][3] = g2.user_parameters.get_user_senB_c4()*1e-7f;
 
     //IMET temp number 57558:
-    coeff[2][0] = 1.01048989e-03f;
-    coeff[2][1] = 2.62050421e-04f;
-    coeff[2][2] = 0.0f;
-    coeff[2][3] = 1.48891207e-07f;
+    coeff[2][0] = g2.user_parameters.get_user_senC_c1()*1e-7f;
+    coeff[2][1] = g2.user_parameters.get_user_senC_c2()*1e-7f;
+    coeff[2][2] = g2.user_parameters.get_user_senC_c3()*1e-7f;
+    coeff[2][3] = g2.user_parameters.get_user_senC_c4()*1e-7f;
 
     //IMET temp number none:
-    coeff[3][0] = 1.0f;
-    coeff[3][1] = 1.0f;
+    coeff[3][0] = 1.01048989e-03f;
+    coeff[3][1] = 2.62050421e-04f;
     coeff[3][2] = 0.0f;
-    coeff[3][3] = 1.0f;
+    coeff[3][3] = 1.48891207e-07f;
     
     // Initialize and set I2C addresses
     uint8_t deafult_i2cAddr = 0x48;
