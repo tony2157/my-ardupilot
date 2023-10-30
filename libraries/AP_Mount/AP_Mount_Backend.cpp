@@ -443,6 +443,9 @@ bool AP_Mount_Backend::get_angle_target_to_location(const Location &target, Moun
         }
     }
 
+    angle_rad.pitch = constrain_float(angle_rad.pitch,-1.31f,1.31f);
+    angle_rad.roll = constrain_float(angle_rad.roll,-0.6f,0.6f);
+
     // For debugging:
     // if (AP_HAL::millis() - _now > 3000){
     //     gcs().send_text(MAV_SEVERITY_INFO,"Target Dist: %5.2f",(float)target_distance);
