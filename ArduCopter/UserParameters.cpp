@@ -10,9 +10,10 @@ const AP_Param::GroupInfo UserParameters::var_info[] = {
     // AP_GROUPINFO("_FLOAT", 2, UserParameters, _float, 0),
 
     // ARRC ARRC_SDR params
-    AP_GROUPINFO("_LB_DFREQ", 0, UserParameters, ARRC_SDR_dfreq, 3070),
-    AP_GROUPINFO("_LB_DAVG", 1, UserParameters, ARRC_SDR_davg, 20),
-    AP_GROUPINFO("_LB_DMODE", 2, UserParameters, ARRC_SDR_dmode, 1),
+    AP_GROUPINFO("_SDR_FREQ", 0, UserParameters, ARRC_SDR_dfreq, 3070),
+    AP_GROUPINFO("_SDR_NPULSE", 1, UserParameters, ARRC_SDR_davg, 1),
+    AP_GROUPINFO("_SDR_MODE", 2, UserParameters, ARRC_SDR_dmode, 0),
+    AP_GROUPINFO("_SDR_PRF", 3, UserParameters, ARRC_SDR_dprf, 5000),
     
     AP_GROUPEND
 };

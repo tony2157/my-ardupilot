@@ -1361,7 +1361,7 @@ LOG_STRUCTURE_FROM_AIS \
     { LOG_MOTBATT_MSG, sizeof(log_MotBatt), \
       "MOTB", "QfffffB",  "TimeUS,LiftMax,BatVolt,ThLimit,ThrAvMx,ThrOut,FailFlags", "s------", "F------" , true }, \
     { LOG_ARRC_SDR_MSG, sizeof(log_ARRC_SDR), \
-      "LB68", "QIQffff","TimeUS,BootMS,UnixUS,Pwr_c,Pwr_x,Phi_c,Phi_x","s------","F000000"}
+      "SDR", "QIQffff","TimeUS,BootMS,UnixUS,Pwr_c,Pwr_x,Phi_c,Phi_x","s------","F000000"}
 
 // message types 0 to 63 reserved for vehicle specific use
 

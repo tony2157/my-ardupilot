@@ -267,7 +267,7 @@ void Copter::send_arrc_gcs_message(mavlink_channel_t chan) {
     uint8_t size = 5;
     memset(raw_sensor, 0, size * sizeof(float));
 
-    // Send LB680A power dBm
+    // Send SDR power and phase to GCS
     raw_sensor[0] = copter.ARRC_SDR.get_pwr_c();
     raw_sensor[1] = copter.ARRC_SDR.get_pwr_x();
     raw_sensor[2] = copter.ARRC_SDR.get_phi_c();
@@ -403,7 +403,7 @@ bool GCS_MAVLINK_Copter::try_send_message(enum ap_message id)
         break;
     }
 
-    case MSG_ARRC_LB680A:
+    case MSG_ARRC_SDR:
         CHECK_PAYLOAD_SIZE(CASS_SENSOR_RAW);
         copter.send_arrc_gcs_message(chan);
         break;
@@ -583,7 +583,7 @@ static const ap_message STREAM_EXTRA3_msgs[] = {
 #if HAL_EFI_ENABLED
     MSG_EFI_STATUS,
 #endif
-    MSG_ARRC_LB680A,
+    MSG_ARRC_SDR,
 };
 static const ap_message STREAM_PARAMS_msgs[] = {
     MSG_NEXT_PARAM
