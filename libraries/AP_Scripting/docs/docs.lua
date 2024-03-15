@@ -3219,6 +3219,30 @@ AR_PosControl = {}
 ---@return number -- velocity slew rate
 function AR_PosControl:get_srate() end
 
+-- precision landing access
+---@class precland
+precland = {}
+
+-- get Location of target or nil if target not acquired
+---@return Location_ud|nil
+function precland:get_target_location() end
+
+-- get NE velocity of target or nil if not available
+---@return Vector2f_ud|nil
+function precland:get_target_velocity() end
+
+-- get the time of the last valid target
+---@return uint32_t_ud
+function precland:get_last_valid_target_ms() end
+
+-- return true if target is acquired
+---@return boolean
+function precland:target_acquired() end
+
+-- return true if precland system is healthy
+---@return boolean
+function precland:healthy() end
+
 -- desc
 ---@class follow
 follow = {}
@@ -3372,6 +3396,18 @@ fs = {}
 ---@return stat_t_ud|nil
 function fs:stat(param1) end
 
+-- Format the SD card. This is a async operation, use get_format_status to get the status of the format
+---@return boolean
+function fs:format() end
+
+-- Get the current status of a format. 0=NOT_STARTED, 1=PENDING, 2=IN_PROGRESS, 3=SUCCESS, 4=FAILURE
+---@return number
+function fs:get_format_status() end
+
+-- Get crc32 checksum of a file with given name
+---@return uint32_t_ud|nil
+function fs:crc32(file_name) end
+
 -- desc
 ---@class networking
 networking = {}
@@ -3392,3 +3428,15 @@ function networking:get_netmask_active() end
 -- desc
 ---@return uint32_t_ud
 function networking:get_ip_active() end
+
+-- visual odometry object
+--@class visual_odom
+visual_odom = {}
+
+-- visual odometry health
+---@return boolean
+function visual_odom:healthy() end
+
+-- visual odometry quality as a percentage from 1 to 100 or 0 if unknown
+---@return integer
+function visual_odom:quality() end
