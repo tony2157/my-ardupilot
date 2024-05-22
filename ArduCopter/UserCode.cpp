@@ -162,7 +162,6 @@ void Copter::user_vpbatt_monitor()
                 if(AP_HAL::millis() - overcurr_timer > g2.user_parameters.get_batt_max_curr_timeout()*1000){
                     copter.set_mode(Mode::Number::RTL, ModeReason::UNKNOWN);
                     gcs().send_text(MAV_SEVERITY_WARNING, "Max current reached: Switched to RTL");
-                    batt_home_ok = false;
                 }
             }
             else{
@@ -170,7 +169,7 @@ void Copter::user_vpbatt_monitor()
             }
 
             //Switch to RTL if no current is measured
-            if(current < 3.0f){
+            if(current < 3.0f && batt_home_ok == true){
                 if(AP_HAL::millis() - no_curr_timer > 20000){
                     copter.set_mode(Mode::Number::RTL, ModeReason::UNKNOWN);
                     gcs().send_text(MAV_SEVERITY_WARNING, "No power data: Switched to RTL");
@@ -379,8 +378,8 @@ void Copter::user_wind_vane()
             float speed = norm(vel_xyz.x,vel_xyz.y); 
             
             //Wind vane is active when flying horizontally steady and wind speed is perceivable
-            //Condition when ascending
-            if(fabsf(speed_y) < 150.0f && _wind_speed > 1.0f && vel_xyz[2] >= 0.0f){
+            //Condition when ascending (including hovering)
+            if(fabsf(speed_y) < 150.0f && _wind_speed > 1.5f && vel_xyz[2] >= -0.5f){
                 //Min altitude and speed at which the yaw command is sent
                 if(alt>400.0f && speed<(fabsf(speed_y)+300.0f)){ 
                     //Send estimated wind direction to the autopilot
@@ -394,7 +393,7 @@ void Copter::user_wind_vane()
                 }
             }
             //Condition when descending
-            else if (fabsf(speed_y) < 150.0f && _wind_speed > 3.0f && vel_xyz[2] < 0.0f){
+            else if (fabsf(speed_y) < 150.0f && _wind_speed > 5.0f && vel_xyz[2] < -0.5f){
                 if(alt>600.0f && speed<(fabsf(speed_y)+300.0f)){ 
                     //Send estimated wind direction to the autopilot
                     copter.cass_wind_direction = _wind_dir;
@@ -463,11 +462,12 @@ void Copter::userhook_auxSwitch1(const RC_Channel::AuxSwitchPos ch_flag)
 {
     // put your aux switch #1 handler here (CHx_OPT = 47)
     // Code runs when switch is toggled HIGH (pwm > 1800)
-    AP_Mission::Mission_Command cmd;
-    float max_alt = g2.user_parameters.get_autovp_max_alt()*100; //convert to cm
-
+    
     // Check if drone is grounded and ready to create a mission
-    if(ap.land_complete && copter.position_ok() && (AP_HAL::millis() - mission_now) > 5000){
+    if(ap.land_complete && copter.position_ok() && ch_flag == RC_Channel::AuxSwitchPos::HIGH && (AP_HAL::millis() - mission_now) > 5000){
+
+        AP_Mission::Mission_Command cmd;
+        float max_alt = g2.user_parameters.get_autovp_max_alt()*100; //convert to cm
 
         // Get current position
         int32_t vp_lat = copter.current_loc.lat; // ahrs.get_home().lat;
@@ -476,6 +476,7 @@ void Copter::userhook_auxSwitch1(const RC_Channel::AuxSwitchPos ch_flag)
         // clear mission
         if(!copter.mode_auto.mission.clear()){
             gcs().send_text(MAV_SEVERITY_WARNING, "AutoVP: Mission could not be cleared");
+            return;
         }
         
         // Command #0 : home
@@ -487,6 +488,7 @@ void Copter::userhook_auxSwitch1(const RC_Channel::AuxSwitchPos ch_flag)
                                     Location::AltFrame::ABOVE_HOME};
         if (!copter.mode_auto.mission.add_cmd(cmd)) {
             gcs().send_text(MAV_SEVERITY_WARNING, "AutoVP: failed to create mission");
+            return;
         }
 
         // Command #1 : take-off to 5m
@@ -499,6 +501,7 @@ void Copter::userhook_auxSwitch1(const RC_Channel::AuxSwitchPos ch_flag)
                                     Location::AltFrame::ABOVE_HOME};
         if (!copter.mode_auto.mission.add_cmd(cmd)) {
             gcs().send_text(MAV_SEVERITY_WARNING, "AutoVP: failed to create mission");
+            return;
         }
 
         // Command #2 : Bottom waypoint at 10m
@@ -511,6 +514,7 @@ void Copter::userhook_auxSwitch1(const RC_Channel::AuxSwitchPos ch_flag)
                                     Location::AltFrame::ABOVE_HOME};
         if (!copter.mode_auto.mission.add_cmd(cmd)) {
             gcs().send_text(MAV_SEVERITY_WARNING, "AutoVP: failed to create mission");
+            return;
         }
 
         // Constrain target altitude
@@ -533,6 +537,7 @@ void Copter::userhook_auxSwitch1(const RC_Channel::AuxSwitchPos ch_flag)
                                     Location::AltFrame::ABOVE_HOME};
         if (!copter.mode_auto.mission.add_cmd(cmd)) {
             gcs().send_text(MAV_SEVERITY_WARNING, "AutoVP: failed to create mission");
+            return;
         }
 
         // Command #4 : RTL
@@ -545,6 +550,7 @@ void Copter::userhook_auxSwitch1(const RC_Channel::AuxSwitchPos ch_flag)
                                     Location::AltFrame::ABOVE_HOME};
         if (!copter.mode_auto.mission.add_cmd(cmd)) {
             gcs().send_text(MAV_SEVERITY_WARNING, "AutoVP: failed to create mission");
+            return;
         }
 
         // Send successful creation message
@@ -558,6 +564,9 @@ void Copter::userhook_auxSwitch1(const RC_Channel::AuxSwitchPos ch_flag)
         gcs().send_text(MAV_SEVERITY_INFO, "Max Current: %g A",float(g2.user_parameters.get_batt_max_curr()));
 
         mission_now = AP_HAL::millis();
+    }
+    else if (ap.land_complete && copter.position_ok() && ch_flag == RC_Channel::AuxSwitchPos::HIGH && (AP_HAL::millis() - mission_now) < 5000){
+        return;
     }
     else{
         // Send unable to create mission message warning
