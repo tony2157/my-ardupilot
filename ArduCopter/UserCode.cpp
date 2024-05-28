@@ -568,9 +568,18 @@ void Copter::userhook_auxSwitch1(const RC_Channel::AuxSwitchPos ch_flag)
     else if (ap.land_complete && copter.position_ok() && ch_flag == RC_Channel::AuxSwitchPos::HIGH && (AP_HAL::millis() - mission_now) < 5000){
         return;
     }
-    else{
+    else if (!copter.position_ok() && ch_flag == RC_Channel::AuxSwitchPos::HIGH && (AP_HAL::millis() - mission_now) > 5000){
         // Send unable to create mission message warning
         gcs().send_text(MAV_SEVERITY_WARNING, "AutoVP: Unable to create mission, EKF not ready");
+        mission_now = AP_HAL::millis();
+    }
+    else if (!ap.land_complete && ch_flag == RC_Channel::AuxSwitchPos::HIGH && (AP_HAL::millis() - mission_now) > 5000){
+        // Send unable to create mission message warning
+        gcs().send_text(MAV_SEVERITY_WARNING, "AutoVP: Unable to create mission while flying");
+        mission_now = AP_HAL::millis();
+    }
+    else {
+        return;
     }
 }
 
