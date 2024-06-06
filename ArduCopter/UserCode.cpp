@@ -554,8 +554,8 @@ void Copter::userhook_auxSwitch1(const RC_Channel::AuxSwitchPos ch_flag)
         }
 
         // Send successful creation message
-        gcs().send_text(MAV_SEVERITY_INFO, "AutoVP mission received");
-        gcs().send_text(MAV_SEVERITY_INFO, "Target alt: %g m",max_alt/100);
+        gcs().send_text(MAV_SEVERITY_WARNING, "AutoVP mission received");
+        gcs().send_text(MAV_SEVERITY_WARNING, "Target alt: %g m",max_alt/100);
 
         // Print failsafe parameters for reviewing
         gcs().send_text(MAV_SEVERITY_INFO, "Review failsafe parameters");
