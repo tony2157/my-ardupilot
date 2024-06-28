@@ -393,7 +393,7 @@ void Copter::user_wind_vane()
                 }
             }
             //Condition when descending
-            else if (fabsf(speed_y) < 150.0f && _wind_speed > 5.0f && vel_xyz[2] < -0.5f){
+            else if (fabsf(speed_y) < 150.0f && _wind_speed > 6.0f && vel_xyz[2] < -0.5f){
                 if(alt>600.0f && speed<(fabsf(speed_y)+300.0f)){ 
                     //Send estimated wind direction to the autopilot
                     copter.cass_wind_direction = _wind_dir;
@@ -554,7 +554,7 @@ void Copter::userhook_auxSwitch1(const RC_Channel::AuxSwitchPos ch_flag)
         }
 
         // Send successful creation message
-        gcs().send_text(MAV_SEVERITY_WARNING, "AutoVP mission received");
+        gcs().send_text(MAV_SEVERITY_INFO, "AutoVP mission received");
         gcs().send_text(MAV_SEVERITY_WARNING, "Target alt: %g m",max_alt/100);
 
         // Print failsafe parameters for reviewing
