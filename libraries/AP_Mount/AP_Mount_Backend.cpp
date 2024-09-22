@@ -7,7 +7,7 @@
 
 extern const AP_HAL::HAL& hal;
 
-//uint32_t _now = 0; // Uncomment this for debugging
+// uint32_t _now = 0; // Uncomment this for debugging
 
 #define AP_MOUNT_UPDATE_DT 0.02     // update rate in seconds.  update() should be called at this rate
 #define AP_MOUNT_POI_REQUEST_TIMEOUT_MS 30000   // POI calculations continue to be updated for this many seconds after last request
