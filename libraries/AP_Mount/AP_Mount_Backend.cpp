@@ -840,7 +840,7 @@ bool AP_Mount_Backend::get_angle_target_to_location(const Location &target, Moun
             angle_rad.roll = (float)-1.0*atan2(-RotM.b.z, sqrt(1.0 - RotM.b.z*RotM.b.z));
 
             // pan calcs = atan2(Reb(2,1),Reb(2,2))
-            angle_rad.yaw = (float)atan2f(RotM.b.x,RotM.b.y) + fixed_yaw;
+            angle_rad.yaw = (float)atan2(RotM.b.x,RotM.b.y) + fixed_yaw;
             //angle_rad.yaw = (float)wrap_180(angle_rad.yaw*RAD_TO_DEG)*DEG_TO_RAD;
             angle_rad.yaw_is_ef = true;
         }
