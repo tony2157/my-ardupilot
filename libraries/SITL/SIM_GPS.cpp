@@ -33,6 +33,33 @@ extern const AP_HAL::HAL& hal;
 
 using namespace SITL;
 
+class LowFrequencyNoise {
+    std::vector<double> history;
+    size_t max_history_size;
+
+public:
+    LowFrequencyNoise(size_t history_size) : max_history_size(history_size) {}
+
+    double addAndGetSmoothedNoise(double noise) {
+        if (history.size() >= max_history_size) {
+            history.erase(history.begin());
+        }
+        history.push_back(noise);
+
+        // Calculate the average
+        double sum = 0.0;
+        for (double n : history) {
+            sum += n;
+        }
+        return sum / history.size();
+    }
+};
+
+// Create noise filters with history size for smoothing
+LowFrequencyNoise lat_noise_filter(3);
+LowFrequencyNoise lon_noise_filter(3);
+LowFrequencyNoise height_noise_filter(2);
+
 // ensure the backend we have allocated matches the one that's configured:
 GPS_Backend::GPS_Backend(GPS &_front, uint8_t _instance)
     : front{_front},
@@ -343,14 +370,30 @@ void GPS::update()
 
     last_write_update_ms = now_ms;
 
-    d.latitude = latitude;
-    d.longitude = longitude;
+    const double EARTH_RADIUS = 6378137.0; // in meters
+    // const double DEG_TO_RAD = 0.01745329252;
+    // const double RAD_TO_DEG = 57.29577951;
+
+    double gps_acc = _sitl->gps_accuracy[0];
+
+    // Generate random horizontal and vertical offsets
+    double raw_lat_offset = (((static_cast<double>(rand()) / RAND_MAX) * 2 * gps_acc / EARTH_RADIUS) - gps_acc / EARTH_RADIUS) * RAD_TO_DEG;
+    double raw_lon_offset = (((static_cast<double>(rand()) / RAND_MAX) * 2 * gps_acc / (EARTH_RADIUS * cos(latitude * DEG_TO_RAD))) - gps_acc / (EARTH_RADIUS * cos(latitude * DEG_TO_RAD))) * RAD_TO_DEG;
+    double raw_height_offset = ((static_cast<double>(rand()) / RAND_MAX) * 2 * gps_acc) - gps_acc;
+
+    // Smooth the noise using the filter
+    double lat_offset = lat_noise_filter.addAndGetSmoothedNoise(raw_lat_offset);
+    double lon_offset = lon_noise_filter.addAndGetSmoothedNoise(raw_lon_offset);
+    double height_offset = height_noise_filter.addAndGetSmoothedNoise(raw_height_offset);
+
+    d.latitude = latitude + lat_offset;
+    d.longitude = longitude + lon_offset;
     d.yaw_deg = _sitl->state.yawDeg;
     d.roll_deg = _sitl->state.rollDeg;
     d.pitch_deg = _sitl->state.pitchDeg;
 
     // add an altitude error controlled by a slow sine wave
-    d.altitude = altitude + _sitl->gps_noise[idx] * sinf(now_ms * 0.0005f) + _sitl->gps_alt_offset[idx];
+    d.altitude = altitude + height_offset; // _sitl->gps_noise[idx] * sinf(now_ms * 0.0005f) + _sitl->gps_alt_offset[idx];
 
     // Add offset to c.g. velocity to get velocity at antenna and add simulated error
     Vector3f velErrorNED = _sitl->gps_vel_err[idx];
