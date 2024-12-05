@@ -56,9 +56,9 @@ public:
 };
 
 // Create noise filters with history size for smoothing
-LowFrequencyNoise lat_noise_filter(3);
-LowFrequencyNoise lon_noise_filter(3);
-LowFrequencyNoise height_noise_filter(2);
+LowFrequencyNoise lat_noise_filter(5);
+LowFrequencyNoise lon_noise_filter(5);
+LowFrequencyNoise height_noise_filter(3);
 
 // ensure the backend we have allocated matches the one that's configured:
 GPS_Backend::GPS_Backend(GPS &_front, uint8_t _instance)
@@ -379,7 +379,7 @@ void GPS::update()
     // Generate random horizontal and vertical offsets
     double raw_lat_offset = (((static_cast<double>(rand()) / RAND_MAX) * 2 * gps_acc / EARTH_RADIUS) - gps_acc / EARTH_RADIUS) * RAD_TO_DEG;
     double raw_lon_offset = (((static_cast<double>(rand()) / RAND_MAX) * 2 * gps_acc / (EARTH_RADIUS * cos(latitude * DEG_TO_RAD))) - gps_acc / (EARTH_RADIUS * cos(latitude * DEG_TO_RAD))) * RAD_TO_DEG;
-    double raw_height_offset = ((static_cast<double>(rand()) / RAND_MAX) * 2 * gps_acc) - gps_acc;
+    double raw_height_offset = ((static_cast<double>(rand()) / RAND_MAX) * 3 * gps_acc) - 1.5*gps_acc;
 
     // Smooth the noise using the filter
     double lat_offset = lat_noise_filter.addAndGetSmoothedNoise(raw_lat_offset);
