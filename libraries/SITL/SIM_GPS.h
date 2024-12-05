@@ -77,6 +77,9 @@ public:
     void set_bias_std(double bias_std) {
         gnss_bias_std = bias_std;
         bias_distribution = std::normal_distribution<double>(0.0, bias_std);
+        lat_bias = 0.0;
+        lng_bias = 0.0;
+        vertical_bias = 0.0;
     }
 
     void set_noise_std(double noise_std) {

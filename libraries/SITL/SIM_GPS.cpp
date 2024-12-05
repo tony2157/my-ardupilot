@@ -55,9 +55,9 @@ GPS::GPS(uint8_t _instance) :
     SerialDevice(8192, 2048),
     instance{_instance},
     gnss_model(1, 3),
-    lat_noise_filter(4),
-    lon_noise_filter(4),
-    height_noise_filter(3) {}
+    lat_noise_filter(12),
+    lon_noise_filter(12),
+    height_noise_filter(10) {}
 
 uint32_t GPS::device_baud() const
 {
