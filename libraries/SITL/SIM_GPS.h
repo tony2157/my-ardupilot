@@ -28,6 +28,7 @@ param set SERIAL5_PROTOCOL 5
 #if HAL_SIM_GPS_ENABLED
 
 #include "SIM_SerialDevice.h"
+#include <random>
 
 namespace SITL {
 
@@ -57,6 +58,77 @@ struct GPS_Data {
     float speed_2d() const WARN_IF_UNUSED;
 };
 
+// Stochastic model for GNSS bias and noise
+class GNSSStochasticModel {
+    std::mt19937 generator; // Mersenne Twister random engine
+    std::normal_distribution<double> bias_distribution;
+    std::normal_distribution<double> noise_distribution;
+public:
+    GNSSStochasticModel(double bias_std, double noise_std)
+        : bias_distribution(0.0, bias_std),
+          noise_distribution(0.0, noise_std),
+          gnss_bias_std(bias_std), gnss_noise_std(noise_std),
+          horizontal_bias(0.0), vertical_bias(0.0) {
+        // Seed random engine with a high-quality random seed
+        std::random_device rd;
+        generator.seed(rd());
+    }
+
+    void set_bias_std(double bias_std) {
+        gnss_bias_std = bias_std;
+        bias_distribution = std::normal_distribution<double>(0.0, bias_std);
+    }
+
+    void set_noise_std(double noise_std) {
+        gnss_noise_std = noise_std;
+        noise_distribution = std::normal_distribution<double>(0.0, noise_std);
+    }
+
+    void updateBias() {
+        // Update bias using a random walk
+        horizontal_bias += bias_distribution(generator);
+        vertical_bias += 1.5*bias_distribution(generator);
+    }
+
+    double getHorizontalBias() const {
+        return horizontal_bias;
+    }
+
+    double getVerticalBias() const {
+        return vertical_bias;
+    }
+
+    double generateNoise() {
+        return noise_distribution(generator);
+    }
+
+    double horizontal_bias;
+    double vertical_bias;
+    double gnss_bias_std;
+    double gnss_noise_std;
+};
+
+class LowFrequencyNoise {
+    std::vector<double> history;
+    size_t max_history_size;
+
+public:
+    LowFrequencyNoise(size_t history_size) : max_history_size(history_size) {}
+
+    double addAndGetSmoothedNoise(double noise) {
+        if (history.size() >= max_history_size) {
+            history.erase(history.begin());
+        }
+        history.push_back(noise);
+
+        // Calculate the average
+        double sum = 0.0;
+        for (double n : history) {
+            sum += n;
+        }
+        return sum / history.size();
+    }
+};
 
 class GPS_Backend {
 public:
@@ -171,6 +243,11 @@ private:
     uint8_t allocated_type;
     GPS_Backend *backend;
     void check_backend_allocation();
+
+    GNSSStochasticModel gnss_model;
+    LowFrequencyNoise lat_noise_filter;
+    LowFrequencyNoise lon_noise_filter;
+    LowFrequencyNoise height_noise_filter;
 };
 
 }
