@@ -356,8 +356,8 @@ void GPS::update()
 
     gnss_model.updateBias();
 
-    double raw_lat_offset = (gnss_model.getHorizontalBias() + gnss_model.generateNoise()) / EARTH_RADIUS * RAD_TO_DEG;
-    double raw_lon_offset = (gnss_model.getHorizontalBias() + gnss_model.generateNoise()) / (EARTH_RADIUS * cos(latitude * DEG_TO_RAD)) * RAD_TO_DEG;
+    double raw_lat_offset = (gnss_model.getLatBias() + gnss_model.generateNoise()) / EARTH_RADIUS * RAD_TO_DEG;
+    double raw_lon_offset = (gnss_model.getLngBias() + gnss_model.generateNoise()) / (EARTH_RADIUS * cos(latitude * DEG_TO_RAD)) * RAD_TO_DEG;
     double raw_height_offset = gnss_model.getVerticalBias() + 1.5*gnss_model.generateNoise();
 
     // Smooth the noise using the filter

@@ -68,7 +68,7 @@ public:
         : bias_distribution(0.0, bias_std),
           noise_distribution(0.0, noise_std),
           gnss_bias_std(bias_std), gnss_noise_std(noise_std),
-          horizontal_bias(0.0), vertical_bias(0.0) {
+          lat_bias(0.0), lng_bias(0.0), vertical_bias(0.0) {
         // Seed random engine with a high-quality random seed
         std::random_device rd;
         generator.seed(rd());
@@ -86,12 +86,17 @@ public:
 
     void updateBias() {
         // Update bias using a random walk
-        horizontal_bias += bias_distribution(generator);
+        lat_bias += bias_distribution(generator);
+        lng_bias += bias_distribution(generator);
         vertical_bias += 1.5*bias_distribution(generator);
     }
 
-    double getHorizontalBias() const {
-        return horizontal_bias;
+    double getLatBias() const {
+        return lat_bias;
+    }
+
+    double getLngBias() const {
+        return lng_bias;
     }
 
     double getVerticalBias() const {
@@ -102,7 +107,8 @@ public:
         return noise_distribution(generator);
     }
 
-    double horizontal_bias;
+    double lat_bias;
+    double lng_bias;
     double vertical_bias;
     double gnss_bias_std;
     double gnss_noise_std;
