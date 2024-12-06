@@ -28,6 +28,7 @@ param set SERIAL5_PROTOCOL 5
 #if HAL_SIM_GPS_ENABLED
 
 #include "SIM_SerialDevice.h"
+#include <AP_HAL/AP_HAL.h>
 #include <random>
 
 namespace SITL {
@@ -61,37 +62,41 @@ struct GPS_Data {
 // Stochastic model for GNSS bias and noise
 class GNSSStochasticModel {
     std::mt19937 generator; // Mersenne Twister random engine
-    std::normal_distribution<double> bias_distribution;
-    std::normal_distribution<double> noise_distribution;
+    std::normal_distribution<double> gnss_velocity_distribution;
+
 public:
-    GNSSStochasticModel(double bias_std, double noise_std)
-        : bias_distribution(0.0, bias_std),
-          noise_distribution(0.0, noise_std),
-          gnss_bias_std(bias_std), gnss_noise_std(noise_std),
-          lat_bias(0.0), lng_bias(0.0), vertical_bias(0.0) {
+    GNSSStochasticModel(double vel_std, double noise_std)
+        : gnss_velocity_distribution(0.0, vel_std),
+          gnss_vel_std(vel_std), lambda(1.0), last_now(AP_HAL::millis()),
+          lat_bias(0.0), lng_bias(0.0), vertical_bias(0.0){
         // Seed random engine with a high-quality random seed
         std::random_device rd;
         generator.seed(rd());
     }
 
-    void set_bias_std(double bias_std) {
-        gnss_bias_std = bias_std;
-        bias_distribution = std::normal_distribution<double>(0.0, bias_std);
+    void set_gnss_velocity_std(double vel_std, double l) {
+        gnss_vel_std = vel_std;
+        lambda = l;
         lat_bias = 0.0;
         lng_bias = 0.0;
         vertical_bias = 0.0;
     }
 
-    void set_noise_std(double noise_std) {
-        gnss_noise_std = noise_std;
-        noise_distribution = std::normal_distribution<double>(0.0, noise_std);
-    }
-
     void updateBias() {
         // Update bias using a random walk
-        lat_bias += bias_distribution(generator);
-        lng_bias += bias_distribution(generator);
-        vertical_bias += 1.5*bias_distribution(generator);
+        gnss_velocity_distribution = std::normal_distribution<double>(-lat_bias*lambda, gnss_vel_std);
+        double v_lat_bias = gnss_velocity_distribution(generator);
+        lat_bias += v_lat_bias*(double)(AP_HAL::millis() - last_now)/1000.0;
+
+        gnss_velocity_distribution = std::normal_distribution<double>(-lng_bias*lambda, gnss_vel_std);
+        double v_lng_bias = gnss_velocity_distribution(generator);
+        lng_bias += v_lng_bias*(double)(AP_HAL::millis() - last_now)/1000.0;
+
+        gnss_velocity_distribution = std::normal_distribution<double>(-vertical_bias*lambda, gnss_vel_std);
+        double v_vertical_bias = 1.5*gnss_velocity_distribution(generator);
+        vertical_bias += v_vertical_bias*(double)(AP_HAL::millis() - last_now)/1000.0;
+
+        last_now = AP_HAL::millis();
     }
 
     double getLatBias() const {
@@ -106,15 +111,12 @@ public:
         return vertical_bias;
     }
 
-    double generateNoise() {
-        return noise_distribution(generator);
-    }
-
     double lat_bias;
     double lng_bias;
     double vertical_bias;
-    double gnss_bias_std;
-    double gnss_noise_std;
+    double gnss_vel_std;
+    double lambda;
+    uint32_t last_now;
 };
 
 class LowFrequencyNoise {

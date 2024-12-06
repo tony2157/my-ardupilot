@@ -348,17 +348,16 @@ void GPS::update()
     const double EARTH_RADIUS = 6378137.0; // in meters
 
     const float epsilon = 1e-6; // Adjust the value of epsilon based on precision needs
-    if (std::abs(_sitl->gps_accuracy[0] - (float)gnss_model.gnss_bias_std) > epsilon ||
-        std::abs(_sitl->gps_accuracy[1] - (float)gnss_model.gnss_noise_std) > epsilon) {
-        gnss_model.set_bias_std(_sitl->gps_accuracy[0]);
-        gnss_model.set_noise_std(_sitl->gps_accuracy[1]);
+    if (std::abs(_sitl->gps_accuracy[0] - (float)gnss_model.gnss_vel_std) > epsilon ||
+        std::abs(_sitl->gps_accuracy[1] - (float)gnss_model.lambda) > epsilon) {
+        gnss_model.set_gnss_velocity_std(_sitl->gps_accuracy[0], _sitl->gps_accuracy[1]);
     }
 
     gnss_model.updateBias();
 
-    double raw_lat_offset = (gnss_model.getLatBias() + gnss_model.generateNoise()) / EARTH_RADIUS * RAD_TO_DEG;
-    double raw_lon_offset = (gnss_model.getLngBias() + gnss_model.generateNoise()) / (EARTH_RADIUS * cos(latitude * DEG_TO_RAD)) * RAD_TO_DEG;
-    double raw_height_offset = gnss_model.getVerticalBias() + 1.5*gnss_model.generateNoise();
+    double raw_lat_offset = (gnss_model.getLatBias()) / EARTH_RADIUS * RAD_TO_DEG;
+    double raw_lon_offset = (gnss_model.getLngBias()) / (EARTH_RADIUS * cos(latitude * DEG_TO_RAD)) * RAD_TO_DEG;
+    double raw_height_offset = gnss_model.getVerticalBias();
 
     // Smooth the noise using the filter
     double lat_offset = lat_noise_filter.addAndGetSmoothedNoise(raw_lat_offset);
