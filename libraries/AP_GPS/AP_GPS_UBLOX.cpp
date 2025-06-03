@@ -267,6 +267,8 @@ const AP_GPS_UBLOX::config_list AP_GPS_UBLOX::config_M10[] {
 const AP_GPS_UBLOX::config_list AP_GPS_UBLOX::config_L5_ovrd_ena[] {
     {ConfigKey::CFG_SIGNAL_L5_HEALTH_OVRD, 1},
     {ConfigKey::CFG_SIGNAL_GPS_L5_ENA, 1},
+    {ConfigKey::CFG_SIGNAL_NAVIC_ENA, 1},
+    {ConfigKey::CFG_SIGNAL_NAVIC_L5_ENA, 1},
 };
 
 const AP_GPS_UBLOX::config_list AP_GPS_UBLOX::config_L5_ovrd_dis[] {
