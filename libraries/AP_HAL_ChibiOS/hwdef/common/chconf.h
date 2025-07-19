@@ -76,6 +76,19 @@ extern "C" {
 #define CH_DBG_STATISTICS FALSE
 #endif
 
+#ifndef CH_HSE_CLOCK_FAILED
+#ifndef _FROM_ASM_
+#ifdef __cplusplus
+extern "C" {
+#endif
+void jump_to_fallback(void);
+#ifdef __cplusplus
+}
+#endif
+#endif
+#define CH_HSE_CLOCK_FAILED() jump_to_fallback()
+#endif
+
 /**
  * @brief   Handling of instances.
  * @note    If enabled then threads assigned to various instances can
