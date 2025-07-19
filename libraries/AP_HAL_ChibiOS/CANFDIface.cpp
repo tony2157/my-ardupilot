@@ -56,6 +56,7 @@
 #define FDCAN1_IT1_IRQHandler      STM32_FDCAN1_IT1_HANDLER
 #define FDCAN2_IT0_IRQHandler      STM32_FDCAN2_IT0_HANDLER
 #define FDCAN2_IT1_IRQHandler      STM32_FDCAN2_IT1_HANDLER
+#define FDCAN_CCU_IRQHandler       Vector13C
 
 // FIFO elements are spaced at 18 words
 #define FDCAN_FRAME_BUFFER_SIZE 18
@@ -146,6 +147,13 @@ static inline void handleCANInterrupt(uint8_t phys_index, uint8_t line_index)
             CANIface::Can[iface_index]->IR = FDCAN_IR_RF1N | FDCAN_IR_RF1F;
             can_ifaces[iface_index]->handleRxInterrupt(1);
         }
+#if HAL_CANFD_CCU_ENABLED
+        // Check for RX buffer new data interrupt
+        if (CANIface::Can[iface_index]->IR & FDCAN_IR_DRX) {
+            CANIface::Can[iface_index]->IR = FDCAN_IR_DRX;
+            can_ifaces[iface_index]->handleRxBufferInterrupt();
+        }
+#endif
     } else {
         if (CANIface::Can[iface_index]->IR & FDCAN_IR_TC) {
             CANIface::Can[iface_index]->IR = FDCAN_IR_TC;
@@ -187,6 +195,165 @@ void CANIface::handleBusOffInterrupt()
 {
     _detected_bus_off = true;
 }
+
+#if HAL_CANFD_CCU_ENABLED
+void CANIface::handleCalibrationInterrupt()
+{
+    uint32_t ir = FDCAN_CCU->IR;
+    
+    // Clear calibration state change interrupt
+    if (ir & FDCANCCU_IR_CSC) {
+        FDCAN_CCU->IR = FDCANCCU_IR_CSC;
+        
+        // Read calibration status
+        uint32_t cstat = FDCAN_CCU->CSTAT;
+        uint32_t cal_state = (cstat & FDCANCCU_CSTAT_CALS) >> FDCANCCU_CSTAT_CALS_Pos;
+        
+        switch (cal_state) {
+            case 0x0: // Not calibrated
+                basic_calibration_complete_ = false;
+                break;
+            case 0x1: // Basic calibration complete
+                if (!basic_calibration_complete_) {
+                    basic_calibration_complete_ = true;
+                    calibration_sem_.signal_ISR();
+                }
+                break;
+            case 0x2: // Fine calibration complete
+                // Fine calibration is not handled in this implementation
+                if (!precise_calibration_complete_) {
+                    precise_calibration_complete_ = true;
+                    FDCAN1->CCCR &= ~FDCAN_CCCR_ASM; // Exit Restricted mode
+                    calibration_sem_.signal_ISR();
+                }
+                break;
+        }
+    }
+}
+
+void CANIface::initClockCalibration(uint8_t time_quanta_per_bit, uint32_t bit_rate)
+{
+    if (calibration_irq_init_) {
+        return; // Already initialized
+    }
+
+    /* Clock calibration unit generates time quanta clock */
+    CLEAR_BIT(FDCAN_CCU->CCFG, FDCANCCU_CCFG_BCC);
+
+    /* Configure clock calibration unit */
+    MODIFY_REG(FDCAN_CCU->CCFG,
+                (FDCANCCU_CCFG_TQBT | FDCANCCU_CCFG_CFL | FDCANCCU_CCFG_OCPM),
+                ((time_quanta_per_bit << FDCANCCU_CCFG_TQBT_Pos) |
+                (1U << FDCANCCU_CCFG_CFL_Pos) | (0U << FDCANCCU_CCFG_OCPM_Pos)));
+
+
+    // Enable calibration state change interrupt
+    FDCAN_CCU->IE = FDCANCCU_IE_CSCE;
+
+    nvicEnableVector(63, STM32_IRQ_FDCAN1_PRIORITY);
+
+    calibration_irq_init_ = true;
+}
+
+bool CANIface::waitForBasicCalibration(uint32_t timeout_ms)
+{
+    // Only wait for calibration on FDCAN1
+    if (can_interfaces[self_index_] != 0) {
+        return false;
+    }
+    
+    // Check if already calibrated
+    if (basic_calibration_complete_) {
+        Debug("Basic calibration already complete");
+        return true;
+    }
+    
+    // Wait for basic calibration with specified timeout (convert ms to us)
+    bool success = calibration_sem_.wait(timeout_ms * 1000U);
+    
+    if (success && basic_calibration_complete_) {
+        Debug("Basic calibration complete");
+        return true;
+    } else {
+        Debug("Basic calibration timeout");
+        return false;
+    }
+}
+
+// set up Rx Buffer for clock calibration message
+bool CANIface::setupClockCalibrationMsg(uint32_t id, uint32_t mask)
+{
+    // Only configure calibration on FDCAN1 (interface 0)
+    if (can_interfaces[self_index_] != 0) {
+        return false;
+    }
+    
+    // Enter configuration mode
+    CriticalSectionLocker lock;
+    can_->CCCR |= FDCAN_CCCR_INIT; // Request init
+    uint32_t while_start_ms = AP_HAL::millis();
+    while ((can_->CCCR & FDCAN_CCCR_INIT) == 0) {
+        if ((AP_HAL::millis() - while_start_ms) > REG_SET_TIMEOUT) {
+            return false;
+        }
+    }
+    can_->CCCR |= FDCAN_CCCR_CCE; // Enable config change
+    
+    // Check if id is Extended ID (29-bit) or Standard ID (11-bit)
+    bool is_extended = (id & AP_HAL::CANFrame::FlagEFF) != 0;
+    uint32_t calibration_id = id & (is_extended ? AP_HAL::CANFrame::MaskExtID : AP_HAL::CANFrame::MaskStdID);
+
+    // Filter Element Configuration
+    if (is_extended) {
+        // Extended ID Filter Setup
+        // Allocate space for one extended filter if not already done
+        if (MessageRam_.ExtendedFilterSA == 0) {
+            can_->XIDFC = (FDCANMessageRAMOffset_ << 2) | (1 << 16); // 1 filter element
+            MessageRam_.ExtendedFilterSA = SRAMCAN_BASE + (FDCANMessageRAMOffset_ * 4U);
+            FDCANMessageRAMOffset_ += 2; // 2 words per extended filter
+        }
+        
+        // Configure extended filter to direct calibration messages to RX buffer 0
+        uint32_t *filter_ptr = (uint32_t*)MessageRam_.ExtendedFilterSA;
+        filter_ptr[0] = (0x7U << 29) | calibration_id;     // EFEC = 111: Store into RX buffer, EFID1
+        filter_ptr[1] = (1U << 8) |                        // EFID2[8] = 1: RX buffer 0
+                        (0U);                               // EFID2[5:0] = 0: RX buffer index 0
+
+        can_->XIDAM = (mask & AP_HAL::CANFrame::MaskExtID); // Set Extended ID Acceptance Mask
+    } else {
+        // Standard ID Filter Setup
+        // Allocate space for one standard filter if not already done
+        if (MessageRam_.StandardFilterSA == 0) {
+            can_->SIDFC = (FDCANMessageRAMOffset_ << 2) | (1 << 16); // 1 filter element
+            MessageRam_.StandardFilterSA = SRAMCAN_BASE + (FDCANMessageRAMOffset_ * 4U);
+            FDCANMessageRAMOffset_ += 1; // 1 word per standard filter
+        }
+
+        // Configure standard filter to direct calibration messages to RX buffer 0
+        uint32_t *filter_ptr = (uint32_t*)MessageRam_.StandardFilterSA;
+        filter_ptr[0] = (0x7U << 27) |              // SFEC = 111: Store into RX buffer
+                        (calibration_id << 16) |     // SFID1: Calibration message identifier
+                        (0U << 6) |                  // SFID2[10:9] = 00: RX buffer storage mode
+                        (1U << 8) |                  // SFID2[8] = 1: RX buffer 0
+                        (0U);                        // SFID2[5:0] = 0: RX buffer index 0
+
+        // Set global filter control for standard IDs
+        can_->GFC &= ~(0x3U << 4); // Clear standard ID filter reject bits
+        can_->GFC |= (0x1U << 4);  // Store non-matching standard frames in RX FIFO 0
+    }
+    
+    // Exit configuration mode
+    can_->CCCR &= ~FDCAN_CCCR_INIT;
+    while_start_ms = AP_HAL::millis();
+    while ((can_->CCCR & FDCAN_CCCR_INIT) == 1) {
+        if ((AP_HAL::millis() - while_start_ms) > REG_SET_TIMEOUT) {
+            return false;
+        }
+    }
+    
+    return true;
+}
+#endif // HAL_CANFD_CCU_ENABLED
 
 bool CANIface::computeTimings(const uint32_t target_bitrate, Timings& out_timings) const
 {
@@ -606,6 +773,9 @@ bool CANIface::init(const uint32_t bitrate, const uint32_t fdbitrate, const Oper
 
     bitrate_ = bitrate;
     mode_ = mode;
+#if HAL_CANFD_CCU_ENABLED
+    ccu_enabled_ = (mode == CCUNormalMode || mode == CCUFilteredMode);
+#endif
     //Only do it once
     //Doing it second time will reset the previously initialised bus
     if (!clock_init_) {
@@ -697,11 +867,25 @@ bool CANIface::init(const uint32_t bitrate, const uint32_t fdbitrate, const Oper
     Debug("Timings: presc=%u sjw=%u bs1=%u bs2=%u\n",
           unsigned(timings.prescaler), unsigned(timings.sjw), unsigned(timings.bs1), unsigned(timings.bs2));
 
+#if HAL_CANFD_CCU_ENABLED
+    // force timing prescaler to 1 when CCU is enabled
+    if (ccu_enabled_) {
+        timings.prescaler = 1;
+    }
+#endif
+
     //setup timing register
     can_->NBTP = (((timings.sjw-1) << FDCAN_NBTP_NSJW_Pos)   |
                   ((timings.bs1-1) << FDCAN_NBTP_NTSEG1_Pos) |
                   ((timings.bs2-1) << FDCAN_NBTP_NTSEG2_Pos)  |
                   ((timings.prescaler-1) << FDCAN_NBTP_NBRP_Pos));
+
+    // Initialize clock calibration
+#if HAL_CANFD_CCU_ENABLED
+    if (ccu_enabled_) {
+        initClockCalibration(timings.bs1 + timings.bs2 + 1, bitrate);
+    }
+#endif
 
     if (fdbitrate) {
         if (!computeFDTimings(fdbitrate, fdtimings)) {
@@ -744,7 +928,8 @@ bool CANIface::init(const uint32_t bitrate, const uint32_t fdbitrate, const Oper
                 FDCAN_IE_RF0NE |  // RX FIFO 0 new message
                 FDCAN_IE_RF0FE |  // Rx FIFO 0 FIFO Full
                 FDCAN_IE_RF1NE |  // RX FIFO 1 new message
-                FDCAN_IE_RF1FE;   // Rx FIFO 1 FIFO Full
+                FDCAN_IE_RF1FE |  // Rx FIFO 1 FIFO Full
+                FDCAN_IE_DRXE;    // Dedicated RX buffer new message
 #if defined(STM32G4)
     can_->ILS = FDCAN_ILS_PERR | FDCAN_ILS_SMSG;
 #else
@@ -802,13 +987,27 @@ void CANIface::setupMessageRam()
 
     can_->RXESC = 0x777; //Support upto 64byte long frames
     can_->TXESC = 0x7; //Support upto 64byte long frames
-    // Rx FIFO 0 start address and element count
+    // Rx FIFO 0 start address and element count (reduced to make room for RX buffer)
     num_elements = MIN((FDCAN_NUM_RXFIFO0_SIZE/FDCAN_FRAME_BUFFER_SIZE), 64U);
+#if HAL_CANFD_CCU_ENABLED
+    if (num_elements > 5 && (mode_ == CCUNormalMode || mode_ == CCUFilteredMode)) {
+        num_elements = 5; // Reserve space for 1 dedicated RX buffer
+    }
+#endif
     if (num_elements) {
         can_->RXF0C = (FDCANMessageRAMOffset_ << 2) | (num_elements << 16);
         MessageRam_.RxFIFO0SA = SRAMCAN_BASE + (FDCANMessageRAMOffset_ * 4U);
         FDCANMessageRAMOffset_ += num_elements*FDCAN_FRAME_BUFFER_SIZE;
     }
+
+#if HAL_CANFD_CCU_ENABLED
+    if (ccu_enabled_) {
+        // Dedicated RX Buffer for clock calibration message
+        can_->RXBC = (FDCANMessageRAMOffset_ << 2);
+        MessageRam_.RxBufferSA = SRAMCAN_BASE + (FDCANMessageRAMOffset_ * 4U);
+        FDCANMessageRAMOffset_ += FDCAN_FRAME_BUFFER_SIZE;
+    }
+#endif
 
     // Tx FIFO/queue start address and element count
     num_elements = MIN((FDCAN_TX_FIFO_BUFFER_SIZE/FDCAN_FRAME_BUFFER_SIZE), 32U);
@@ -957,6 +1156,86 @@ bool CANIface::readRxFIFO(uint8_t fifo_index)
     }
     return true;
 }
+
+#if HAL_CANFD_CCU_ENABLED
+bool CANIface::readRxBuffer(uint8_t buffer_index)
+{
+    // Check if new data is available in the buffer
+    uint32_t new_data_reg = (buffer_index < 32) ? can_->NDAT1 : can_->NDAT2;
+    uint32_t buffer_bit = 1U << (buffer_index % 32);
+    
+    if (!(new_data_reg & buffer_bit)) {
+        return false; // No new data
+    }
+    
+    uint64_t timestamp_us = AP_HAL::micros64();
+    uint32_t *frame_ptr = (uint32_t *)(MessageRam_.RxBufferSA + (buffer_index * FDCAN_FRAME_BUFFER_SIZE * 4));
+    
+    // Read the frame contents
+    AP_HAL::CANFrame frame {};
+    uint32_t id = frame_ptr[0];
+    if ((id & IDE) == 0) {
+        // Standard ID
+        frame.id = ((id & STID_MASK) >> 18) & AP_HAL::CANFrame::MaskStdID;
+    } else {
+        // Extended ID
+        frame.id = (id & EXID_MASK) & AP_HAL::CANFrame::MaskExtID;
+        frame.id |= AP_HAL::CANFrame::FlagEFF;
+    }
+    
+    if ((id & RTR) != 0) {
+        frame.id |= AP_HAL::CANFrame::FlagRTR;
+    }
+    
+    if (frame_ptr[1] & FDF) {
+        frame.setCanFD(true);
+        stats.fdf_rx_received++;
+    } else {
+        frame.setCanFD(false);
+    }
+    
+    frame.dlc = (frame_ptr[1] & DLC_MASK) >> 16;
+    uint8_t *data = (uint8_t*)&frame_ptr[2];
+    
+    for (uint8_t i = 0; i < AP_HAL::CANFrame::dlcToDataLength(frame.dlc); i++) {
+        frame.data[i] = data[i];
+    }
+    
+    // Clear the new data flag
+    if (buffer_index < 32) {
+        can_->NDAT1 = buffer_bit;
+    } else {
+        can_->NDAT2 = buffer_bit;
+    }
+    
+    // Store in the RX queue
+    CanRxItem rx_item;
+    rx_item.frame = frame;
+    rx_item.timestamp_us = timestamp_us;
+    rx_item.flags = 0;
+    
+    if (add_to_rx_queue(rx_item)) {
+        stats.rx_received++;
+        return true;
+    } else {
+        stats.rx_overflow++;
+        return false;
+    }
+}
+
+
+void CANIface::handleRxBufferInterrupt()
+{
+    // Check all RX buffers for new data
+    if (readRxBuffer(0)) {
+        had_activity_ = true;
+    }
+    stats.num_events++;
+    if (sem_handle != nullptr) {
+        sem_handle->signal_ISR();
+    }
+}
+#endif // HAL_CANFD_CCU_ENABLED
 
 void CANIface::handleRxInterrupt(uint8_t fifo_index)
 {
@@ -1231,7 +1510,19 @@ extern "C"
         CH_IRQ_EPILOGUE();
     }
 #endif
-    
+
+#if HAL_CANFD_CCU_ENABLED
+    // FDCAN Clock Calibration Unit
+    CH_IRQ_HANDLER(FDCAN_CCU_IRQHandler);
+    CH_IRQ_HANDLER(FDCAN_CCU_IRQHandler)
+    {
+        CH_IRQ_PROLOGUE();
+        if (can_ifaces[0] != nullptr) {
+            can_ifaces[0]->handleCalibrationInterrupt();
+        }
+        CH_IRQ_EPILOGUE();
+    }
+#endif // HAL_CANFD_CCU_ENABLED
 } // extern "C"
 
 #endif //defined(STM32H7XX) || defined(STM32G4)

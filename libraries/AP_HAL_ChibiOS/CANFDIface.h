@@ -41,11 +41,16 @@
 #pragma once
 
 #include "AP_HAL_ChibiOS.h"
+#include "Semaphores.h"
 
 #if HAL_NUM_CAN_IFACES
 
 #ifndef HAL_CAN_RX_QUEUE_SIZE
 #define HAL_CAN_RX_QUEUE_SIZE 128
+#endif
+
+#ifndef HAL_CANFD_CCU_ENABLED
+#define HAL_CANFD_CCU_ENABLED 0
 #endif
 
 static_assert(HAL_CAN_RX_QUEUE_SIZE <= 254, "Invalid CAN Rx queue size");
@@ -85,6 +90,9 @@ class ChibiOS::CANIface : public AP_HAL::CANIface
         uint32_t ExtendedFilterSA;
         uint32_t RxFIFO0SA;
         uint32_t RxFIFO1SA;
+#if HAL_CANFD_CCU_ENABLED
+        uint32_t RxBufferSA;
+#endif
         uint32_t TxFIFOQSA;
         uint32_t EndAddress;
     } MessageRam_;
@@ -134,6 +142,9 @@ class ChibiOS::CANIface : public AP_HAL::CANIface
     void setupMessageRam(void);
 
     bool readRxFIFO(uint8_t fifo_index);
+#if HAL_CANFD_CCU_ENABLED
+    bool readRxBuffer(uint8_t buffer_index);
+#endif
 
     void discardTimedOutTxMailboxes(uint64_t current_time);
 
@@ -151,12 +162,26 @@ class ChibiOS::CANIface : public AP_HAL::CANIface
     // Reset the error states like Bus Off Error
     void clearErrors();
 
+#if HAL_CANFD_CCU_ENABLED
+    // Clock calibration methods
+    void initClockCalibration(uint8_t time_quanta_per_bit, uint32_t bit_rate);
+#endif
+
     static uint32_t FDCAN2MessageRAMOffset_;
     static bool clock_init_;
 
     bool _detected_bus_off;
     Timings timings, fdtimings;
     uint32_t _bitrate, _fdbitrate;
+
+#if HAL_CANFD_CCU_ENABLED
+    // Clock calibration state (per interface)
+    bool ccu_enabled_;
+    bool calibration_irq_init_;
+    bool basic_calibration_complete_;
+    bool precise_calibration_complete_;
+    ChibiOS::BinarySemaphore calibration_sem_;
+#endif
 
     /*
       additional statistics
@@ -248,6 +273,11 @@ public:
      ************************************/
     void handleTxCompleteInterrupt(uint64_t timestamp_us);
     void handleRxInterrupt(uint8_t fifo_index);
+#if HAL_CANFD_CCU_ENABLED
+    void handleRxBufferInterrupt();
+    // Handle calibration interrupt
+    void handleCalibrationInterrupt();
+#endif
     void handleBusOffInterrupt();
 
     // handle if any error occured, and do the needful such as,
@@ -268,6 +298,12 @@ public:
     uint64_t get_tracked_tx_timestamp() override {
         return tracked_tx_timestamp_us;
     }
+    
+    // Clock calibration methods
+#if HAL_CANFD_CCU_ENABLED
+    bool waitForBasicCalibration(uint32_t timeout_ms);
+    bool setupClockCalibrationMsg(uint32_t id, uint32_t mask);
+#endif
 
 protected:
     bool add_to_rx_queue(const CanRxItem &rx_item) override {
