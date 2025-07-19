@@ -117,7 +117,9 @@ public:
         PassThroughMode,
         NormalMode,
         SilentMode,
-        FilteredMode
+        FilteredMode,
+        CCUNormalMode,
+        CCUFilteredMode,
     };
 
     OperatingMode get_operating_mode() { return mode_; }
