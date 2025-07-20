@@ -280,10 +280,9 @@ uint64_t Util::get_hw_rtc() const
 #error "Bootloader-flashing enabled but no flashing support"
 #endif
 
-Util::FlashBootloader Util::flash_bootloader()
+Util::FlashBootloader Util::flash_bootloader_internal(uint8_t page, const char *fw_name)
 {
     uint32_t fw_size;
-    const char *fw_name = "bootloader.bin";
 
     EXPECT_DELAY_MS(11000);
 
@@ -308,7 +307,7 @@ Util::FlashBootloader Util::flash_bootloader()
     fw_size = (fw_size + 31U) & ~31U;
 
     bool uptodate = true;
-    const uint32_t addr = hal.flash->getpageaddr(0);
+    const uint32_t addr = hal.flash->getpageaddr(page);
 
     if (memcmp(fw, (const void*)addr, fw_size) != 0) {
         uptodate = false;
@@ -318,17 +317,19 @@ Util::FlashBootloader Util::flash_bootloader()
     // see if we should store persistent parameters along with the
     // bootloader. We only do this on boards using a single sector for
     // the bootloader. The persistent parameters are stored as text at
-    // the end of the sector
-    const int32_t space_available = hal.flash->getpagesize(0) - int32_t(fw_size);
-    ExpandingString persistent_params {}, old_persistent_params {};
-    if (get_persistent_params(persistent_params) &&
-        space_available >= persistent_params.get_length() &&
-        (!load_persistent_params(old_persistent_params) ||
-         strcmp(persistent_params.get_string(),
-                old_persistent_params.get_string()) != 0)) {
-        // persistent parameters have changed, we will update
-        // bootloader to allow storage of the params
-        uptodate = false;
+    // the end of the sector. Only apply to main bootloader (page 0)
+    if (page == 0) {
+        const int32_t space_available = hal.flash->getpagesize(0) - int32_t(fw_size);
+        ExpandingString persistent_params {}, old_persistent_params {};
+        if (get_persistent_params(persistent_params) &&
+            space_available >= persistent_params.get_length() &&
+            (!load_persistent_params(old_persistent_params) ||
+             strcmp(persistent_params.get_string(),
+                    old_persistent_params.get_string()) != 0)) {
+            // persistent parameters have changed, we will update
+            // bootloader to allow storage of the params
+            uptodate = false;
+        }
     }
 #endif
 
@@ -340,7 +341,7 @@ Util::FlashBootloader Util::flash_bootloader()
 
     Debug("Erasing\n");
     uint32_t erased_size = 0;
-    uint8_t erase_page = 0;
+    uint8_t erase_page = page;
     while (erased_size < fw_size) {
         uint32_t page_size = hal.flash->getpagesize(erase_page);
         if (page_size == 0) {
@@ -372,7 +373,7 @@ Util::FlashBootloader Util::flash_bootloader()
         }
         Debug("Flash OK\n");
 #if HAL_ENABLE_SAVE_PERSISTENT_PARAMS
-        if (persistent_params.get_length()) {
+        if (page == 0 && persistent_params.get_length()) {
             const uint32_t ofs = hal.flash->getpagesize(0) - persistent_params.get_length();
             hal.flash->write(addr+ofs, persistent_params.get_string(), persistent_params.get_length());
         }
@@ -386,6 +387,35 @@ Util::FlashBootloader Util::flash_bootloader()
     Debug("Flash failed after %u attempts\n", max_attempts);
     AP_ROMFS::free(fw);
     return FlashBootloader::FAIL;
+}
+
+Util::FlashBootloader Util::flash_bootloader()
+{
+    // Flash main bootloader first
+    FlashBootloader result = flash_bootloader_internal(0, "bootloader.bin");
+    
+    // If main bootloader failed, return the failure
+    if (result != FlashBootloader::OK && result != FlashBootloader::NO_CHANGE) {
+        return result;
+    }
+    
+    // Check if fallback bootloader exists in ROMFS
+    uint32_t fw_size;
+    const uint8_t *fw = AP_ROMFS::find_decompress("fallback_bootloader.bin", fw_size);
+    if (fw) {
+        // Free the memory since we just wanted to check existence
+        AP_ROMFS::free(fw);
+        
+        // Flash fallback bootloader to page 1
+        FlashBootloader fallback_result = flash_bootloader_internal(1, "fallback_bootloader.bin");
+        
+        // If fallback failed but main succeeded, still return success for backward compatibility
+        if (fallback_result != FlashBootloader::OK && fallback_result != FlashBootloader::NO_CHANGE) {
+            Debug("Fallback bootloader flash failed, but main succeeded\n");
+        }
+    }
+    
+    return result;
 }
 #endif // AP_BOOTLOADER_FLASHING_ENABLED
 
