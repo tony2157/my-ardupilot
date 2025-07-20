@@ -166,3 +166,10 @@ ENV/
 env.bak/
 venv.bak/
 autotest_result_*_junit.xml
+
+# Here series hardware definitions
+libraries/AP_HAL_ChibiOS/hwdef/Here3+/
+libraries/AP_HAL_ChibiOS/hwdef/Here4/
+libraries/AP_HAL_ChibiOS/hwdef/Here4AKM/
+libraries/AP_HAL_ChibiOS/hwdef/HerePro/
+libraries/AP_HAL_ChibiOS/hwdef/HereProAlpha/
