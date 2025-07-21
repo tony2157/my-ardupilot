@@ -277,6 +277,10 @@ public:
     void handleRxBufferInterrupt();
     // Handle calibration interrupt
     void handleCalibrationInterrupt();
+
+    bool is_precise_calibration_complete() const {
+        return precise_calibration_complete_;
+    }
 #endif
     void handleBusOffInterrupt();
 
