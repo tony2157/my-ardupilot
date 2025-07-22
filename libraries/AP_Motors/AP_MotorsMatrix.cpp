@@ -688,14 +688,10 @@ bool AP_MotorsMatrix::setup_quad_matrix(motor_frame_type frame_type)
     case MOTOR_FRAME_TYPE_V: {
         _frame_type_string = "V";
         static const AP_MotorsMatrix::MotorDef motors[] {
-            // {   45,   0.7981f,   1 },
-            // { -135,   1.0000f,   3 },
-            // {  -45,  -0.7981f,   4 },
-            // {  135,  -1.0000f,   2 },
-            {   45, -1.0000f,  1 },
-            { -130, -0.8545f,  3 },
-            {  -45,  1.0000f,  4 },
-            {  130,  0.8545f,  2 },
+            {   45,   0.7981f,   1 },
+            { -135,   1.0000f,   3 },
+            {  -45,  -0.7981f,   4 },
+            {  135,  -1.0000f,   2 },
         };
         add_motors(motors, ARRAY_SIZE(motors));
         break;
