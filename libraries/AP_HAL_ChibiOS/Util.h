@@ -134,11 +134,6 @@ private:
     uint64_t get_hw_rtc() const override;
 #if AP_BOOTLOADER_FLASHING_ENABLED
     FlashBootloader flash_bootloader() override;
-    
-private:
-    FlashBootloader flash_bootloader_internal(uint8_t page, const char *fw_name);
-    
-public:
 #endif
 
 #ifdef ENABLE_HEAP
