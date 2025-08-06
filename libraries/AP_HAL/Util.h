@@ -113,7 +113,7 @@ public:
     };
 
     // overwrite bootloader (probably with one from ROMFS)
-    virtual FlashBootloader flash_bootloader() { return FlashBootloader::NOT_AVAILABLE; }
+    virtual FlashBootloader flash_bootloader(bool fastboot_bl) { return FlashBootloader::NOT_AVAILABLE; }
 
     /*
       get system identifier (eg. serial number)

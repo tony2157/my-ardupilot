@@ -280,10 +280,15 @@ uint64_t Util::get_hw_rtc() const
 #error "Bootloader-flashing enabled but no flashing support"
 #endif
 
-Util::FlashBootloader Util::flash_bootloader()
+Util::FlashBootloader Util::flash_bootloader(bool fastboot_bl)
 {
     uint32_t fw_size;
-    const char *fw_name = "bootloader.bin";
+    const char *fw_name;
+    if (fastboot_bl) {
+        fw_name = "fastboot_bootloader.bin";
+    } else {
+        fw_name = "bootloader.bin";
+    }
 
     EXPECT_DELAY_MS(11000);
 
