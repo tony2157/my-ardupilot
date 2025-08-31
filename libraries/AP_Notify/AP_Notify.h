@@ -17,6 +17,7 @@
 #include <AP_Common/AP_Common.h>
 #include <AP_Param/AP_Param.h>
 #include "AP_Notify_config.h"
+#include <AP_IOMCU/AP_IOMCU.h>
 
 #include "NotifyDevice.h"
 
@@ -25,8 +26,6 @@
 #define RGB_LED_LOW     1
 #define RGB_LED_MEDIUM  2
 #define RGB_LED_HIGH    3
-#define BUZZER_ON       1
-#define BUZZER_OFF      0
 
 #define NOTIFY_TEXT_BUFFER_SIZE 51
 
@@ -99,6 +98,9 @@ public:
 #endif
 #if AP_NOTIFY_NEOPIXEL_ENABLED
         Notify_LED_NeoPixelRGB              = (1 << 18), // NeoPixel AdaFruit 4544 Worldsemi WS2811
+#endif
+#if HAL_WITH_IO_MCU && AP_IOMCU_PROFILED_SUPPORT_ENABLED
+        Notify_LED_ProfiLED_IOMCU           = (1 << 19), // ProfiLED IOMCU
 #endif
         Notify_LED_MAX
     };

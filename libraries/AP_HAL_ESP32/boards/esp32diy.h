@@ -36,10 +36,6 @@
 
 #define HAL_LOGGING_STACK_SIZE 4096
 
-//#define HAL_BARO_DEFAULT HAL_BARO_MS5837_I2C
-//GPIO 34
-//#define HAL_BARO_ANALOG_PIN (6)
-
 #define HAL_COMPASS_ICM20948_I2C_ADDR (0x68)
 #define HAL_COMPASS_AK09916_I2C_BUS 0
 #define HAL_COMPASS_AK09916_I2C_ADDR (0x0C)
@@ -71,14 +67,10 @@
 #define HAL_BATT_CURR_PIN (4)
 #define HAL_BATT_CURR_SCALE (36)
 
-// ADC is available on lots of pints on the esp32, but adc2 cant co-exist with wifi we choose to allow ADC on :
+// ADC is available on lots of pints on the esp32, but adc2 can't co-exist with wifi we choose to allow ADC on :
 //#define HAL_DISABLE_ADC_DRIVER 1
 #define TRUE 1
 #define HAL_USE_ADC TRUE
-
-#ifndef ENABLE_HEAP
-#define ENABLE_HEAP 0
-#endif
 
 // the pin number, the gain/multiplier associated with it, the ardupilot name for the pin in parameter/s.
 #define HAL_ESP32_ADC_PINS {\
@@ -96,9 +88,6 @@
 #define AP_FILESYSTEM_ESP32_ENABLED 1
 #define HAL_ESP32_SDCARD 1
 #define LOGGER_MAVLINK_SUPPORT 1
-#define HAL_BOARD_LOG_DIRECTORY "/SDCARD/APM/LOGS"
-#define HAL_BOARD_TERRAIN_DIRECTORY "/SDCARD/APM/TERRAIN"
-#define HAL_BOARD_STORAGE_DIRECTORY "/SDCARD/APM/STORAGE"
 
 #define HAL_LOGGING_BACKENDS_DEFAULT 2
 

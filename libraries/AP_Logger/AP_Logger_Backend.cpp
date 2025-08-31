@@ -13,6 +13,7 @@
 #include <AP_Vehicle/AP_Vehicle_Type.h>
 #include <Filter/Filter.h>
 #include "AP_Logger.h"
+#include <AP_IOMCU/AP_IOMCU.h>
 
 #if HAL_LOGGER_FENCE_ENABLED
     #include <AC_Fence/AC_Fence.h>
@@ -100,7 +101,6 @@ void AP_Logger_Backend::start_new_log_reset_variables()
     _dropped = 0;
     _startup_messagewriter->reset();
     _front.backend_starting_new_log(this);
-    _log_file_size_bytes = 0;
     _formats_written.clearall();
 }
 
@@ -146,6 +146,15 @@ void AP_Logger_Backend::WriteMoreStartupMessages()
  */
 
 
+// output a FMT message if not already done so
+void AP_Logger_Backend::Safe_Write_Emit_FMT(uint8_t msg_type)
+{
+    if (have_emitted_format_for_type(LogMessages(msg_type))) {
+        return;
+    }
+    Write_Emit_FMT(msg_type);
+}
+
 bool AP_Logger_Backend::Write_Emit_FMT(uint8_t msg_type)
 {
 #if APM_BUILD_TYPE(APM_BUILD_Replay)
@@ -167,7 +176,7 @@ bool AP_Logger_Backend::Write_Emit_FMT(uint8_t msg_type)
         ls.units,
         ls.multipliers
     };
-    if (!_front.fill_log_write_logstructure(logstruct, msg_type)) {
+    if (!_front.fill_logstructure(logstruct, msg_type)) {
         // this is a bug; we've been asked to write out the FMT
         // message for a msg_type, but the frontend can't supply the
         // required information
@@ -247,6 +256,13 @@ bool AP_Logger_Backend::Write(const uint8_t msg_type, va_list arg_list, bool is_
             float tmp = va_arg(arg_list, double);
             memcpy(&buffer[offset], &tmp, sizeof(float));
             offset += sizeof(float);
+            break;
+        }
+        case 'g': {
+            Float16_t tmp;
+            tmp.set(va_arg(arg_list, double));;
+            memcpy(&buffer[offset], &tmp, sizeof(tmp));
+            offset += sizeof(tmp);
             break;
         }
         case 'n':
@@ -388,33 +404,11 @@ void AP_Logger_Backend::validate_WritePrioritisedBlock(const void *pBuffer,
         } else {
             strncpy(name, "?NM?", ARRAY_SIZE(name));
         }
-        AP_HAL::panic("Size mismatch for %u (%s) (expected=%u got=%u)\n",
+        AP_HAL::panic("Size mismatch for %u (%s) (expected=%u got=%u)",
                       type, name, type_len, size);
     }
 }
 #endif
-
-bool AP_Logger_Backend::emit_format_for_type(LogMessages a_type)
-{
-    // linearly scan the formats structure to find the format for the type:
-    for (uint8_t i=0; i< num_types(); i++) {
-        const auto &s { structure(i) };
-        if (s == nullptr) {
-            continue;
-        }
-        if (s->msg_type != a_type) {
-            continue;
-        }
-        // found the relevant structure.  Attempt to write it:
-        if (!Write_Format(s)) {
-            return false;
-        }
-        return true;
-    }
-    // didn't find the structure.  That's probably bad...
-    INTERNAL_ERROR(AP_InternalError::error_t::flow_of_control);
-    return false;
-}
 
 bool AP_Logger_Backend::ensure_format_emitted(const void *pBuffer, uint16_t size)
 {
@@ -438,11 +432,11 @@ bool AP_Logger_Backend::ensure_format_emitted(const void *pBuffer, uint16_t size
         return true;
     }
     if (!have_emitted_format_for_type(LOG_FORMAT_MSG) &&
-        !emit_format_for_type(LOG_FORMAT_MSG)) {
+        !Write_Emit_FMT(LOG_FORMAT_MSG)) {
         return false;
     }
 
-    return emit_format_for_type(type);
+    return Write_Emit_FMT(type);
 }
 
 bool AP_Logger_Backend::WritePrioritisedBlock(const void *pBuffer, uint16_t size, bool is_critical, bool writev_streaming)
@@ -611,6 +605,13 @@ bool AP_Logger_Backend::Write_VER()
         patch: fwver.patch,
         fw_type: fwver.fw_type,
         git_hash: fwver.fw_hash,
+#if HAL_WITH_IO_MCU
+        iomcu_mcu_id : AP::iomcu()->get_mcu_id(),
+        iomcu_cpu_id : AP::iomcu()->get_cpu_id(),
+#else
+        iomcu_mcu_id : 0,
+        iomcu_cpu_id : 0,
+#endif  // HAL_WITH_IO_MCU
     };
     strncpy(pkt.fw_string, fwver.fw_string, ARRAY_SIZE(pkt.fw_string)-1);
 
@@ -709,7 +710,6 @@ void AP_Logger_Backend::df_stats_gather(const uint16_t bytes_written, uint32_t s
     }
     stats.buf_space_sigma += space_remaining;
     stats.bytes += bytes_written;
-    _log_file_size_bytes += bytes_written;
     stats.blocks++;
 }
 

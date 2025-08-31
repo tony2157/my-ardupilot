@@ -140,11 +140,13 @@ void CANIface::_pollWrite()
     }
     while (_hasReadyTx()) {
         WITH_SEMAPHORE(sem);
-        const CanTxItem tx = *_tx_queue[0];
+        const CanTxItem *tx = _tx_queue[0];
+        if (tx == nullptr) {
+            break;
+        }
         const uint64_t curr_time = AP_HAL::micros64();
-        if (tx.deadline >= curr_time) {
-            // hal.console->printf("%x TDEAD: %lu CURRT: %lu DEL: %lu\n",tx.frame.id,  tx.deadline, curr_time, tx.deadline-curr_time);
-            bool ok = transport->send(tx.frame);
+        if (tx->deadline >= curr_time) {
+            bool ok = transport->send(tx->frame);
             if (ok) {
                 stats.tx_success++;
                 stats.last_transmit_us = curr_time;
@@ -219,10 +221,14 @@ bool CANIface::init(const uint32_t bitrate, const OperatingMode mode)
     case SITL::SIM::CANTransport::MulticastUDP:
         transport = NEW_NOTHROW CAN_Multicast();
         break;
-    case SITL::SIM::CANTransport::SocketCAN:
 #if HAL_CAN_WITH_SOCKETCAN
+    case SITL::SIM::CANTransport::SocketCAN:
         transport = NEW_NOTHROW CAN_SocketCAN();
+        break;
 #endif
+    case SITL::SIM::CANTransport::None:
+    default: // if user supplies an invalid value for the parameter
+        transport = nullptr;
         break;
     }
     if (transport == nullptr) {

@@ -77,9 +77,6 @@
 
 #define NORETURN __attribute__ ((noreturn))
 
-#define ToRad(x) radians(x)	// *pi/180
-#define ToDeg(x) degrees(x)	// *180/pi
-
 /* Declare and implement const and non-const versions of the array subscript
  * operator. The object is treated as an array of type_ values. */
 #define DEFINE_BYTE_ARRAY_METHODS                                                                   \
@@ -169,7 +166,7 @@ bool hex_to_uint8(uint8_t a, uint8_t &res);  // return the uint8 value of an asc
 size_t strncpy_noterm(char *dest, const char *src, size_t n);
 
 // return the numeric value of an ascii hex character
-int16_t char_to_hex(char a);
+uint8_t char_to_hex(char a);
 
 /*
   Bit manipulation
@@ -192,3 +189,4 @@ template <typename T> void BIT_CLEAR (T& value, uint8_t bitnumber) noexcept {
 #define NEW_NOTHROW new(std::nothrow)
 #endif
 
+void * WEAK mem_realloc(void *ptr, size_t old_size, size_t new_size);

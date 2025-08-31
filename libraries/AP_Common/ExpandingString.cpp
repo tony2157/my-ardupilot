@@ -25,6 +25,13 @@ extern const AP_HAL::HAL& hal;
 
 #define EXPAND_INCREMENT 512
 
+ExpandingString::ExpandingString(char* s, uint32_t total_len) : buf(0)
+{
+    set_buffer(s, total_len, 0);
+    memset(buf, 0, buflen);
+}
+
+
 /*
   expand the string buffer
  */
@@ -41,7 +48,7 @@ bool ExpandingString::expand(uint32_t min_extra_space_needed)
     }
     
     // add one to ensure we are always null terminated
-    void *newbuf = hal.util->std_realloc(buf, newsize+1);
+    void *newbuf = mem_realloc(buf, used, newsize+1);
 
     if (newbuf == nullptr) {
         allocation_failed = true;
@@ -50,7 +57,6 @@ bool ExpandingString::expand(uint32_t min_extra_space_needed)
 
     buflen = newsize;
     buf = (char *)newbuf;
-    memset(&buf[used], 0, newsize-used);
 
     return true;
 }

@@ -52,6 +52,7 @@ class RTCM3_Parser;
 /// GPS driver main class
 class AP_GPS
 {
+    friend class AP_GPS_Blended;
     friend class AP_GPS_ERB;
     friend class AP_GPS_GSOF;
     friend class AP_GPS_MAV;
@@ -111,7 +112,7 @@ public:
         GPS_TYPE_UNICORE_NMEA = 24,
         GPS_TYPE_UNICORE_MOVINGBASE_NMEA = 25,
         GPS_TYPE_SBF_DUAL_ANTENNA = 26,
-#if HAL_SIM_GPS_ENABLED
+#if AP_SIM_GPS_ENABLED
         GPS_TYPE_SITL = 100,
 #endif
     };
@@ -201,8 +202,8 @@ public:
         float gps_yaw;                      ///< GPS derived yaw information, if available (degrees)
         uint32_t gps_yaw_time_ms;           ///< timestamp of last GPS yaw reading
         bool  gps_yaw_configured;           ///< GPS is configured to provide yaw
-        uint16_t hdop;                      ///< horizontal dilution of precision in cm
-        uint16_t vdop;                      ///< vertical dilution of precision in cm
+        uint16_t hdop;                      ///< horizontal dilution of precision, scaled by a factor of 100 (155 means the HDOP value is 1.55)
+        uint16_t vdop;                      ///< vertical dilution of precision, scaled by a factor of 100 (155 means the VDOP value is 1.55)
         uint8_t num_sats;                   ///< Number of visible satellites
         Vector3f velocity;                  ///< 3D velocity in m/s, in NED format
         float speed_accuracy;               ///< 3D velocity RMS accuracy estimate in m/s
@@ -261,7 +262,7 @@ public:
 #if HAL_MSP_GPS_ENABLED
     void handle_msp(const MSP::msp_gps_data_message_t &pkt);
 #endif
-#if HAL_EXTERNAL_AHRS_ENABLED
+#if AP_EXTERNAL_AHRS_ENABLED
     // Retrieve the first instance ID that is configured as type GPS_TYPE_EXTERNAL_AHRS.
     // Can be used by external AHRS systems that only report one GPS to get the instance ID.
     // Returns true if an instance was found, false otherwise.
@@ -512,9 +513,6 @@ public:
     // pre-arm check that all GPSs are close to each other.  farthest distance between GPSs (in meters) is returned
     bool all_consistent(float &distance) const;
 
-    // pre-arm check of GPS blending.  False if blending is unhealthy, True if healthy or blending is not being used
-    bool blend_health_check() const;
-
     // handle sending of initialisation strings to the GPS - only used by backends
     void send_blob_start(uint8_t instance);
     void send_blob_start(uint8_t instance, const char *_blob, uint16_t size);
@@ -604,10 +602,13 @@ public:
     uint8_t get_auto_switch_type() const { return _auto_switch; }
 #endif
 
+    // Inject a packet of raw binary to a GPS
+    void inject_data(const uint8_t *data, uint16_t len);
+
 protected:
 
     // configuration parameters
-    Params params[GPS_MAX_RECEIVERS];
+    Params params[GPS_MAX_INSTANCES];
     AP_Int8 _navfilter;
     AP_Int8 _auto_switch;
     AP_Int16 _sbp_logmask;
@@ -669,7 +670,7 @@ private:
     // Note allowance for an additional instance to contain blended data
     GPS_timing timing[GPS_MAX_INSTANCES];
     GPS_State state[GPS_MAX_INSTANCES];
-    AP_GPS_Backend *drivers[GPS_MAX_RECEIVERS];
+    AP_GPS_Backend *drivers[GPS_MAX_INSTANCES];
     AP_HAL::UARTDriver *_port[GPS_MAX_RECEIVERS];
 
     /// primary GPS instance
@@ -753,22 +754,10 @@ private:
     void handle_gps_inject(const mavlink_message_t &msg);
 
     //Inject a packet of raw binary to a GPS
-    void inject_data(const uint8_t *data, uint16_t len);
     void inject_data(uint8_t instance, const uint8_t *data, uint16_t len);
 
 #if AP_GPS_BLENDED_ENABLED
-    // GPS blending and switching
-    Vector3f _blended_antenna_offset; // blended antenna offset
-    float _blended_lag_sec; // blended receiver lag in seconds
-    float _blend_weights[GPS_MAX_RECEIVERS]; // blend weight for each GPS. The blend weights must sum to 1.0 across all instances.
     bool _output_is_blended; // true when a blended GPS solution being output
-    uint8_t _blend_health_counter;  // 0 = perfectly health, 100 = very unhealthy
-
-    // calculate the blend weight.  Returns true if blend could be calculated, false if not
-    bool calc_blend_weights(void);
-
-    // calculate the blended state
-    void calc_blended_state(void);
 #endif
 
     bool should_log() const;

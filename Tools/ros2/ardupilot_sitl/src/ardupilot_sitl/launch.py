@@ -35,6 +35,7 @@ TRUE_STRING = "True"
 FALSE_STRING = "False"
 BOOL_STRING_CHOICES = set([TRUE_STRING, FALSE_STRING])
 
+
 class VirtualPortsLaunch:
     """Launch functions for creating virtual ports using `socat`."""
 
@@ -369,16 +370,10 @@ class MAVProxyLaunch:
                 description="SITL output port.",
             ),
             DeclareLaunchArgument(
-                "map",
-                default_value="False",
-                description="Enable MAVProxy Map.",
-                choices=BOOL_STRING_CHOICES
+                "map", default_value="False", description="Enable MAVProxy Map.", choices=BOOL_STRING_CHOICES
             ),
             DeclareLaunchArgument(
-                "console",
-                default_value="False",
-                description="Enable MAVProxy Console.",
-                choices=BOOL_STRING_CHOICES
+                "console", default_value="False", description="Enable MAVProxy Console.", choices=BOOL_STRING_CHOICES
             ),
         ]
 
@@ -638,7 +633,7 @@ class SITLLaunch:
             DeclareLaunchArgument(
                 "sysid",
                 default_value="",
-                description="Set SYSID_THISMAV.",
+                description="Set MAV_SYSID.",
             ),
         ]
 

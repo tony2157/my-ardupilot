@@ -162,7 +162,7 @@ void Plane::update_is_flying_5Hz(void)
 #if HAL_ADSB_ENABLED
     adsb.set_is_flying(new_is_flying);
 #endif
-#if PARACHUTE == ENABLED
+#if HAL_PARACHUTE_ENABLED
     parachute.set_is_flying(new_is_flying);
 #endif
 #if AP_STATS_ENABLED
@@ -232,8 +232,7 @@ void Plane::crash_detection_update(void)
             // Declare a crash if we are oriented more that 60deg in pitch or roll
             if (!crash_state.checkedHardLanding && // only check once
                 been_auto_flying &&
-                (labs(ahrs.roll_sensor) > 6000 || labs(ahrs.pitch_sensor) > 6000)) {
-                
+                (fabsf(ahrs.get_roll_deg()) > 60 || fabsf(ahrs.get_pitch_deg()) > 60)) {
                 crashed = true;
 
                 // did we "crash" within 75m of the landing location? Probably just a hard landing
@@ -262,11 +261,12 @@ void Plane::crash_detection_update(void)
             switch (flight_stage)
             {
             case AP_FixedWing::FlightStage::TAKEOFF:
-                if (g.takeoff_throttle_min_accel > 0 &&
-                        !throttle_suppressed) {
-                    // if you have an acceleration holding back throttle, but you met the
-                    // accel threshold but still not flying, then you either shook/hit the
-                    // plane or it was a failed launch.
+                if (g2.takeoff_throttle_accel_count == 1 && g.takeoff_throttle_min_accel > 0 &&
+                    !throttle_suppressed) {
+                    // if launching requires a single acceleration event and it
+                    // has already happened but the aircraft is still not
+                    // flying, then you either shook/hit the plane or it was a
+                    // failed launch.
                     crashed = true;
                     crash_state.debounce_time_total_ms = CRASH_DETECTION_DELAY_MS;
                 }

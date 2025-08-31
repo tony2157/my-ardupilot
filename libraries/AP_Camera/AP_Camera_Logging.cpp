@@ -6,6 +6,7 @@
 
 #include <AP_Logger/AP_Logger.h>
 #include <AP_GPS/AP_GPS.h>
+#include <AP_AHRS/AP_AHRS.h>
 
 // Write a Camera packet.  Also writes a Mount packet if available
 void AP_Camera_Backend::Write_CameraInfo(enum LogMessages msg, uint64_t timestamp_us)
@@ -29,14 +30,12 @@ void AP_Camera_Backend::Write_CameraInfo(enum LogMessages msg, uint64_t timestam
     }
 
     int32_t altitude_cm = 0;
-    if (!current_loc.get_alt_cm(Location::AltFrame::ABSOLUTE, altitude_cm)) {
-        // ignore this problem...
-    }
     int32_t altitude_rel_cm = 0;
-    if (!current_loc.get_alt_cm(Location::AltFrame::ABOVE_HOME, altitude_rel_cm)) {
-        // ignore this problem...
+    if (current_loc.initialised()) {
+        // ignore failures to get altitude
+        IGNORE_RETURN(current_loc.get_alt_cm(Location::AltFrame::ABSOLUTE, altitude_cm));
+        IGNORE_RETURN(current_loc.get_alt_cm(Location::AltFrame::ABOVE_HOME, altitude_rel_cm));
     }
-
 
     int32_t altitude_gps_cm = 0;
     const AP_GPS &gps = AP::gps();

@@ -14,6 +14,8 @@
  */
 #pragma once
 
+#include "AP_Scripting/AP_Scripting_config.h"
+
 #if AP_SCRIPTING_ENABLED
 
 #include <GCS_MAVLink/GCS_config.h>
@@ -37,10 +39,6 @@
 #define SCRIPTING_MAX_NUM_NET_SOCKET 50
 #endif
 class SocketAPM;
-#endif
-
-#ifndef AP_SCRIPTING_SERIALDEVICE_ENABLED
-#define AP_SCRIPTING_SERIALDEVICE_ENABLED AP_SERIALMANAGER_REGISTER_ENABLED && (BOARD_FLASH_SIZE>1024)
 #endif
 
 #if AP_SCRIPTING_SERIALDEVICE_ENABLED
@@ -86,6 +84,7 @@ public:
     bool arming_checks(size_t buflen, char *buffer) const;
     
     void restart_all(void);
+    void stop(void) { _stop = true; }
 
    // User parameters for inputs into scripts 
    AP_Float _user[6];
@@ -98,7 +97,7 @@ public:
 
     // the number of and storage for i2c devices
     uint8_t num_i2c_devices;
-    AP_HAL::OwnPtr<AP_HAL::I2CDevice> *_i2c_dev[SCRIPTING_MAX_NUM_I2C_DEVICE];
+    AP_HAL::I2CDevice *_i2c_dev[SCRIPTING_MAX_NUM_I2C_DEVICE];
 
 #if AP_SCRIPTING_CAN_SENSOR_ENABLED
     // Scripting CAN sensor
@@ -122,8 +121,8 @@ public:
     // PWMSource storage
     uint8_t num_pwm_source;
     AP_HAL::PWMSource *_pwm_source[SCRIPTING_MAX_NUM_PWM_SOURCE];
-    int get_current_ref() { return current_ref; }
-    void set_current_ref(int ref) { current_ref = ref; }
+    int get_current_env_ref() { return current_env_ref; }
+    void set_current_env_ref(int ref) { current_env_ref = ref; }
 
 #if AP_NETWORKING_ENABLED
     // SocketAPM storage
@@ -153,6 +152,16 @@ public:
     #if AP_SCRIPTING_SERIALDEVICE_ENABLED
         AP_Scripting_SerialDevice _serialdevice;
     #endif
+
+    enum class DebugOption : uint8_t {
+        NO_SCRIPTS_TO_RUN = 1U << 0,
+        RUNTIME_MSG = 1U << 1,
+        SUPPRESS_SCRIPT_LOG = 1U << 2,
+        LOG_RUNTIME = 1U << 3,
+        DISABLE_PRE_ARM = 1U << 4,
+        SAVE_CHECKSUM = 1U << 5,
+        DISABLE_HEAP_EXPANSION = 1U << 6,
+    };
 
 private:
 
@@ -187,13 +196,21 @@ private:
 
     AP_Enum<ThreadPriority> _thd_priority;
 
+    bool option_is_set(DebugOption option) const {
+        return (uint8_t(_debug_options.get()) & uint8_t(option)) != 0;
+    }
+
+    void option_clear(DebugOption option) {
+        _debug_options.set_and_save(_debug_options.get() & ~uint8_t(option));
+    }
+
     bool _thread_failed; // thread allocation failed
     bool _init_failed;  // true if memory allocation failed
     bool _restart; // true if scripts should be restarted
     bool _stop; // true if scripts should be stopped
 
     static AP_Scripting *_singleton;
-    int current_ref;
+    int current_env_ref;
 };
 
 namespace AP {

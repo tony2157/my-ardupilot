@@ -5,8 +5,8 @@
 # MCU class and specific type
 MCU STM32F7xx STM32F745xx
 
-# board ID for firmware load
-APJ_BOARD_ID 123
+# board ID. See Tools/AP_Bootloader/board_types.txt
+APJ_BOARD_ID TARGET_HW_KAKUTEF7
 
 # crystal frequency, setup to use external oscillator
 OSCILLATOR_HZ 8000000
@@ -148,11 +148,6 @@ include ../include/no_bootloader_DFU.inc
 define AP_BARO_BACKEND_DEFAULT_ENABLED 0
 undef define AP_BARO_BMP280_ENABLED
 define AP_BARO_BMP280_ENABLED 1
-
-# disable SMBUS battery monitors to save flash
-undef AP_BATTERY_SMBUS_ENABLED
-define AP_BATTERY_SMBUS_ENABLED 0
-
 
 # setup for OSD
 define HAL_OSD_TYPE_DEFAULT 1

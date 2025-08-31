@@ -21,6 +21,7 @@
 #include "HarmonicNotchFilter.h"
 #include <GCS_MAVLink/GCS.h>
 #include <AP_Logger/AP_Logger.h>
+#include <AP_Vehicle/AP_Vehicle_Type.h>
 
 #define HNF_MAX_FILTERS HAL_HNF_MAX_FILTERS // must be even for double-notch filters
 
@@ -47,6 +48,13 @@
   point at which the harmonic notch goes to zero attenuation
  */
 #define NOTCHFILTER_ATTENUATION_CUTOFF 0.25
+
+#if APM_BUILD_TYPE(APM_BUILD_Heli)
+    // We cannot use throttle based notch on helis
+    #define NOTCHFILTER_DEFAULT_MODE float(HarmonicNotchDynamicMode::Fixed) // fixed
+#else
+    #define NOTCHFILTER_DEFAULT_MODE float(HarmonicNotchDynamicMode::UpdateThrottle) // throttle based
+#endif
 
 
 // table of user settable parameters
@@ -120,18 +128,18 @@ const AP_Param::GroupInfo HarmonicNotchFilterParams::var_info[] = {
     // @Range: 0 5
     // @Values: 0:Fixed,1:Throttle,2:RPM Sensor,3:ESC Telemetry,4:Dynamic FFT,5:Second RPM Sensor
     // @User: Advanced
-    AP_GROUPINFO("MODE", 7, HarmonicNotchFilterParams, _tracking_mode, int8_t(HarmonicNotchDynamicMode::UpdateThrottle)),
+    AP_GROUPINFO("MODE", 7, HarmonicNotchFilterParams, _tracking_mode, NOTCHFILTER_DEFAULT_MODE),
 
     // @Param: OPTS
     // @DisplayName: Harmonic Notch Filter options
     // @Description: Harmonic Notch Filter options. Triple and double-notches can provide deeper attenuation across a wider bandwidth with reduced latency than single notches and are suitable for larger aircraft. Multi-Source attaches a harmonic notch to each detected noise frequency instead of simply being multiples of the base frequency, in the case of FFT it will attach notches to each of three detected noise peaks, in the case of ESC it will attach notches to each of four motor RPM values. Loop rate update changes the notch center frequency at the scheduler loop rate rather than at the default of 200Hz. If both double and triple notches are specified only double notches will take effect.
-    // @Bitmask: 0:Double notch,1:Multi-Source,2:Update at loop rate,3:EnableOnAllIMUs,4:Triple notch, 5:Use min freq on RPM failure
+    // @Bitmask: 0:Double notch,1:Multi-Source,2:Update at loop rate,3:EnableOnAllIMUs,4:Triple notch, 5:Use min freq on RPM source failure
     // @User: Advanced
     // @RebootRequired: True
     AP_GROUPINFO("OPTS", 8, HarmonicNotchFilterParams, _options, 0),
 
     // @Param: FM_RAT
-    // @DisplayName: Throttle notch min freqency ratio
+    // @DisplayName: Throttle notch min frequency ratio
     // @Description: The minimum ratio below the configured frequency to take throttle based notch filters when flying at a throttle level below the reference throttle. Note that lower frequency notch filters will have more phase lag. If you want throttle based notch filtering to be effective at a throttle up to 30% below the configured notch frequency then set this parameter to 0.7. The default of 1.0 means the notch will not go below the frequency in the FREQ parameter.
     // @Range: 0.1 1.0
     // @User: Advanced
@@ -191,6 +199,11 @@ void HarmonicNotchFilter<T>::init(float sample_freq_hz, HarmonicNotchFilterParam
     NotchFilter<T>::calculate_A_and_Q(center_freq_hz, bandwidth_hz / _composite_notches, attenuation_dB, _A, _Q);
 
     _initialised = true;
+
+    // ensure static notches are allocated and working
+    if (params->tracking_mode() == HarmonicNotchDynamicMode::Fixed) {
+        update(center_freq_hz);
+    }
 }
 
 /*
