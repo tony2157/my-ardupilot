@@ -928,8 +928,11 @@ bool CANIface::init(const uint32_t bitrate, const uint32_t fdbitrate, const Oper
                 FDCAN_IE_RF0NE |  // RX FIFO 0 new message
                 FDCAN_IE_RF0FE |  // Rx FIFO 0 FIFO Full
                 FDCAN_IE_RF1NE |  // RX FIFO 1 new message
-                FDCAN_IE_RF1FE |  // Rx FIFO 1 FIFO Full
-                FDCAN_IE_DRXE;    // Dedicated RX buffer new message
+                FDCAN_IE_RF1FE   // Rx FIFO 1 FIFO Full
+#if HAL_CANFD_CCU_ENABLED
+                | FDCAN_IE_DRXE    // Dedicated RX buffer new message
+#endif
+                ;
 #if defined(STM32G4)
     can_->ILS = FDCAN_ILS_PERR | FDCAN_ILS_SMSG;
 #else
