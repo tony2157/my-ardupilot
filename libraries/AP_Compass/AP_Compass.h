@@ -365,6 +365,11 @@ public:
     // get the first compass marked for use by COMPASSx_USE
     uint8_t get_first_usable(void) const { return _first_usable; }
 
+
+    uint32_t get_detected_dev_id(uint8_t instance) const {
+        return (instance < COMPASS_MAX_INSTANCES) ? _get_state(Priority(instance)).detected_dev_id : 0;
+    }
+
 private:
     static Compass *_singleton;
 
