@@ -646,11 +646,13 @@ protected:
         GPSL5HealthOverride = (1U << 5),
         AlwaysRTCMDecode = (1U << 6),
         DisableRTCMDecode = (1U << 7),
+        HSITrimUsingPPS = (1U << 8),
+        HSITrimStats = (1U << 9),
     };
 
     // check if an option is set
     bool option_set(const DriverOptions option) const {
-        return (uint8_t(_driver_options.get()) & uint8_t(option)) != 0;
+        return (uint16_t(_driver_options.get()) & uint16_t(option)) != 0;
     }
 
 private:

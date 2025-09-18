@@ -28,6 +28,7 @@
 #include <GCS_MAVLink/GCS.h>
 #include "RTCM3_Parser.h"
 #include <stdio.h>
+#include <hal.h>
 
 #if CONFIG_HAL_BOARD_SUBTYPE == HAL_BOARD_SUBTYPE_LINUX_NAVIO || \
     CONFIG_HAL_BOARD_SUBTYPE == HAL_BOARD_SUBTYPE_LINUX_BH
@@ -783,6 +784,12 @@ AP_GPS_UBLOX::read(void)
             break;
         }
     }
+    
+    // Report PPS interrupt rate periodically
+#if HAL_HSI_TRIM_USING_PPS
+    report_pps_interrupt_rate();
+#endif
+
     return parsed;
 }
 
@@ -876,6 +883,37 @@ void AP_GPS_UBLOX::log_tim_tm2(void)
 #endif
 }
 #endif // UBLOX_TIM_TM2_LOGGING
+
+/*
+ * Report PPS interrupt rate per second using GCS_SEND_TEXT
+ */
+#if HAL_HSI_TRIM_USING_PPS
+void AP_GPS_UBLOX::report_pps_interrupt_rate(void)
+{
+    if (!gps.option_set(AP_GPS::DriverOptions::HSITrimStats)) {
+        // HSI trim stats not enabled
+        return;
+    }
+
+    uint32_t now_ms = AP_HAL::millis();
+    
+    // Report PPS interrupt rate every 5 seconds
+    if (now_ms - _last_pps_report_time_ms >= 5000) {
+        uint32_t elapsed_ms = now_ms - _last_pps_report_time_ms;
+        uint32_t pps_count_delta = _pps_interrupt_count - _last_pps_count_reported;
+        
+        if (elapsed_ms > 0 && _last_pps_report_time_ms > 0) {
+            float pps_rate = (pps_count_delta * 1000.0f) / elapsed_ms;
+            uint8_t trim = (RCC->HSICFGR & RCC_HSICFGR_HSITRIM) >> RCC_HSICFGR_HSITRIM_Pos;
+            GCS_SEND_TEXT(MAV_SEVERITY_INFO, "GPS%u PPS: %.1f interrupts/sec Trim[%d]: %u Error Accum: %ld MCU Temp: %f C",
+                          (unsigned)(state.instance + 1), (double)pps_rate, _trim_set, trim, _current_error, hal.analogin->mcu_temperature());
+            _trim_set = false;
+        }
+        _last_pps_report_time_ms = now_ms;
+        _last_pps_count_reported = _pps_interrupt_count;
+    }
+}
+#endif
 
 #if UBLOX_RXM_RAW_LOGGING
 void AP_GPS_UBLOX::log_rxm_raw(const struct ubx_rxm_raw &raw)
@@ -1862,9 +1900,41 @@ AP_GPS_UBLOX::_parse_gps(void)
 void
 AP_GPS_UBLOX::pps_interrupt(uint8_t pin, bool high, uint32_t timestamp_us)
 {
+#if !HAL_HSI_TRIM_USING_PPS
     _last_pps_time_us = AP_HAL::micros64();
+#else
+    const uint32_t cur_pps_time_us = AP_HAL::micros();
+    const uint32_t delta_time_us = cur_pps_time_us - _last_pps_time_us;
+    _last_pps_time_us = cur_pps_time_us;
+    _last_delta_time_us = delta_time_us;
+
+    // calculate trim every 1000 pps interrupts (1 seconds)
+    if ((_pps_interrupt_count % 1000) == 0) {
+        if (_last_micros_pps != 0) {
+            _current_error = (_last_pps_time_us - _last_micros_pps) - 1000000LL;
+            if (abs(_current_error) > 50000) {
+                // error is more than 5%, something is wrong, don't adjust trim
+            } else if (_current_error > 1750) {
+                uint8_t trim = (RCC->HSICFGR & RCC_HSICFGR_HSITRIM) >> RCC_HSICFGR_HSITRIM_Pos;
+                trim -= _current_error / 1750; // each step is 0.175%
+                trim = constrain_value<int>(trim, 0, 127);
+                RCC->HSICFGR = (RCC->HSICFGR & ~RCC_HSICFGR_HSITRIM) | (trim << RCC_HSICFGR_HSITRIM_Pos);
+                _trim_set = true;
+            } else if (_current_error < -1750) {
+                uint8_t trim = (RCC->HSICFGR & RCC_HSICFGR_HSITRIM) >> RCC_HSICFGR_HSITRIM_Pos;
+                trim += (-_current_error) / 1750; // each step is 0.175%
+                trim = constrain_value<int>(trim, 0, 127);
+                RCC->HSICFGR = (RCC->HSICFGR & ~RCC_HSICFGR_HSITRIM) | (trim << RCC_HSICFGR_HSITRIM_Pos);
+                _trim_set = true;
+            }
+        }
+        _last_micros_pps = _last_pps_time_us;
+    }
+    _pps_interrupt_count++;
+#endif
 }
 
+#if !HAL_HSI_TRIM_USING_PPS
 void
 AP_GPS_UBLOX::set_pps_desired_freq(uint8_t freq)
 {
@@ -1874,6 +1944,7 @@ AP_GPS_UBLOX::set_pps_desired_freq(uint8_t freq)
     _pps_freq = freq;
     _unconfigured_messages |= CONFIG_TP5;
 }
+#endif
 #endif
 
 

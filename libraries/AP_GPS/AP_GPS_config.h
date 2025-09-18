@@ -27,6 +27,14 @@
 #error "GPS_MAX_INSTANCES should be 1 for GPS_MAX_RECEIVERS <= 1"
 #endif
 
+#ifndef HAL_HSI_TRIM_USING_PPS
+#define HAL_HSI_TRIM_USING_PPS 0
+#endif
+
+#if HAL_HSI_TRIM_USING_PPS && !defined(HAL_GPIO_PPS)
+#error "HAL_GPIO_PPS must be defined if HAL_HSI_TRIM_USING_PPS is set"
+#endif
+
 #if GPS_MAX_INSTANCES > GPS_MAX_RECEIVERS
 #define GPS_BLENDED_INSTANCE GPS_MAX_RECEIVERS  // the virtual blended GPS is always the highest instance (2)
 #endif

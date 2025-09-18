@@ -841,6 +841,9 @@ private:
     void log_tim_tm2(void);
     void log_rxm_raw(const struct ubx_rxm_raw &raw);
     void log_rxm_rawx(const struct ubx_rxm_rawx &raw);
+#if HAL_HSI_TRIM_USING_PPS
+    void report_pps_interrupt_rate(void);
+#endif
 
 #if GPS_MOVING_BASELINE
     // see if we should use uart2 for moving baseline config
@@ -870,10 +873,29 @@ private:
     // return true if GPS is capable of F9 config
     bool supports_F9_config(void) const;
 
-    uint8_t _pps_freq = 1;
+#if HAL_HSI_TRIM_USING_PPS
+    uint16_t _pps_freq = 1000;
+
+    // PPS interrupt tracking
+    uint32_t _pps_interrupt_count;
+    uint32_t _last_pps_report_time_ms;
+    uint32_t _last_pps_count_reported;
+    uint32_t _last_delta_time_us;
+    int8_t _error_accum;
+    uint8_t _error_count;
+    int64_t _last_micros_pps;
+    int32_t _current_error;
+    bool _trim_set;
+#else
+    uint16_t _pps_freq = 1;
+#endif
+
 #ifdef HAL_GPIO_PPS
     void pps_interrupt(uint8_t pin, bool high, uint32_t timestamp_us);
+#if !HAL_HSI_TRIM_USING_PPS
+    // pps frequency change not allowed if trimming
     void set_pps_desired_freq(uint8_t freq) override;
+#endif
 #endif
 
     // status of active configuration for a role
