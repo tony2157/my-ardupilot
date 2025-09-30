@@ -674,18 +674,6 @@ struct PACKED log_VER {
     uint32_t iomcu_cpu_id;
 };
 
-// ARRC ARRC_SDR SD card log message
-struct PACKED log_ARRC_SDR {
-    LOG_PACKET_HEADER;
-    uint64_t local_timestamp;
-    uint32_t boot_time;
-    uint64_t unix_time;
-    float pwr_c;
-    float pwr_x;
-    float phi_c;
-    float phi_x;
-};
-
 
 // FMT messages define all message formats other than FMT
 // UNIT messages define units which can be referenced by FMTU messages
@@ -1317,8 +1305,8 @@ LOG_STRUCTURE_FROM_AIS \
       "MOTB", "QfffffB",  "TimeUS,LiftMax,BatVolt,ThLimit,ThrAvMx,ThrOut,FailFlags", "s------", "F------" , true }, \
     { LOG_SPOL_MSG, sizeof(log_SPOL), \
       "SPOL", "QBB",  "TimeUS,Spl,SplDes", "s--", "F--" , true }, \
-    { LOG_ARRC_SDR_MSG, sizeof(log_ARRC_SDR), \
-      "SDR", "QIQffff","TimeUS,BootMS,UnixUS,Pwr_c,Pwr_x,Phi_c,Phi_x","s------","F000000"}
+    { LOG_LB5900_MSG, sizeof(log_LB5900), \
+      "LB59", "QBf","TimeUS,Hth,Pwr","s--","F00"}
 
 // message types 0 to 31 reserved for vehicle-specific use
 
