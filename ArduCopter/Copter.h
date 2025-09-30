@@ -74,7 +74,7 @@
 #include <AP_SurfaceDistance/AP_SurfaceDistance.h>
 
 // ARRC libraries declaration
-#include <AC_ARRC_SDR/AC_ARRC_SDR.h>
+#include <AP_ARRC_LB5900/AP_ARRC_LB5900.h>
 
 // Configuration
 #include "defines.h"
@@ -255,8 +255,8 @@ private:
     AP_Int8 *flight_modes;
     const uint8_t num_flight_modes = 6;
 
-    // ARRC_SDR sensor class declaration
-    AC_ARRC_SDR ARRC_SDR;
+    // ARRC_LB5900 sensor class declaration
+    AP_ARRC_LB5900 ARRC_LB5900;
 
     AP_SurfaceDistance rangefinder_state {ROTATION_PITCH_270, inertial_nav, 0U};
     AP_SurfaceDistance rangefinder_up_state {ROTATION_PITCH_90, inertial_nav, 1U};
@@ -993,8 +993,7 @@ private:
     // UserCode.cpp
     void userhook_init();
     void user_ARRC_gimbal();
-    void user_ARRC_SDR_logger();
-    void userhook_MediumLoop();
+    void user_LB5900_logger();
     void userhook_SlowLoop();
     void userhook_SuperSlowLoop();
     void userhook_auxSwitch1(const RC_Channel::AuxSwitchPos ch_flag);
@@ -1005,7 +1004,7 @@ private:
     void send_arrc_gcs_message(mavlink_channel_t chan);
 
     //ARRC Libraries sensor code initializer
-    void init_ARRC_SDR(void);
+    void init_ARRC_lb5900(void);
 
 #if MODE_ACRO_ENABLED
 #if FRAME_CONFIG == HELI_FRAME

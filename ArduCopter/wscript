@@ -28,7 +28,7 @@ def build(bld):
             'AC_AutoTune',
             'AP_KDECAN',
             'AP_SurfaceDistance',
-            'AC_ARRC_SDR'
+            'AP_ARRC_LB5900'
         ],
     )
 

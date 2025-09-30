@@ -38,8 +38,8 @@
 // Put your custom code into the UserCode.cpp with function names matching those listed below and ensure the appropriate #define below is uncommented below
 #define USERHOOK_INIT userhook_init();                      // for code to be run once at startup
 #define USER_GIMBAL_LOOP user_ARRC_gimbal();            // for code to be run at 100hz
-#define USER_ARRC_SDR_LOOP user_ARRC_SDR_logger();                  // for code to be run at 50hz
-//#define USERHOOK_MEDIUMLOOP userhook_MediumLoop();        // for code to be run at 10hz
+//#define USER_ARRC_SDR_LOOP user_ARRC_SDR_logger();                  // for code to be run at 50hz
+#define USER_ARRCLB5900_LOOP user_LB5900_logger();        // for code to be run at 10hz
 //#define USERHOOK_SLOWLOOP userhook_SlowLoop();            // for code to be run at 3.3hz
 //#define USERHOOK_SUPERSLOWLOOP userhook_SuperSlowLoop();  // for code to be run at 1hz
 #define USERHOOK_AUXSWITCH 1                        // for code to handle user aux switches

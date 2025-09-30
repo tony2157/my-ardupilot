@@ -257,11 +257,11 @@ void Copter::send_arrc_gcs_message(mavlink_channel_t chan) {
     uint8_t size = 5;
     memset(raw_sensor, 0, size * sizeof(float));
 
-    // Send SDR power and phase to GCS
-    raw_sensor[0] = copter.ARRC_SDR.get_pwr_c();
-    raw_sensor[1] = copter.ARRC_SDR.get_pwr_x();
-    raw_sensor[2] = copter.ARRC_SDR.get_phi_c();
-    raw_sensor[3] = copter.ARRC_SDR.get_phi_x();
+    // Send LB5900 power and phase to GCS
+    raw_sensor[0] = copter.ARRC_LB5900.power_measure();
+    raw_sensor[1] = 0.0;
+    raw_sensor[2] = 0.0;
+    raw_sensor[3] = 0.0;
 
     // Call Mavlink function and send CASS data
     mavlink_msg_cass_sensor_raw_send(
@@ -1517,15 +1517,6 @@ void GCS_MAVLINK_Copter::handle_message(const mavlink_message_t &msg)
 {
 
     switch (msg.msgid) {
-    // ARRC RFE message handle
-    case MAVLINK_MSG_ID_ARRC_SENSOR_RAW:
-    {
-        // Recieve message from RPi and handle the SDR data
-        copter.ARRC_SDR.handle_message(msg);
-        // Immediately save the data to the SD card
-        copter.user_ARRC_SDR_logger();
-        break;
-    }
 #if MODE_GUIDED_ENABLED
     case MAVLINK_MSG_ID_SET_ATTITUDE_TARGET:
         handle_message_set_attitude_target(msg);

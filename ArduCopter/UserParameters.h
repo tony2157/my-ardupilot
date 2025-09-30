@@ -14,11 +14,11 @@ public:
     // AP_Int16 get_int16Param() const { return _int16; }
     // AP_Float get_floatParam() const { return _float; }
 
-    // ARRC ARRC_SDR
-    AP_Int16 get_ARRC_SDR_dfreq() const{return ARRC_SDR_dfreq; }
-    AP_Int16 get_ARRC_SDR_davg() const{return ARRC_SDR_davg; }
-    AP_Int16 get_ARRC_SDR_dmode() const{return ARRC_SDR_dmode; }
-    AP_Int16 get_ARRC_SDR_dprf() const{return ARRC_SDR_dprf; }
+    // ARRC LB5900
+    AP_Int8 get_lb5900_address() const{return lb5900_addr; }
+    AP_Int16 get_lb5900_freq() const{return lb5900_freq; }
+    AP_Int8 get_lb5900_avg_cnt() const{return lb5900_avg_cnt; }
+    AP_Int8 get_lb5900_mrate() const{return lb5900_mrate; }
     
 private:
     // Put your parameter variable definitions here
@@ -26,9 +26,9 @@ private:
     // AP_Int16 _int16;
     // AP_Float _float;
 
-    //ARRC ARRC_SDR params
-    AP_Int16 ARRC_SDR_dfreq;
-    AP_Int16 ARRC_SDR_davg;
-    AP_Int16 ARRC_SDR_dmode;
-    AP_Int16 ARRC_SDR_dprf;
+    //ARRC LB5900
+    AP_Int8 lb5900_addr;
+    AP_Int16 lb5900_freq;
+    AP_Int8 lb5900_avg_cnt;
+    AP_Int8 lb5900_mrate;
 };

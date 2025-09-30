@@ -70,8 +70,8 @@ void Copter::init_ardupilot()
     // sets up motors and output to escs
     init_rc_out();
 
-    // initialize ARRC ARRC_SDR
-    init_ARRC_SDR();
+    // initialize ARRC LB5900 sensor
+    init_ARRC_lb5900();
 
     // check if we should enter esc calibration mode
     esc_calibration_startup_check();
