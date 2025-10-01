@@ -19,6 +19,7 @@ public:
     AP_Int16 get_lb5900_freq() const{return lb5900_freq; }
     AP_Int8 get_lb5900_avg_cnt() const{return lb5900_avg_cnt; }
     AP_Int8 get_lb5900_mrate() const{return lb5900_mrate; }
+    AP_Int8 get_lb6900_busId() const{return lb5900_busId; }
     
 private:
     // Put your parameter variable definitions here
@@ -31,4 +32,5 @@ private:
     AP_Int16 lb5900_freq;
     AP_Int8 lb5900_avg_cnt;
     AP_Int8 lb5900_mrate;
+    AP_Int8 lb5900_busId;
 };
