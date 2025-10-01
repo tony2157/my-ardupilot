@@ -231,7 +231,7 @@ void Copter::user_LB5900_logger()
     logger.WriteBlock(&pkt_temp, sizeof(pkt_temp));   //Send package to SD card
 
     // Print desired params for Debugging
-    // if (AP_HAL::millis() - LB_now > 2000){
+    // if (AP_HAL::millis() - LB_now > 3000){
 
     //     const char* (mrate[1])[4] = 
     //     {
@@ -241,6 +241,7 @@ void Copter::user_LB5900_logger()
     //         "SUPER"     // 110 readings per sec (allows average count)
     //     };
 
+    //     gcs().send_text(MAV_SEVERITY_INFO,"LB init: %d",(uint8_t)copter.ARRC_LB5900.has_init());
     //     gcs().send_text(MAV_SEVERITY_INFO,"LB health: %d",(uint8_t)copter.ARRC_LB5900.healthy());
     //     gcs().send_text(MAV_SEVERITY_INFO,"LB power: %d",(uint8_t)copter.ARRC_LB5900.power_measure());
 

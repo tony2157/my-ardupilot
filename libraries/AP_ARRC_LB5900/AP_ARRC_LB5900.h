@@ -17,6 +17,7 @@ public:
     bool init(uint8_t busId, uint8_t i2cAddr, uint16_t freq, uint8_t avg_cnt, uint8_t rate);
     float power_measure(void) { return _power; } // temperature in kelvin
     bool healthy(void) { return _healthy; } // do we have a valid temperature reading?
+    bool has_init(void) { return _initialized; }
     void set_i2c_addr(uint8_t addr);
 
 private:
@@ -24,25 +25,35 @@ private:
     HAL_Semaphore _sem; // semaphore for access to shared frontend data
     float _power; //voltage read by the ADC
     bool _healthy; // we have a valid temperature reading to report
+    bool _initialized; // Confirm the sensor has initialized and done handshake during bootup
     uint32_t Sensor_TimeOut; // Value of Timeout when I2C communication fails
     uint8_t commandNumber;
 
     union{
-        uint8_t byte[50];
+        uint8_t byte[196];
         struct
         {
             uint8_t commandAndLength[4];
-            uint8_t buffer[46];
+            uint8_t buffer[192];
+        }field;
+    }config_sensor_buffer;
+
+    union{
+        uint8_t byte[68];
+        struct
+        {
+            uint8_t commandAndLength[4];
+            uint8_t buffer[64];
         }field;
     }write_sensor_buffer;
 
     union{
-        uint8_t byte[50];
-        char string[50];
+        uint8_t byte[100];
+        char string[100];
         struct
         {
             uint8_t statusAndLength[4];
-            uint8_t buffer[46];
+            uint8_t buffer[96];
         }field;
     }read_sensor_buffer;
 

@@ -16,6 +16,7 @@ const AP_Param::GroupInfo UserParameters::var_info[] = {
     AP_GROUPINFO("_LB_FREQ", 1, UserParameters, lb5900_freq, 3000),
     AP_GROUPINFO("_LB_AVG_CNT", 2, UserParameters, lb5900_avg_cnt, 10),
     AP_GROUPINFO("_LB_RATE", 3, UserParameters, lb5900_mrate, 1),
+    AP_GROUPINFO("_LB_BUS", 4, UserParameters, lb5900_busId, 0),
     
     AP_GROUPEND
 };

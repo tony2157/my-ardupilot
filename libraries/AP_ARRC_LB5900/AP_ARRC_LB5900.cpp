@@ -10,7 +10,8 @@ extern const AP_HAL::HAL &hal;
 AP_ARRC_LB5900::AP_ARRC_LB5900() :
     _dev(nullptr),
     _power(0),
-    _healthy(false)
+    _healthy(false),
+    _initialized(false)
 {
 }
 
@@ -21,23 +22,23 @@ bool AP_ARRC_LB5900::init(uint8_t busId, uint8_t i2cAddr, uint16_t freq, uint8_t
 
     // Bus 0 is for Pixhawk 2.1 I2C and Bus 1 is for Pixhawk 1 and PixRacer I2C
     // Check if device exists
-    _dev = std::move(hal.i2c_mgr->get_device(busId, LADYBUG_I2C_BASE_ADDRESS + i2cAddr));
+    _dev = std::move(hal.i2c_mgr->get_device(busId, i2cAddr));
     if (!_dev) {
         _healthy = false;
         return false;
     }
     _healthy = true;
 
-    hal.scheduler->delay(500);
+    hal.scheduler->delay(50);
     
     _dev->get_semaphore()->take_blocking();
 
-    _dev->set_retries(3);
+    _dev->set_retries(5);
 
     // Start the first measurement
     uint16_t iter = 0;
     while(!configSensor(freq, avg_cnt, rate)) {
-        hal.scheduler->delay(5);
+        hal.scheduler->delay(3);
         if (iter == 100){
             _healthy = false;
             _dev->get_semaphore()->give();
@@ -46,9 +47,11 @@ bool AP_ARRC_LB5900::init(uint8_t busId, uint8_t i2cAddr, uint16_t freq, uint8_t
         iter++;
     }
 
+    _initialized = true;
+
     _dev->get_semaphore()->give();
 
-    _dev->register_periodic_callback(100000, FUNCTOR_BIND_MEMBER(&AP_ARRC_LB5900::_timer, void));
+    _dev->register_periodic_callback(30000, FUNCTOR_BIND_MEMBER(&AP_ARRC_LB5900::_timer, void));
 
     return true;
 }
@@ -105,26 +108,24 @@ bool AP_ARRC_LB5900::configSensor(uint16_t freq, uint8_t avg_cnt, uint8_t rate)
     while(1){
         if(strlen(cmd[0][commandNumber])  != 0 ){
 
-            hal.scheduler->delay(2);
             // Build header
-            memset(write_sensor_buffer.byte, 0x00, 50);
-            write_sensor_buffer.field.commandAndLength[0] = (uint8_t)nextReadIsStatusAndLength;
+            memset(config_sensor_buffer.byte, 0x00, 196);
+            config_sensor_buffer.field.commandAndLength[0] = (uint8_t)nextReadIsStatusAndLength;
             header.ui = strlen(cmd[0][commandNumber]) + 5; // Add one for terminator and 4 for header
-            write_sensor_buffer.field.commandAndLength[3] = header.c[0];
-            write_sensor_buffer.field.commandAndLength[2] = header.c[1];
-            write_sensor_buffer.field.commandAndLength[1] = header.c[2];
+            config_sensor_buffer.field.commandAndLength[3] = header.c[0];
+            config_sensor_buffer.field.commandAndLength[2] = header.c[1];
+            config_sensor_buffer.field.commandAndLength[1] = header.c[2];
             // Add command to buffer
-            strcpy((char*)write_sensor_buffer.field.buffer, cmd[0][commandNumber]);
+            strcpy((char*)config_sensor_buffer.field.buffer, cmd[0][commandNumber]);
             // Send Command with "nextReadIsStatusAndLength" header
-            //uint16_t iter = 0;
-            if(!_dev->transfer(write_sensor_buffer.byte, header.ui, nullptr, 0)) {
+            if(!_dev->transfer(config_sensor_buffer.byte, header.ui, nullptr, 0)) {
                 return false;
             }
             commandNumber++;
         }
         else{
             commandNumber = 0;
-            hal.scheduler->delay(5);
+            hal.scheduler->delay(1);
             return true;
         }
     }
@@ -144,66 +145,52 @@ bool AP_ARRC_LB5900::_read(void)
     write_sensor_buffer.field.commandAndLength[2] = header.c[1];
     write_sensor_buffer.field.commandAndLength[1] = header.c[2];
     
-    uint8_t iter = 0;
     if(!_dev->transfer(write_sensor_buffer.byte, header.ui, nullptr, 0)) {
-        if(iter == 10){
-            return false;
-        }
-        hal.scheduler->delay(1);
-        iter++;
+        return false;
     }
-    hal.scheduler->delay(6);
+    hal.scheduler->delay(2);
 
     // Read 4 bytes from the sensor. This contains the status byte and 3 length bytes.
     // header.c is used as temp variable
-    uint8_t repeat = 0;
-    fail:
-        header.ui = 0; // Clear header
-        if(!_dev->transfer(nullptr, 0, header.c, 4)) {
+    header.ui = 0; // Clear header
+    if(!_dev->transfer(nullptr, 0, header.c, 4)) {
+        return false;
+    }
+
+    // Transfer status&length to read_buffer
+    bufLength.c[0] = header.c[3];
+    bufLength.c[1] = header.c[2];
+    bufLength.c[2] = header.c[1];
+
+    // If status bit is good, get the data!
+    if((header.c[0] && 0x10 == 0x10) && (bufLength.ui != 0)) // bufLength.ui != 0
+    {
+        // Write the number of bytes to the sensor that are to be read back using header 0Ch
+        memset(write_sensor_buffer.byte, 0x00, 50);
+        write_sensor_buffer.field.commandAndLength[0] = (uint8_t)nextReadIsCompleteOutputBuffer;
+        write_sensor_buffer.field.commandAndLength[1] = bufLength.c[2]; // 0;
+        write_sensor_buffer.field.commandAndLength[2] = bufLength.c[1]; // 0;
+        write_sensor_buffer.field.commandAndLength[3] = bufLength.c[0]; // 4;
+
+        if(!_dev->transfer(write_sensor_buffer.byte, 4, nullptr, 0)) {
+            return false;
+        }
+        hal.scheduler->delay(2);
+
+        // Read back the measurement
+        memset(read_sensor_buffer.byte, 0x00, 50);
+        if(!_dev->transfer(nullptr, 0, read_sensor_buffer.byte, bufLength.ui)) {
             return false;
         }
 
-        // Transfer status&length to read_buffer
-        bufLength.c[0] = header.c[3];
-        bufLength.c[1] = header.c[2];
-        bufLength.c[2] = header.c[1];
+        // Convert received bytes to number
+        _power = strtof(read_sensor_buffer.string, nullptr);
 
-        // If status bit is good, get the data!
-        if((header.c[0] && 0x10 == 0x10) && (bufLength.ui != 0)) // bufLength.ui != 0
-        {
-            // Write the number of bytes to the sensor that are to be read back using header 0Ch
-            memset(write_sensor_buffer.byte, 0x00, 50);
-            write_sensor_buffer.field.commandAndLength[0] = (uint8_t)nextReadIsCompleteOutputBuffer;
-            write_sensor_buffer.field.commandAndLength[1] = bufLength.c[2]; // 0;
-            write_sensor_buffer.field.commandAndLength[2] = bufLength.c[1]; // 0;
-            write_sensor_buffer.field.commandAndLength[3] = bufLength.c[0]; // 4;
-
-            hal.scheduler->delay(1);
-
-            if(!_dev->transfer(write_sensor_buffer.byte, 4, nullptr, 0)) {
-                return false;
-            }
-            hal.scheduler->delay(3);
-
-            // Read back the measurement
-            memset(read_sensor_buffer.byte, 0x00, 50);
-            if(!_dev->transfer(nullptr, 0, read_sensor_buffer.byte, bufLength.ui)) {
-                return false;
-            }
-
-            // Convert received bytes to number
-            _power = strtof(read_sensor_buffer.string, nullptr);
-
-            return true;
-        }
-        else if(repeat < 1){
-            hal.scheduler->delay(20);
-            repeat++;
-            goto fail;
-        }
-        else{
-            return false;
-        }
+        return true;
+    }
+    else{
+        return false;
+    }
 }
 
 bool AP_ARRC_LB5900::_measure(void)
@@ -226,14 +213,8 @@ bool AP_ARRC_LB5900::_measure(void)
             // Add command to buffer
             strcpy((char*)write_sensor_buffer.field.buffer, cmd[0][commandNumber]);
             // Send Command with "nextReadIsStatusAndLength" header
-            uint8_t iter = 0;
             while(!_dev->transfer(write_sensor_buffer.byte, header.ui, nullptr, 0)) {
-                if(iter == 10){
-                    commandNumber = 0;
-                    return false;
-                }
-                hal.scheduler->delay(1);
-                iter++;
+                return false;
             }
             commandNumber++;
         }
@@ -247,7 +228,7 @@ bool AP_ARRC_LB5900::_measure(void)
 void AP_ARRC_LB5900::_timer(void)
 {
     WITH_SEMAPHORE(_sem);
-    _healthy = _read();        // Read previous measurement request
-    hal.scheduler->delay(10);
-    _healthy &= _measure();      // Request a new measurement to the sensor
+    _read();                    // Request data collected
+    hal.scheduler->delay(2);
+    _healthy = _measure();     // Request a new measurement to the sensor
 }
