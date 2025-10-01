@@ -223,7 +223,7 @@ void Copter::user_LB5900_logger()
     // Read Power in dBm. Write sensors packet into the SD card
     // LB5900 Power Data Logger ///////////////////////////////////////////////////////////////////////////////////////////
     struct log_LB5900 pkt_temp = {
-        LOG_PACKET_HEADER_INIT(LOG_LB5900_MSG),
+        LOG_PACKET_HEADER_INIT(LOG_ARRC_LB59_MSG),
         time_stamp              : AP_HAL::micros64(),                   //Store time in microseconds
         healthy                 : copter.ARRC_LB5900.healthy(),         //Store sensor health
         power                   : copter.ARRC_LB5900.power_measure(),   //Store power in dBm
