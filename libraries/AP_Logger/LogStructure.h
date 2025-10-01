@@ -652,6 +652,13 @@ struct PACKED log_VER {
     uint8_t filter_version;
 };
 
+struct PACKED log_LB5900 {
+    LOG_PACKET_HEADER;
+    uint64_t time_stamp;
+    uint8_t healthy;
+    float power;
+};
+
 
 // FMT messages define all message formats other than FMT
 // UNIT messages define units which can be referenced by FMTU messages
@@ -1281,8 +1288,8 @@ LOG_STRUCTURE_FROM_AIS \
       "VER",   "QBHBBBBIZHBB", "TimeUS,BT,BST,Maj,Min,Pat,FWT,GH,FWS,APJ,BU,FV", "s-----------", "F-----------", false }, \
     { LOG_MOTBATT_MSG, sizeof(log_MotBatt), \
       "MOTB", "QfffffB",  "TimeUS,LiftMax,BatVolt,ThLimit,ThrAvMx,ThrOut,FailFlags", "s------", "F------" , true }, \
-    { LOG_LB5900_MSG, sizeof(log_LB5900), \
-      "LB59", "QBf","TimeUS,Hth,Pwr","s--","F00"}
+    { LOG_ARRC_LB59_MSG, sizeof(log_LB5900), \
+      "LB59", "QBf","TimeUS,Hth,Pwr","s--","F--"}
 
 // message types 0 to 31 reserved for vehicle-specific use
 
@@ -1370,7 +1377,7 @@ enum LogMessages : uint8_t {
     LOG_RCOUT3_MSG,
     LOG_IDS_FROM_FENCE,
     LOG_IDS_FROM_HAL,
-    LOG_ARRC_SDR_MSG,
+    LOG_ARRC_LB59_MSG,
     _LOG_LAST_MSG_
 };
 
