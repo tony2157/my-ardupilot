@@ -228,7 +228,6 @@ bool AP_ARRC_LB5900::_measure(void)
 void AP_ARRC_LB5900::_timer(void)
 {
     WITH_SEMAPHORE(_sem);
-    _read();                    // Request data collected
-    hal.scheduler->delay(2);
-    _healthy = _measure();     // Request a new measurement to the sensor
+    _healthy = _read();         // Request data collected
+    _measure();                 // Request a new measurement to the sensor
 }
