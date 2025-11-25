@@ -267,7 +267,7 @@ void Copter::send_arrc_gcs_message(mavlink_channel_t chan) {
     mavlink_msg_cass_sensor_raw_send(
         chan,
         AP_HAL::millis(),
-        3,
+        4,
         size,
         raw_sensor);
 }
