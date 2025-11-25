@@ -258,6 +258,12 @@ private:
     uint8_t allocated_type;
     GPS_Backend *backend;
     void check_backend_allocation();
+
+    // Create noise filters with history size for smoothing
+    GNSSStochasticModel gnss_model;
+    LowFrequencyNoise lat_noise_filter;
+    LowFrequencyNoise lon_noise_filter;
+    LowFrequencyNoise height_noise_filter;
 };
 
 }
