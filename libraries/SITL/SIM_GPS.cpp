@@ -165,33 +165,6 @@ extern const AP_HAL::HAL& hal;
 
 using namespace SITL;
 
-class LowFrequencyNoise {
-    std::vector<double> history;
-    size_t max_history_size;
-
-public:
-    LowFrequencyNoise(size_t history_size) : max_history_size(history_size) {}
-
-    double addAndGetSmoothedNoise(double noise) {
-        if (history.size() >= max_history_size) {
-            history.erase(history.begin());
-        }
-        history.push_back(noise);
-
-        // Calculate the average
-        double sum = 0.0;
-        for (double n : history) {
-            sum += n;
-        }
-        return sum / history.size();
-    }
-};
-
-// Create noise filters with history size for smoothing
-LowFrequencyNoise lat_noise_filter(5);
-LowFrequencyNoise lon_noise_filter(5);
-LowFrequencyNoise height_noise_filter(3);
-
 // ensure the backend we have allocated matches the one that's configured:
 GPS_Backend::GPS_Backend(GPS &_front, uint8_t _instance) :
     instance{_instance},
@@ -221,8 +194,8 @@ GPS::GPS(uint8_t _instance) :
     SerialDevice(8192, 2048),
     instance{_instance},
     gnss_model(1, 3),
-    lat_noise_filter(3),
-    lon_noise_filter(3),
+    lat_noise_filter(5),
+    lon_noise_filter(5),
     height_noise_filter(3) {}
 
 uint32_t GPS::device_baud() const
@@ -524,7 +497,7 @@ void GPS::update()
     const float epsilon = 1e-6; // Adjust the value of epsilon based on precision needs
     if (std::abs(_sitl->gps[0].accuracy - (float)gnss_model.gnss_vel_std) > epsilon ||
         std::abs(_sitl->gps[1].accuracy - (float)gnss_model.lambda) > epsilon) {
-        gnss_model.set_gnss_velocity_std(_sitl->gps[0].accuracy, _sitl->gps[1].accuracy);
+        gnss_model.set_gnss_velocity_std(_sitl->gps[0].accuracy.get(), _sitl->gps[1].accuracy.get());
     }
 
     gnss_model.updateBias();
