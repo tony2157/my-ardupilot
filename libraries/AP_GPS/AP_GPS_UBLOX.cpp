@@ -1903,7 +1903,7 @@ AP_GPS_UBLOX::pps_interrupt(uint8_t pin, bool high, uint32_t timestamp_us)
 #if !HAL_HSI_TRIM_USING_PPS
     _last_pps_time_us = AP_HAL::micros64();
 #else
-    const uint32_t cur_pps_time_us = AP_HAL::micros();
+    const uint64_t cur_pps_time_us = AP_HAL::micros64();
     const uint32_t delta_time_us = cur_pps_time_us - _last_pps_time_us;
     _last_pps_time_us = cur_pps_time_us;
     _last_delta_time_us = delta_time_us;
