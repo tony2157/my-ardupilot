@@ -734,38 +734,32 @@ void AP_Mount_Backend::get_rc_target(MountTargetType& target_type, MountTarget& 
 // returns true on success, false on failure
 bool AP_Mount_Backend::get_angle_target_to_location(const Location &target, MountTarget& angle_rad) const
 {
-    // exit immediately if vehicle's location is unavailable
+    // Named constants for clarity and maintainability
+    constexpr double LAT_LON_TO_RAD = 1.0e-7 * DEG_TO_RAD;  // Convert 1e7 scaled degrees to radians
+    constexpr float LOCATION_SCALING_FACTOR = 0.01113195f;   // meters per 1e-7 degree at equator
+    constexpr float MIN_DISTANCE_M = 10.0f;                  // Minimum distance threshold in meters
+    constexpr float SLOPE_THRESHOLD = 0.35f;                 // Slope threshold for mode selection
+    constexpr float ELEVATION_THRESHOLD_RAD = 70.0f * DEG_TO_RAD;  // 70 degrees in radians (~1.22 rad)
+    constexpr float PITCH_LIMIT_RAD = 1.31f;                 // ~75 degrees pitch limit
+    constexpr float ROLL_LIMIT_RAD = 0.6f;                   // ~34 degrees roll limit
+    constexpr float CM_TO_M = 0.01f;                         // Centimeters to meters
+
+    // ============================================================
+    // EARLY EXIT CHECKS - Perform before any expensive calculations
+    // ============================================================
+
+    // Exit immediately if vehicle's location is unavailable
     Location current_loc;
     if (!AP::ahrs().get_location(current_loc)) {
         return false;
     }
 
-    // exit immediate if location is invalid
+    // Exit immediately if target location is invalid
     if (!target.initialised()) {
         return false;
     }
 
-    // Haversine formula
-    double curr_lat = ((double)current_loc.lat)*1.0e-7*M_PI/180.0;
-    double tar_lat = ((double)target.lat)*1.0e-7*M_PI/180.0;
-    double delta_lat = tar_lat - curr_lat;
-    double delta_lng = ((double)Location::diff_longitude(target.lng,current_loc.lng))*1.0e-7*M_PI/180.0;
-    double target_distance = sin(delta_lat/2.0)*sin(delta_lat/2.0) + cos(curr_lat)*cos(tar_lat)*sin(delta_lng/2.0)*sin(delta_lng/2.0);
-
-    // Compute distance to target
-    target_distance = 2.0*RADIUS_OF_EARTH*atan2(sqrt(target_distance),sqrt(1.0-target_distance)); // in meters
-
-    // Compute bearing to target
-    double y = sin(delta_lng)*cos(tar_lat);
-    double x = cos(curr_lat)*sin(tar_lat) - sin(curr_lat)*cos(tar_lat)*cos(delta_lng);
-    double bearing = atan2(y, x);
-
-    double fixed_yaw = (double)_params.roll_stb_lead*DEG_TO_RAD;
-
-    // Compute target vector x-y components in the target's reference frame (NWU)
-    y = target_distance*(sin(bearing)*cos(fixed_yaw) - cos(bearing)*sin(fixed_yaw)); // Aligned with West when fixed_yaw = 0
-    x = -target_distance*(sin(bearing)*sin(fixed_yaw) + cos(bearing)*cos(fixed_yaw)); // Aligned with North when fixed_yaw = 0
-
+    // Get altitudes early - exit if unavailable (before expensive trig calculations)
     int32_t target_alt_cm = 0;
     if (!target.get_alt_cm(Location::AltFrame::ABOVE_HOME, target_alt_cm)) {
         return false;
@@ -775,117 +769,207 @@ bool AP_Mount_Backend::get_angle_target_to_location(const Location &target, Moun
         return false;
     }
 
-    // Compute height difference (NWU)
-    double z = (double)(current_alt_cm - target_alt_cm)/(100.0) + (double)_params.ARRC_z_offset; // in meters
+    // ============================================================
+    // COORDINATE CONVERSION - Cache trigonometric values
+    // ============================================================
 
-    //Compute distance and slope wrt target
-    float horzdist2target = current_loc.get_distance(target);
-    float dist2target = sqrtf(horzdist2target*horzdist2target + (float)(z*z));
-    float slope = 0;
-    if(!is_zero(horzdist2target)) slope = fabsf((float)z/horzdist2target);
+    // Convert lat/lon to radians (compute once)
+    const double curr_lat_rad = current_loc.lat * LAT_LON_TO_RAD;
+    const double tar_lat_rad = target.lat * LAT_LON_TO_RAD;
+    const double delta_lat = tar_lat_rad - curr_lat_rad;
+    const double delta_lng = Location::diff_longitude(target.lng, current_loc.lng) * LAT_LON_TO_RAD;
 
-    // Get AUT elevation
-    double el = _params.ARRC_elev*DEG_TO_RAD;
+    // Cache trigonometric values (expensive operations - compute once, use multiple times)
+    const double sin_curr_lat = sin(curr_lat_rad);
+    const double cos_curr_lat = cos(curr_lat_rad);
+    const double sin_tar_lat = sin(tar_lat_rad);
+    const double cos_tar_lat = cos(tar_lat_rad);
+    const double sin_delta_lng = sin(delta_lng);
+    const double cos_delta_lng = cos(delta_lng);
+    const double sin_half_delta_lat = sin(delta_lat * 0.5);
+    const double sin_half_delta_lng = sin(delta_lng * 0.5);
+
+    // ============================================================
+    // HAVERSINE FORMULA - Compute horizontal distance to target
+    // ============================================================
+
+    const double haversine_a = sin_half_delta_lat * sin_half_delta_lat +
+                               cos_curr_lat * cos_tar_lat * sin_half_delta_lng * sin_half_delta_lng;
+    const double target_distance = 2.0 * RADIUS_OF_EARTH * atan2(sqrt(haversine_a), sqrt(1.0 - haversine_a));
+
+    // ============================================================
+    // BEARING CALCULATION - Using cached trig values
+    // ============================================================
+
+    const double bearing_y = sin_delta_lng * cos_tar_lat;
+    const double bearing_x = cos_curr_lat * sin_tar_lat - sin_curr_lat * cos_tar_lat * cos_delta_lng;
+    const double bearing = atan2(bearing_y, bearing_x);
+
+    // Cache bearing trig values (used in target vector calculation)
+    const double sin_bearing = sin(bearing);
+    const double cos_bearing = cos(bearing);
+
+    // Fixed yaw from parameters (cache trig values)
+    const double fixed_yaw = _params.roll_stb_lead * DEG_TO_RAD;
+    const double sin_fixed_yaw = sin(fixed_yaw);
+    const double cos_fixed_yaw = cos(fixed_yaw);
+
+    // ============================================================
+    // TARGET VECTOR - Components in target's reference frame (NWU)
+    // ============================================================
+
+    // Using cached sin/cos values instead of recomputing
+    const double y = target_distance * (sin_bearing * cos_fixed_yaw - cos_bearing * sin_fixed_yaw);
+    const double x = -target_distance * (sin_bearing * sin_fixed_yaw + cos_bearing * cos_fixed_yaw);
+
+    // Compute height difference in meters (NWU convention)
+    const double z = (current_alt_cm - target_alt_cm) * CM_TO_M + _params.ARRC_z_offset;
+
+    // Compute slope (avoid division by zero)
+    // Note: Using target_distance instead of redundant get_distance() call
+    const float slope = (target_distance > 0.001) ? fabsf(static_cast<float>(z / target_distance)) : 0.0f;
+
+    // Get AUT elevation in radians
+    const double el = _params.ARRC_elev * DEG_TO_RAD;
+
+    // Cache elevation trig values (used in Vpol mode)
+    const double sin_el = sin(el);
+    const double cos_el = cos(el);
+
+    // ============================================================
+    // GIMBAL ANGLE CALCULATION - Based on mode selection
+    // ============================================================
 
     // Alexmos gimbal convention: Pitch down (+), Roll right (+), Yaw right (+)
     // Gremsy gimbal convention: Pitch down (?), Roll right (?), Yaw right (?)
     // This technique's convention: Pitch down (-), Roll right (-), Yaw right (+)
     // Position (x,y,z) is NWU convention with the AUT as the origin
-    if(dist2target > 10){
-        if(is_zero(_params.pitch_stb_lead) || (slope < 0.35f && el > 70)){
 
-            // Original ArduPilot mode
-            // Careful , centimeters here locally. Baro/alt is in cm, lat/lon is in meters.
-            
-            const float GPS_vector_x = Location::diff_longitude(target.lng, current_loc.lng)*cosf(ToRad((current_loc.lat + target.lat) * 0.00000005f)) * 0.01113195f;
-            const float GPS_vector_y = (target.lat - current_loc.lat) * 0.01113195f;
-            float GPS_vector_z = target_alt_cm - current_alt_cm;
+    // Compute 3D distance for mode 2 and 3 (precompute before branches if needed)
+    const double x_sq = x * x;
+    const double y_sq = y * y;
+    const double z_sq = z * z;
+    const double D_sq = x_sq + y_sq + z_sq;
+    const double D = sqrt(D_sq);
 
-            // calculate roll, pitch, yaw angles
-            angle_rad.roll = 0;
-            angle_rad.pitch = atan2f(GPS_vector_z/100.0, target_distance);
+    if (D > MIN_DISTANCE_M) {
+        // Mode 0: Original ArduPilot mode
+        // Condition: pitch_stb_lead == 0 OR (low slope AND high elevation)
+        if (is_zero(_params.pitch_stb_lead) || (slope < SLOPE_THRESHOLD && el > ELEVATION_THRESHOLD_RAD)) {
+
+            // Calculate GPS vectors for ArduPilot standard method
+            const float avg_lat_rad = (current_loc.lat + target.lat) * 0.5e-7f * DEG_TO_RAD;
+            const float GPS_vector_x = Location::diff_longitude(target.lng, current_loc.lng) * cosf(avg_lat_rad) * LOCATION_SCALING_FACTOR;
+            const float GPS_vector_y = (target.lat - current_loc.lat) * LOCATION_SCALING_FACTOR;
+            const float GPS_vector_z = (target_alt_cm - current_alt_cm) * CM_TO_M;
+
+            // Calculate roll, pitch, yaw angles
+            angle_rad.roll = 0.0f;
+            angle_rad.pitch = atan2f(GPS_vector_z, static_cast<float>(target_distance));
             angle_rad.yaw = atan2f(GPS_vector_x, GPS_vector_y);
             angle_rad.yaw_is_ef = true;
         }
-        else if(is_zero(_params.pitch_stb_lead - 1)){
+        // Mode 1: Probe plane parallel to AUT plane
+        else if (is_zero(_params.pitch_stb_lead - 1.0f)) {
 
-            // Probe plane parallel to AUT plane
-
-            // tilt calcs. Fixed 
-            angle_rad.pitch = (float)-el;
-            
-            // roll calcs. Fixed
-            angle_rad.roll = 0;
-
-            // pan calcs. Fixed and equal to user param
-            angle_rad.yaw = (float)wrap_180(fixed_yaw*RAD_TO_DEG)*DEG_TO_RAD;
+            angle_rad.pitch = static_cast<float>(-el);
+            angle_rad.roll = 0.0f;
+            // Use wrap_PI directly on radians instead of deg->wrap->rad conversion
+            angle_rad.yaw = wrap_PI(static_cast<float>(fixed_yaw));
             angle_rad.yaw_is_ef = true;
         }
-        else if(is_zero(_params.pitch_stb_lead - 2)){
+        // Mode 2: Hpol aligned mode
+        else if (is_zero(_params.pitch_stb_lead - 2.0f)) {
 
-            // Hpol aligned mode
+            const double A = sqrt(x_sq + z_sq);
 
-            double D = sqrt(x*x + y*y + z*z);
-            double A = sqrt(x*x+z*z);
+            // Avoid division by zero
+            if (A < 0.001 || D < 0.001) {
+                return false;
+            }
 
-            Matrix3d RotM( -x/D,         -y/D,      -z/D,
-                           -x*y/(A*D),   A/D,       -y*z/(A*D),
-                           z/A,          0,         -x/A   );
+            const double inv_D = 1.0 / D;
+            const double inv_A = 1.0 / A;
+            const double inv_AD = inv_A * inv_D;
 
-            RotM = _params.rotM_offset*RotM;
+            Matrix3d RotM(-x * inv_D,          -y * inv_D,       -z * inv_D,
+                          -x * y * inv_AD,      A * inv_D,       -y * z * inv_AD,
+                           z * inv_A,           0.0,             -x * inv_A);
 
-            // tilt calcs = atan2(Reb(1,3),Reb(3,3))
-            angle_rad.pitch = (float)atan2(RotM.a.z, RotM.c.z);
-            
-            // roll calcs = atan2(-Reb(2,3),sqrt(1-Reb(2,3)^2))
-            angle_rad.roll = (float)-1.0*atan2(-RotM.b.z, sqrt(1.0 - RotM.b.z*RotM.b.z));
+            RotM = _params.rotM_offset * RotM;
 
-            // pan calcs = atan2(Reb(2,1),Reb(2,2))
-            angle_rad.yaw = (float)atan2(RotM.b.x,RotM.b.y) + fixed_yaw;
-            //angle_rad.yaw = (float)wrap_180(angle_rad.yaw*RAD_TO_DEG)*DEG_TO_RAD;
+            // tilt calcs = atan2(Reb(1,3), Reb(3,3))
+            angle_rad.pitch = static_cast<float>(atan2(RotM.a.z, RotM.c.z));
+
+            // roll calcs = atan2(-Reb(2,3), sqrt(1-Reb(2,3)^2))
+            const double bz_sq = RotM.b.z * RotM.b.z;
+            angle_rad.roll = static_cast<float>(-atan2(-RotM.b.z, sqrt(1.0 - bz_sq)));
+
+            // pan calcs = atan2(Reb(2,1), Reb(2,2))
+            angle_rad.yaw = static_cast<float>(atan2(RotM.b.x, RotM.b.y) + fixed_yaw);
             angle_rad.yaw_is_ef = true;
         }
-        else if(is_zero(_params.pitch_stb_lead - 3)){
+        // Mode 3: Vpol aligned mode
+        else if (is_zero(_params.pitch_stb_lead - 3.0f)) {
 
-            // Vpol aligned mode
+            // Using cached sin_el, cos_el values
+            const double cos_el_sq = cos_el * cos_el;
+            const double sin_2el = 2.0 * sin_el * cos_el;  // sin(2*el) = 2*sin(el)*cos(el)
+            const double cos_2el = cos_el_sq - sin_el * sin_el;  // cos(2*el) = cos^2(el) - sin^2(el)
 
-            double D = sqrt(x*x + y*y + z*z);
-            double A = sqrt((x*x - z*z)*cos(el)*cos(el) + y*y + z*z - x*z*sin(2*el));
-            double B = sqrt((x*x - z*z)*cos(2*el) + x*x + 2*y*y + z*z - 2*x*z*sin(2*el));
+            const double A_sq = (x_sq - z_sq) * cos_el_sq + y_sq + z_sq - x * z * sin_2el;
+            const double A = sqrt(A_sq);
+            const double B = sqrt((x_sq - z_sq) * cos_2el + x_sq + 2.0 * y_sq + z_sq - 2.0 * x * z * sin_2el);
 
-            Matrix3d RotM( -x/D,                                                    -y/D,                                                   -z/D,
-                           y*cos(el)/A,                                             -(x*cos(el)-z*sin(el))/A,                               -y*sin(el)/A,
-                           (M_SQRT2*((y*y*+z*z)*sin(el)-x*z*cos(el)))/(D*B),        -(M_SQRT2*y*(z*cos(el)+x*sin(el)))/(D*B),                M_SQRT2*((x*x+y*y)*cos(el)-x*z*sin(el))*B/(2*D*A*A)  );
+            // Avoid division by zero
+            if (A < 0.001 || B < 0.001 || D < 0.001) {
+                return false;
+            }
 
-            RotM =  _params.rotM_offset*RotM;
+            const double inv_D = 1.0 / D;
+            const double inv_A = 1.0 / A;
+            const double inv_DB = inv_D / B;
 
-            // tilt calcs = atan2(Reb(1,3),Reb(3,3))
-            angle_rad.pitch = (float)atan2(RotM.a.z, RotM.c.z);
-            
-            // roll calcs = atan2(-Reb(2,3),sqrt(1-Reb(2,3)^2))
-            angle_rad.roll = (float)-1.0*atan2(-RotM.b.z, sqrt(1.0 - RotM.b.z*RotM.b.z));
+            Matrix3d RotM(-x * inv_D,
+                          -y * inv_D,
+                          -z * inv_D,
+                           y * cos_el * inv_A,
+                          -(x * cos_el - z * sin_el) * inv_A,
+                          -y * sin_el * inv_A,
+                           (M_SQRT2 * ((y_sq + z_sq) * sin_el - x * z * cos_el)) * inv_DB,
+                          -(M_SQRT2 * y * (z * cos_el + x * sin_el)) * inv_DB,
+                           M_SQRT2 * ((x_sq + y_sq) * cos_el - x * z * sin_el) * B / (2.0 * D * A_sq));
 
-            // pan calcs = atan2(Reb(2,1),Reb(2,2))
-            angle_rad.yaw = (float)atan2(RotM.b.x,RotM.b.y) + fixed_yaw;
-            //angle_rad.yaw = (float)wrap_180(angle_rad.yaw*RAD_TO_DEG)*DEG_TO_RAD;
+            RotM = _params.rotM_offset * RotM;
+
+            // tilt calcs = atan2(Reb(1,3), Reb(3,3))
+            angle_rad.pitch = static_cast<float>(atan2(RotM.a.z, RotM.c.z));
+
+            // roll calcs = atan2(-Reb(2,3), sqrt(1-Reb(2,3)^2))
+            const double bz_sq = RotM.b.z * RotM.b.z;
+            angle_rad.roll = static_cast<float>(-atan2(-RotM.b.z, sqrt(1.0 - bz_sq)));
+
+            // pan calcs = atan2(Reb(2,1), Reb(2,2))
+            angle_rad.yaw = static_cast<float>(atan2(RotM.b.x, RotM.b.y) + fixed_yaw);
             angle_rad.yaw_is_ef = true;
         }
     }
 
-    angle_rad.pitch = constrain_float(angle_rad.pitch,-1.31f,1.31f);
-    angle_rad.roll = constrain_float(angle_rad.roll,-0.6f,0.6f);
+    // Apply angle constraints
+    angle_rad.pitch = constrain_float(angle_rad.pitch, -PITCH_LIMIT_RAD, PITCH_LIMIT_RAD);
+    angle_rad.roll = constrain_float(angle_rad.roll, -ROLL_LIMIT_RAD, ROLL_LIMIT_RAD);
 
-    // For debugging:
-    // if (AP_HAL::millis() - _now > 3000){
-    //     gcs().send_text(MAV_SEVERITY_INFO,"Target Dist: %5.2f",(float)target_distance);
-    //     gcs().send_text(MAV_SEVERITY_INFO,"Bearing: %5.2f",(float)bearing);
-    //     gcs().send_text(MAV_SEVERITY_INFO,"Target X: %5.2f",(float)x);
-    //     gcs().send_text(MAV_SEVERITY_INFO,"Target Y: %5.2f",(float)y);
-    //     gcs().send_text(MAV_SEVERITY_INFO,"Target Z: %5.2f",(float)z);
-    //     gcs().send_text(MAV_SEVERITY_INFO,"Pitch: %5.2f",(float)angle_rad.pitch*RAD_TO_DEG);
-    //     gcs().send_text(MAV_SEVERITY_INFO,"Roll: %5.2f",(float)angle_rad.roll*RAD_TO_DEG);
-    //     gcs().send_text(MAV_SEVERITY_INFO,"Yaw: %5.2f",(float)angle_rad.yaw*RAD_TO_DEG);
-    //     _now = AP_HAL::millis(); // Don't forget to uncomment declaration at the very top
+    // For debugging: Uncomment to verify math during development
+    // if (AP_HAL::millis() - _now > 3000) {
+    //     gcs().send_text(MAV_SEVERITY_INFO, "Target Dist: %5.2f", static_cast<float>(target_distance));
+    //     gcs().send_text(MAV_SEVERITY_INFO, "Bearing: %5.2f", static_cast<float>(bearing * RAD_TO_DEG));
+    //     gcs().send_text(MAV_SEVERITY_INFO, "Target X: %5.2f", static_cast<float>(x));
+    //     gcs().send_text(MAV_SEVERITY_INFO, "Target Y: %5.2f", static_cast<float>(y));
+    //     gcs().send_text(MAV_SEVERITY_INFO, "Target Z: %5.2f", static_cast<float>(z));
+    //     gcs().send_text(MAV_SEVERITY_INFO, "Pitch: %5.2f", angle_rad.pitch * RAD_TO_DEG);
+    //     gcs().send_text(MAV_SEVERITY_INFO, "Roll: %5.2f", angle_rad.roll * RAD_TO_DEG);
+    //     gcs().send_text(MAV_SEVERITY_INFO, "Yaw: %5.2f", angle_rad.yaw * RAD_TO_DEG);
+    //     _now = AP_HAL::millis();  // Don't forget to uncomment declaration at the very top
     // }
 
     return true;
