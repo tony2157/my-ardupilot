@@ -68,7 +68,7 @@ void LoggerMessageWriter_DFLogStart::reset()
     _next_unit_to_send = 0;
     _next_multiplier_to_send = 0;
     _next_format_unit_to_send = 0;
-    param_default = AP::logger().quiet_nanf();
+    param_default = AP_Logger::quiet_nanf();
     ap = AP_Param::first(&token, &type, &param_default);
 }
 
@@ -132,7 +132,7 @@ void LoggerMessageWriter_DFLogStart::process()
             if (!_logger_backend->Write_Parameter(ap, token, type, param_default)) {
                 return;
             }
-            param_default = AP::logger().quiet_nanf();
+            param_default = AP_Logger::quiet_nanf();
             ap = AP_Param::next_scalar(&token, &type, &param_default);
             if (check_process_limit(start_us)) {
                 return; // call me again!
@@ -362,8 +362,20 @@ void LoggerMessageWriter_WriteSysInfo::process() {
                 return; // call me again
             }
         }
+#if AP_RTC_LOGGING_ENABLED
+        stage = Stage::LOG_RTC_MSG;
+        FALLTHROUGH;
+#else
         break;
+#endif  // AP_RTC_LOGGING_ENABLED
     }
+#if AP_RTC_LOGGING_ENABLED
+    case Stage::LOG_RTC_MSG:
+        if (! _logger_backend->Write_RTC()) {
+            return;
+        }
+        break;
+#endif  // AP_RTC_LOGGING_ENABLED
     }
 
     _finished = true;  // all done!

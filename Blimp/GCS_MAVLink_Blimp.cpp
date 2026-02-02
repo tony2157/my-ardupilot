@@ -85,7 +85,7 @@ void GCS_MAVLINK_Blimp::send_nav_controller_output() const
 float GCS_MAVLINK_Blimp::vfr_hud_airspeed() const
 {
     Vector3f airspeed_vec_bf;
-    if (AP::ahrs().airspeed_vector_true(airspeed_vec_bf)) {
+    if (AP::ahrs().airspeed_vector_TAS(airspeed_vec_bf)) {
         // we are running the EKF3 wind estimation code which can give
         // us an airspeed estimate
         return airspeed_vec_bf.length();
@@ -287,11 +287,6 @@ bool GCS_MAVLINK_Blimp::mav_frame_for_command_long(MAV_FRAME &frame, MAV_CMD pac
 void GCS_MAVLINK_Blimp::handle_message(const mavlink_message_t &msg)
 {
     switch (msg.msgid) {
-
-    case MAVLINK_MSG_ID_TERRAIN_DATA:
-    case MAVLINK_MSG_ID_TERRAIN_CHECK:
-        break;
-
     default:
         GCS_MAVLINK::handle_message(msg);
         break;
@@ -348,7 +343,7 @@ MAV_LANDED_STATE GCS_MAVLINK_Blimp::landed_state() const
 void GCS_MAVLINK_Blimp::send_wind() const
 {
     Vector3f airspeed_vec_bf;
-    if (!AP::ahrs().airspeed_vector_true(airspeed_vec_bf)) {
+    if (!AP::ahrs().airspeed_vector_TAS(airspeed_vec_bf)) {
         // if we don't have an airspeed estimate then we don't have a
         // valid wind estimate on blimps
         return;
@@ -365,7 +360,7 @@ void GCS_MAVLINK_Blimp::send_wind() const
 uint8_t GCS_MAVLINK_Blimp::high_latency_wind_speed() const
 {
     Vector3f airspeed_vec_bf;
-    if (!AP::ahrs().airspeed_vector_true(airspeed_vec_bf)) {
+    if (!AP::ahrs().airspeed_vector_TAS(airspeed_vec_bf)) {
         // if we don't have an airspeed estimate then we don't have a
         // valid wind estimate on blimps
         return 0;
@@ -378,7 +373,7 @@ uint8_t GCS_MAVLINK_Blimp::high_latency_wind_speed() const
 uint8_t GCS_MAVLINK_Blimp::high_latency_wind_direction() const
 {
     Vector3f airspeed_vec_bf;
-    if (!AP::ahrs().airspeed_vector_true(airspeed_vec_bf)) {
+    if (!AP::ahrs().airspeed_vector_TAS(airspeed_vec_bf)) {
         // if we don't have an airspeed estimate then we don't have a
         // valid wind estimate on blimps
         return 0;

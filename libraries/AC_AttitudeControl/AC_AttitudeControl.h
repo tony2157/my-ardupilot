@@ -10,7 +10,6 @@
 #include <AP_Motors/AP_Motors.h>
 #include <AC_PID/AC_PID.h>
 #include <AC_PID/AC_P.h>
-#include <AP_Vehicle/AP_MultiCopter.h>
 #include <AP_BoardConfig/AP_BoardConfig.h>
 
 #define AC_ATTITUDE_CONTROL_ANGLE_P                     4.5f             // default angle P gain for roll, pitch and yaw
@@ -47,9 +46,8 @@
 
 class AC_AttitudeControl {
 public:
-    AC_AttitudeControl( AP_AHRS_View &ahrs,
-                        const AP_MultiCopter &aparm,
-                        AP_Motors& motors) :
+    AC_AttitudeControl(AP_AHRS_View &ahrs,
+                       AP_Motors& motors) :
         _p_angle_roll(AC_ATTITUDE_CONTROL_ANGLE_P),
         _p_angle_pitch(AC_ATTITUDE_CONTROL_ANGLE_P),
         _p_angle_yaw(AC_ATTITUDE_CONTROL_ANGLE_P),
@@ -58,7 +56,6 @@ public:
         _throttle_rpy_mix_desired(AC_ATTITUDE_CONTROL_THR_MIX_DEFAULT),
         _throttle_rpy_mix(AC_ATTITUDE_CONTROL_THR_MIX_DEFAULT),
         _ahrs(ahrs),
-        _aparm(aparm),
         _motors(motors)
         {
             _singleton = this;
@@ -217,10 +214,6 @@ public:
     // Outputs are passed to the rate controller via shaped angular velocity targets.
     virtual void input_euler_angle_roll_pitch_yaw_rad(float euler_roll_angle_rad, float euler_pitch_angle_rad, float euler_yaw_angle_rad, bool slew_yaw);
 
-    // Sets desired roll, pitch, and yaw angular rates (in centidegrees/s).
-    // See input_euler_rate_roll_pitch_yaw_rads() for full details.
-    void input_euler_rate_roll_pitch_yaw_cds(float euler_roll_rate_cds, float euler_pitch_rate_cds, float euler_yaw_rate_cds);
-
     // Sets desired roll, pitch, and yaw angular rates (in radians/s).
     // This command is used to apply angular rate targets in the earth frame.
     // The inputs are shaped using acceleration limits and time constants.
@@ -274,19 +267,11 @@ public:
     // Used to apply discrete disturbances or step inputs for system identification.
     virtual void input_rate_step_bf_roll_pitch_yaw_rads(float roll_rate_step_bf_rads, float pitch_rate_step_bf_rads, float yaw_rate_step_bf_rads);
 
-    // Sets desired thrust vector and heading rate (in centidegrees/s).
-    // See input_thrust_vector_rate_heading_rads() for full details.
-    void input_thrust_vector_rate_heading_cds(const Vector3f& thrust_vector, float heading_rate_cds, bool slew_yaw = true);
-
     // Sets desired thrust vector and heading rate (in radians/s).
     // Used for tilt-based navigation with independent yaw control.
     // The thrust vector defines the desired orientation (e.g., pointing direction for vertical thrust),
     // while the heading rate adjusts yaw. The input is shaped by acceleration and slew limits.
     virtual void input_thrust_vector_rate_heading_rads(const Vector3f& thrust_vector, float heading_rate_rads, bool slew_yaw = true);
-
-    // Sets desired thrust vector and heading (in centidegrees) with heading rate (in centidegrees/s).
-    // See input_thrust_vector_heading_rad() for full details.
-    void input_thrust_vector_heading_cd(const Vector3f& thrust_vector, float heading_angle_cd, float heading_rate_cds);
 
     // Sets desired thrust vector and heading (in radians) with heading rate (in radians/s).
     // Used for advanced attitude control where thrust direction is separated from yaw orientation.
@@ -419,10 +404,10 @@ public:
     float get_althold_lean_angle_max_cd() const;
 
     // Return configured tilt angle limit in centidegrees
-    float lean_angle_max_cd() const { return _aparm.angle_max; }
+    float lean_angle_max_cd() const;
 
     // Return configured tilt angle limit in radians
-    float lean_angle_max_rad() const { return cd_to_rad(_aparm.angle_max); }
+    float lean_angle_max_rad() const;
 
     // Return tilt angle in degrees
     float lean_angle_deg() const { return degrees(_thrust_angle_rad); }
@@ -533,11 +518,23 @@ public:
     // purposes
     void set_PD_scale_mult(const Vector3f &pd_scale) { _pd_scale *= pd_scale; }
 
+    // setup a one loop I scale multiplier, multiplying by any
+    // previously applied scale from this loop. This allows for more
+    // than one type of scale factor to be applied for different
+    // purposes
+    void set_I_scale_mult(const Vector3f &i_scale) { _i_scale *= i_scale; }
+
+    // scale I to represent the control given by angle P
+    void scale_I_to_angle_P();
+
     // write RATE message
     void Write_Rate(const AC_PosControl &pos_control) const;
 
     // write ANG message
     void Write_ANG() const;
+
+    // perform any required parameter conversions
+    void convert_parameters();
 
     // User settable parameters
     static const struct AP_Param::GroupInfo var_info[];
@@ -592,6 +589,9 @@ protected:
     AP_Float            _land_roll_mult;
     AP_Float            _land_pitch_mult;
     AP_Float            _land_yaw_mult;
+
+    // Angle limit
+    AP_Float            _angle_max_deg;
 
     // Latest body-frame gyro measurement (rad/s) used by rate controller
     Vector3f            _rate_gyro_rads;
@@ -683,12 +683,17 @@ protected:
     // Proportional-Derivative gains this loop (for logging/debugging)
     Vector3f            _pd_scale_used;
 
+    // Integrator gains applied dynamically per axis
+    Vector3f            _i_scale{1,1,1};
+
+    // Integrator gains this loop (for logging/debugging)
+    Vector3f            _i_scale_used;
+
     // Ratio of normal to reduced rate controller gain when landed to suppress ground resonance
     float               _landed_gain_ratio;
 
     // References to external libraries
     const AP_AHRS_View&  _ahrs;
-    const AP_MultiCopter &_aparm;
     AP_Motors&          _motors;
 
     static AC_AttitudeControl *_singleton;

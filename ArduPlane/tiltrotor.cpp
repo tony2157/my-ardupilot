@@ -413,8 +413,8 @@ void Tiltrotor::write_log()
 
     if (type != TILT_TYPE_VECTORED_YAW) {
         // Left and right tilt are invalid
-        pkt.front_left_tilt = plane.logger.quiet_nanf();
-        pkt.front_right_tilt = plane.logger.quiet_nanf();
+        pkt.front_left_tilt = AP_Logger::quiet_nanf();
+        pkt.front_right_tilt = AP_Logger::quiet_nanf();
 
     } else {
         // Calculate tilt angle from servo outputs
@@ -731,7 +731,7 @@ void Tiltrotor::update_yaw_target(void)
       the desired bank angle given the airspeed
      */
     float aspeed;
-    bool have_airspeed = quadplane.ahrs.airspeed_estimate(aspeed);
+    bool have_airspeed = quadplane.ahrs.airspeed_EAS(aspeed);
     if (have_airspeed && labs(plane.nav_roll_cd)>1000) {
         float dt = (now - transition_yaw_set_ms) * 0.001;
         // calculate the yaw rate to achieve the desired turn rate
@@ -783,6 +783,38 @@ bool Tiltrotor_Transition::show_vtol_view() const
     }
 
     return show_vtol;
+}
+
+// Return true if forward throttle should be allowed for position control, see Q_FWD_THR_USE
+bool Tiltrotor_Transition::allow_vfwd() const
+{
+    // Don't allow forward throttle (tilt) if a tilting motor has failed which would result in a yaw imbalance
+
+    // No resultant yaw imbalance if not vectored
+    if (!tiltrotor.is_vectored()) {
+        return true;
+    }
+
+    // No failed motor
+    if (!motors->get_thrust_boost()) {
+        return true;
+    }
+
+    // Get index of failed motor
+    const uint8_t lost_motor = motors->get_lost_motor();
+
+    // Failed motor is not tilting
+    if (!tiltrotor.is_motor_tilting(lost_motor)) {
+        return true;
+    }
+
+    // Failed tilting motor is on the center line, so will not cause a yaw imbalance
+    if (is_zero(motors->get_roll_factor(lost_motor))) {
+        return true;
+    }
+
+    // Disable forward throttle (tilt)
+    return false;
 }
 
 // return true if we are tilted over the max angle threshold

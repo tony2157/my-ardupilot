@@ -85,7 +85,7 @@ const AP_Param::GroupInfo Tailsitter::var_info[] = {
 
     // @Param: RLL_MX
     // @DisplayName: Maximum Roll angle
-    // @Description: Maximum Allowed roll angle for tailsitters. If this is zero then Q_ANGLE_MAX is used.
+    // @Description: Maximum Allowed roll angle for tailsitters. If this is zero then Q_A_ANGLE_MAX is used.
     // @Units: deg
     // @Range: 0 80
     // @User: Standard
@@ -185,10 +185,10 @@ static const struct AP_Param::defaults_table_struct defaults_table_tailsitter[] 
     { "Q_TRANS_DECEL",    6 },
     { "Q_A_ACCEL_P_MAX",    30000},
     { "Q_A_ACCEL_R_MAX",    30000},
-    { "Q_P_POSXY_P",        0.5},
-    { "Q_P_VELXY_P",        1.0},
-    { "Q_P_VELXY_I",        0.5},
-    { "Q_P_VELXY_D",        0.25},
+    { "Q_P_NE_POS_P",        0.5},
+    { "Q_P_NE_VEL_P",        1.0},
+    { "Q_P_NE_VEL_I",        0.5},
+    { "Q_P_NE_VEL_D",        0.25},
     
 };
 
@@ -707,7 +707,7 @@ void Tailsitter::speed_scaling(void)
         // https://web.mit.edu/16.unified/www/FALL/thermodynamics/notes/node86.html
 
         float airspeed;
-        if (!quadplane.ahrs.airspeed_estimate(airspeed)) {
+        if (!quadplane.ahrs.airspeed_EAS(airspeed)) {
             // No airspeed estimate, use throttle scaling
             spd_scaler = throttle_scaler;
 
@@ -832,7 +832,7 @@ void Tailsitter_Transition::update()
     const uint32_t now = millis();
 
     float aspeed;
-    bool have_airspeed = quadplane.ahrs.airspeed_estimate(aspeed);
+    bool have_airspeed = quadplane.ahrs.airspeed_EAS(aspeed);
     quadplane.assisted_flight = quadplane.assist.should_assist(aspeed, have_airspeed);
 
     if (transition_state != State::DONE) {
@@ -897,7 +897,7 @@ void Tailsitter_Transition::VTOL_update()
 
     if (transition_state == State::ANGLE_WAIT_VTOL) {
         float aspeed;
-        bool have_airspeed = quadplane.ahrs.airspeed_estimate(aspeed);
+        bool have_airspeed = quadplane.ahrs.airspeed_EAS(aspeed);
         // provide assistance in forward flight portion of tailsitter transition
         quadplane.assisted_flight = quadplane.assist.should_assist(aspeed, have_airspeed);
         if (!quadplane.tailsitter.transition_vtol_complete()) {

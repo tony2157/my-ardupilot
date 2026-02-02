@@ -36,7 +36,7 @@ Sub::Sub()
           auto_yaw_mode(AUTO_YAW_LOOK_AT_NEXT_WP),
           inertial_nav(ahrs),
           ahrs_view(ahrs, ROTATION_NONE),
-          attitude_control(ahrs_view, aparm, motors),
+          attitude_control(ahrs_view, motors),
           pos_control(ahrs_view, motors, attitude_control),
           wp_nav(ahrs_view, pos_control, attitude_control),
           loiter_nav(ahrs_view, pos_control, attitude_control),
@@ -232,7 +232,7 @@ void Sub::ten_hz_logging_loop()
             logger.Write_PID(LOG_PIDR_MSG, attitude_control.get_rate_roll_pid().get_pid_info());
             logger.Write_PID(LOG_PIDP_MSG, attitude_control.get_rate_pitch_pid().get_pid_info());
             logger.Write_PID(LOG_PIDY_MSG, attitude_control.get_rate_yaw_pid().get_pid_info());
-            logger.Write_PID(LOG_PIDA_MSG, pos_control.get_accel_U_pid().get_pid_info());
+            logger.Write_PID(LOG_PIDA_MSG, pos_control.D_get_accel_pid().get_pid_info());
         }
     }
     if (should_log(MASK_LOG_MOTBATT)) {
@@ -269,7 +269,7 @@ void Sub::twentyfive_hz_logging()
             logger.Write_PID(LOG_PIDR_MSG, attitude_control.get_rate_roll_pid().get_pid_info());
             logger.Write_PID(LOG_PIDP_MSG, attitude_control.get_rate_pitch_pid().get_pid_info());
             logger.Write_PID(LOG_PIDY_MSG, attitude_control.get_rate_yaw_pid().get_pid_info());
-            logger.Write_PID(LOG_PIDA_MSG, pos_control.get_accel_U_pid().get_pid_info());
+            logger.Write_PID(LOG_PIDA_MSG, pos_control.D_get_accel_pid().get_pid_info());
         }
     }
 
@@ -342,7 +342,7 @@ void Sub::one_hz_loop()
     set_likely_flying(hal.util->get_soft_armed());
 
     attitude_control.set_notch_sample_rate(AP::scheduler().get_filtered_loop_rate_hz());
-    pos_control.get_accel_U_pid().set_notch_sample_rate(AP::scheduler().get_filtered_loop_rate_hz());
+    pos_control.D_get_accel_pid().set_notch_sample_rate(AP::scheduler().get_filtered_loop_rate_hz());
 }
 
 void Sub::read_AHRS()
@@ -428,18 +428,7 @@ float Sub::get_alt_rel() const
 
     // get relative position
     float posD;
-    if (ahrs.get_relative_position_D_origin_float(posD)) {
-        if (ahrs.home_is_set()) {
-            // adjust to the home position
-            auto home = ahrs.get_home();
-            posD -= static_cast<float>(home.alt) * 0.01f;
-        }
-    } else {
-        // fall back to the barometer reading
-        posD = -AP::baro().get_altitude();
-    }
-
-    // convert down to up
+    ahrs.get_relative_position_D_home(posD);
     return -posD;
 }
 

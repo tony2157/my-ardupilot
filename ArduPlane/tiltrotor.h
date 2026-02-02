@@ -89,7 +89,7 @@ public:
 
     float current_tilt;
     float current_throttle;
-    bool _motors_active:1;
+    bool _motors_active;
     float transition_yaw_cd;
     uint32_t transition_yaw_set_ms;
     bool _is_vectored;
@@ -147,6 +147,9 @@ public:
     bool show_vtol_view() const override;
 
     bool use_multirotor_control_in_fwd_transition() const override;
+
+    // Return true if forward throttle should be allowed for position control, see Q_FWD_THR_USE
+    virtual bool allow_vfwd() const override;
 
 private:
 

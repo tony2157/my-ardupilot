@@ -198,9 +198,6 @@ public:
 private:
     AP_AHRS &ahrs;
 
-    // key aircraft parameters passed to multiple libraries
-    AP_MultiCopter aparm;
-
     AP_InertialNav inertial_nav{ahrs};
 
     AP_Enum<AP_Motors::motor_frame_class> frame_class;
@@ -515,10 +512,10 @@ private:
         uint32_t time_since_state_start_ms() const {
             return AP_HAL::millis() - last_state_change_ms;
         }
-        Vector3p target_neu_m;
+        Vector3p target_ned_m;
         Vector2f correction_ne_m;
         Vector3f target_vel_ms;
-        bool slow_descent:1;
+        bool slow_descent;
         bool pilot_correction_active;
         bool pilot_correction_done;
         uint32_t thrust_loss_start_ms;
@@ -573,7 +570,7 @@ private:
     uint32_t last_pidz_active_ms;
     uint32_t last_pidz_init_ms;
 
-    // throttle scailing for vectored motors in FW flighy
+    // throttle scaling for vectored motors in FW flight
     float FW_vector_throttle_scaling(void);
 
     void afs_terminate(void);
@@ -625,6 +622,12 @@ private:
 
     // AHRS alt for land abort and package place, meters
     float land_descend_start_alt_m;
+
+#if HAL_WITH_ESC_TELEM
+    // optionally block auto takeoff until all motors are spinning as expected
+    AP_Int16 takeoff_rpm_min;
+    AP_Int16 takeoff_rpm_max;
+#endif
 
     // min alt for navigation in takeoff
     AP_Float takeoff_navalt_min_m;
@@ -742,6 +745,25 @@ public:
                                         uint8_t motor_count);
 private:
     void motor_test_stop();
+
+    // check for loss of thrust and trigger thrust boost in motors library
+    void thrust_loss_check(bool reset);
+
+    // Thrust loss variables
+    struct ThrustLoss {
+        // number of iterations vehicle may have lost thrust
+        uint16_t counter;
+
+        // Options parameter and helper
+        AP_Int32 options;
+        enum class Option {
+            DISABLED = (1<<0),
+            VTOL_ONLY = (1<<1),
+        };
+        bool option_is_set(Option option) const {
+            return (options.get() & int32_t(option)) != 0;
+        }
+    } thrust_loss;
 
     static QuadPlane *_singleton;
 };
