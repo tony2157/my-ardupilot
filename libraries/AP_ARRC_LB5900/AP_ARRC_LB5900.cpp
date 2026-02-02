@@ -13,7 +13,8 @@ AP_ARRC_LB5900::AP_ARRC_LB5900() :
     _healthy(false),
     _initialized(false),
     _avg_cnt(1),
-    _rate(0)
+    _rate(0),
+    _consecutive_failures(0)
 {
 }
 
@@ -58,9 +59,9 @@ bool AP_ARRC_LB5900::init(uint8_t busId, uint8_t i2cAddr, uint16_t freq, uint8_t
     _dev->get_semaphore()->give();
 
     // Calculate callback period based on MRATe and averaging count
-    // Add 10% margin to ensure measurement is ready
+    // Add 25% margin to ensure measurement is ready (per SPII2CHW.pdf p.4 recommendation)
     uint32_t measurement_period_us = _calculate_measurement_period_us(_rate, _avg_cnt);
-    measurement_period_us = (measurement_period_us * 11) / 10;  // Add 10% margin
+    measurement_period_us = (measurement_period_us * 125) / 100;  // Add 25% margin
 
     // Clamp to reasonable bounds (minimum 5ms, maximum 500ms)
     measurement_period_us = MAX(measurement_period_us, 5000);
@@ -247,5 +248,13 @@ void AP_ARRC_LB5900::_timer(void)
     // Phase 1 fix: Correct order - FETCh? is now sent first within _fetch_and_read()
     // In free-run mode (INIT:CONT ON), the sensor continuously averages measurements.
     // FETCh? returns the most recent trailing average from the circular buffer.
-    _healthy = _fetch_and_read();
+    if (_fetch_and_read()) {
+        _consecutive_failures = 0;
+        _healthy = true;
+    } else {
+        _consecutive_failures++;
+        // Allow up to 2 consecutive failures before marking unhealthy
+        // This smooths out occasional timing jitter
+        _healthy = (_consecutive_failures < 3);
+    }
 }

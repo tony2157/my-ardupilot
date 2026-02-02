@@ -1,0 +1,129 @@
+================================================================================
+LB5900 TIMING CONFIGURATION GUIDE
+================================================================================
+
+This document explains how measurement rate, averaging, and logging interact
+in the LB5900 driver. Use this as a reference when configuring for different
+sampling rate requirements.
+
+--------------------------------------------------------------------------------
+MEASUREMENT RATE MODES (MRATe)
+--------------------------------------------------------------------------------
+
+The sensor supports 4 measurement rate modes controlled by the 'rate' parameter:
+
+  Rate | Mode   | Time Per Average | Notes
+  -----|--------|------------------|----------------------------------
+    0  | NORMAL |     38.4 ms      | Slowest, most stable
+    1  | DOUBLE |     19.6 ms      | Default mode
+    2  | FAST   |      3.2 ms      | Averaging forced to 1
+    3  | SUPER  |      1.6 ms      | Fastest, allows averaging
+
+--------------------------------------------------------------------------------
+CALCULATING ACTUAL SAMPLING RATE
+--------------------------------------------------------------------------------
+
+Formula:
+  measurement_time = time_per_average * avg_cnt
+  callback_period  = measurement_time * 1.25   (25% margin for reliability)
+  max_sensor_rate  = 1000 / callback_period_ms
+
+Example calculations:
+
+  DOUBLE mode (rate=1), avg_cnt=5:
+    19.6 ms * 5 = 98 ms
+    98 ms * 1.25 = 122.5 ms
+    Rate = ~8 Hz
+
+  DOUBLE mode (rate=1), avg_cnt=1:
+    19.6 ms * 1 = 19.6 ms
+    19.6 ms * 1.25 = 24.5 ms
+    Rate = ~40 Hz
+
+  SUPER mode (rate=3), avg_cnt=4:
+    1.6 ms * 4 = 6.4 ms
+    6.4 ms * 1.25 = 8 ms
+    Rate = ~125 Hz
+
+--------------------------------------------------------------------------------
+QUICK REFERENCE TABLE
+--------------------------------------------------------------------------------
+
+Desired Rate | Recommended Config          | Averaging
+-------------|-----------------------------|-----------
+   ~10 Hz    | DOUBLE (rate=1), avg_cnt=5  | 5 samples
+   ~25 Hz    | DOUBLE (rate=1), avg_cnt=2  | 2 samples
+   ~40 Hz    | DOUBLE (rate=1), avg_cnt=1  | None
+   ~60 Hz    | SUPER (rate=3), avg_cnt=10  | 10 samples
+  ~125 Hz    | SUPER (rate=3), avg_cnt=4   | 4 samples
+  ~300 Hz    | FAST (rate=2), avg_cnt=1    | None (forced)
+  ~500 Hz    | SUPER (rate=3), avg_cnt=1   | None
+
+Note: Actual logged rate is also limited by the scheduler task rate in
+ArduCopter/Copter.cpp (currently 50 Hz). Increase scheduler rate if the
+sensor rate exceeds 50 Hz.
+
+--------------------------------------------------------------------------------
+PARAMETER LOCATIONS
+--------------------------------------------------------------------------------
+
+User-configurable parameters (runtime via GCS):
+  - USR_LB_AVG_CNT : Averaging count (1-1024, ignored in FAST mode)
+  - USR_LB_RATE    : Measurement rate mode (0-3)
+
+Default values defined in:
+  ArduCopter/UserParameters.cpp (lines 17-18)
+
+Scheduler task rate defined in:
+  ArduCopter/Copter.cpp (line 251)
+  SCHED_TASK(user_LB5900_logger, 50, 175, 159)
+                                 ^^ Hz
+
+--------------------------------------------------------------------------------
+TRADE-OFFS
+--------------------------------------------------------------------------------
+
+Higher avg_cnt:
+  + Better noise reduction
+  + More stable readings
+  - Slower sampling rate
+
+Lower avg_cnt:
+  + Faster sampling rate
+  - More noise in measurements
+  - May need post-processing filtering
+
+SUPER mode vs DOUBLE mode:
+  + SUPER is 12x faster base rate
+  + Can have both speed AND averaging
+  - May be more sensitive to I2C timing issues
+
+--------------------------------------------------------------------------------
+TROUBLESHOOTING LOW SAMPLE RATES
+--------------------------------------------------------------------------------
+
+If logged data shows lower than expected rate:
+
+1. Check avg_cnt parameter - this is usually the culprit
+   Higher avg_cnt = proportionally slower rate
+
+2. Check scheduler rate in Copter.cpp
+   Sensor rate cannot exceed scheduler rate
+
+3. Verify mode setting (rate parameter)
+   SUPER mode (rate=3) allows highest rates with averaging
+
+4. Check _healthy flag stability
+   Frequent health dropouts indicate timing margin issues
+
+--------------------------------------------------------------------------------
+REFERENCES
+--------------------------------------------------------------------------------
+
+- LadyBug LB5900 Programming Guide (Section IV - Reducing Measurement Time)
+- SPII2CHW.pdf (I2C timing specifications)
+- AP_ARRC_LB5900.h header comments (measurement rate tables)
+
+================================================================================
+Last updated: 2026-02-02
+================================================================================
