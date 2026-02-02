@@ -194,4 +194,7 @@ private:
     // Configuration storage for timing calculations
     uint8_t _avg_cnt;
     uint8_t _rate;
+
+    // Consecutive failure counter for health dropout tolerance
+    uint8_t _consecutive_failures;
 };
