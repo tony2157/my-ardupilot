@@ -46,8 +46,10 @@ void AP_OpenDroneID::dronecan_init(AP_DroneCAN *uavcan)
     if (dc_location[driver_index] == nullptr) {
         goto alloc_failed;
     }
-    dc_location[driver_index]->set_timeout_ms(20);
-    dc_location[driver_index]->set_priority(CANARD_TRANSFER_PRIORITY_LOW);
+    // Location is time-critical (1Hz with 3s timeout on module side),
+    // use MEDIUM priority and longer timeout to avoid drops on busy CAN bus
+    dc_location[driver_index]->set_timeout_ms(50);
+    dc_location[driver_index]->set_priority(CANARD_TRANSFER_PRIORITY_MEDIUM);
 
     dc_basic_id[driver_index] = NEW_NOTHROW Canard::Publisher<dronecan_remoteid_BasicID>(uavcan->get_canard_iface());
     if (dc_basic_id[driver_index] == nullptr) {
