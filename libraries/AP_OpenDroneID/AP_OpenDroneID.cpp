@@ -247,22 +247,18 @@ void AP_OpenDroneID::update()
 #endif
 }
 
-// local payload space check which treats invalid channel as having space
-// needed to populate the message structures for the DroneCAN backend
-#define ODID_HAVE_PAYLOAD_SPACE(id) (_chan == MAV_CHAN_INVALID || HAVE_PAYLOAD_SPACE(_chan, id))
-
 void AP_OpenDroneID::send_dynamic_out()
 {
     const uint32_t now = AP_HAL::millis();
-    if (now - _last_send_location_ms >= _mavlink_dynamic_period_ms &&
-        ODID_HAVE_PAYLOAD_SPACE(OPEN_DRONE_ID_LOCATION)) {
+    // always prepare and flag DroneCAN at the required rate,
+    // regardless of MAVLink buffer availability
+    if (now - _last_send_location_ms >= _mavlink_dynamic_period_ms) {
         _last_send_location_ms = now;
         send_location_message();
     }
 
     // operator location needs to be sent at the same rate as location for FAA compliance
-    if (now - _last_send_system_update_ms >= _mavlink_dynamic_period_ms &&
-        ODID_HAVE_PAYLOAD_SPACE(OPEN_DRONE_ID_SYSTEM_UPDATE)) {
+    if (now - _last_send_system_update_ms >= _mavlink_dynamic_period_ms) {
         _last_send_system_update_ms = now;
         send_system_update_message();
     }
@@ -294,39 +290,27 @@ void AP_OpenDroneID::send_static_out()
     if (now_ms - last_msg_send_ms >= msg_spacing_ms) {
         // allow update of channel during setup, this makes it easy to debug with a GCS
         _chan = mavlink_channel_t(gcs().get_channel_from_port_number(_mav_port));
-        bool sent_ok = false;
+        // always call the send function to flag DroneCAN regardless
+        // of MAVLink buffer state; MAVLink payload check is done
+        // inside each send function
         switch (next_msg_to_send) {
         case NEXT_MSG_BASIC_ID:
-            if (ODID_HAVE_PAYLOAD_SPACE(OPEN_DRONE_ID_BASIC_ID)) {
-                send_basic_id_message();
-                sent_ok = true;
-            }
+            send_basic_id_message();
             break;
         case NEXT_MSG_SYSTEM:
-            if (ODID_HAVE_PAYLOAD_SPACE(OPEN_DRONE_ID_SYSTEM)) {
-                send_system_message();
-                sent_ok = true;
-            }
+            send_system_message();
             break;
         case NEXT_MSG_SELF_ID:
-            if (ODID_HAVE_PAYLOAD_SPACE(OPEN_DRONE_ID_SELF_ID)) {
-                send_self_id_message();
-                sent_ok = true;
-            }
+            send_self_id_message();
             break;
         case NEXT_MSG_OPERATOR_ID:
-            if (ODID_HAVE_PAYLOAD_SPACE(OPEN_DRONE_ID_OPERATOR_ID)) {
-                send_operator_id_message();
-                sent_ok = true;
-            }
+            send_operator_id_message();
             break;
         case NEXT_MSG_ENUM_END:
             break;
         }
-        if (sent_ok) {
-            last_msg_send_ms = now_ms;
-            next_msg_to_send = next_msg((uint8_t(next_msg_to_send) + 1) % uint8_t(NEXT_MSG_ENUM_END));
-        }
+        last_msg_send_ms = now_ms;
+        next_msg_to_send = next_msg((uint8_t(next_msg_to_send) + 1) % uint8_t(NEXT_MSG_ENUM_END));
     }
 }
 
@@ -494,7 +478,7 @@ void AP_OpenDroneID::send_location_message()
         need_send_location = dronecan_send_all;
     }
 
-    if (_chan != MAV_CHAN_INVALID) {
+    if (_chan != MAV_CHAN_INVALID && HAVE_PAYLOAD_SPACE(_chan, OPEN_DRONE_ID_LOCATION)) {
         mavlink_msg_open_drone_id_location_send_struct(_chan, &pkt_location);
     }
 }
@@ -503,7 +487,7 @@ void AP_OpenDroneID::send_basic_id_message()
 {
     // note that packet is filled in by the GCS
     need_send_basic_id |= dronecan_send_all;
-    if (_chan != MAV_CHAN_INVALID) {
+    if (_chan != MAV_CHAN_INVALID && HAVE_PAYLOAD_SPACE(_chan, OPEN_DRONE_ID_BASIC_ID)) {
         mavlink_msg_open_drone_id_basic_id_send_struct(_chan, &pkt_basic_id);
     }
 }
@@ -512,7 +496,7 @@ void AP_OpenDroneID::send_system_message()
 {
     // note that packet is filled in by the GCS
     need_send_system |= dronecan_send_all;
-    if (_chan != MAV_CHAN_INVALID) {
+    if (_chan != MAV_CHAN_INVALID && HAVE_PAYLOAD_SPACE(_chan, OPEN_DRONE_ID_SYSTEM)) {
         mavlink_msg_open_drone_id_system_send_struct(_chan, &pkt_system);
     }
 }
@@ -520,7 +504,7 @@ void AP_OpenDroneID::send_system_message()
 void AP_OpenDroneID::send_self_id_message()
 {
     need_send_self_id |= dronecan_send_all;
-    if (_chan != MAV_CHAN_INVALID) {
+    if (_chan != MAV_CHAN_INVALID && HAVE_PAYLOAD_SPACE(_chan, OPEN_DRONE_ID_SELF_ID)) {
         mavlink_msg_open_drone_id_self_id_send_struct(_chan, &pkt_self_id);
     }
 }
@@ -529,7 +513,7 @@ void AP_OpenDroneID::send_system_update_message()
 {
     need_send_system |= dronecan_send_all;
     // note that packet is filled in by the GCS
-    if (_chan != MAV_CHAN_INVALID) {
+    if (_chan != MAV_CHAN_INVALID && HAVE_PAYLOAD_SPACE(_chan, OPEN_DRONE_ID_SYSTEM_UPDATE)) {
         const auto pkt_system_update = mavlink_open_drone_id_system_update_t {
         operator_latitude : pkt_system.operator_latitude,
         operator_longitude : pkt_system.operator_longitude,
@@ -546,7 +530,7 @@ void AP_OpenDroneID::send_operator_id_message()
 {
     need_send_operator_id |= dronecan_send_all;
     // note that packet is filled in by the GCS
-    if (_chan != MAV_CHAN_INVALID) {
+    if (_chan != MAV_CHAN_INVALID && HAVE_PAYLOAD_SPACE(_chan, OPEN_DRONE_ID_OPERATOR_ID)) {
         mavlink_msg_open_drone_id_operator_id_send_struct(_chan, &pkt_operator_id);
     }
 }
