@@ -286,10 +286,10 @@ void Copter::user_humidity_logger()
             healthy2               : copter.CASS_HYT271[1].healthy(),
             healthy3               : copter.CASS_HYT271[2].healthy(),
             healthy4               : copter.CASS_HYT271[3].healthy(),
-            humidity1              : copter.CASS_HYT271[0].relative_humidity(), //Store Rel. humidity
-            humidity2              : copter.CASS_HYT271[1].relative_humidity(),
-            humidity3              : copter.CASS_HYT271[2].relative_humidity(),
-            humidity4              : copter.CASS_HYT271[3].relative_humidity(),
+            humidity1              : copter.CASS_HYT271[0].corrected_humidity(), //Store Rel. humidity
+            humidity2              : copter.CASS_HYT271[1].corrected_humidity(),
+            humidity3              : copter.CASS_HYT271[2].corrected_humidity(),
+            humidity4              : copter.CASS_HYT271[3].corrected_humidity(),
             RHtemp1                : copter.CASS_HYT271[0].temperature(),       //Store temperature
             RHtemp2                : copter.CASS_HYT271[1].temperature(),
             RHtemp3                : copter.CASS_HYT271[2].temperature(),
