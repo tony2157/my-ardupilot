@@ -648,6 +648,7 @@ protected:
         DisableRTCMDecode = (1U << 7),
         HSITrimUsingPPS = (1U << 8),
         HSITrimStats = (1U << 9),
+        UBX_DebugMessages = (1U << 10),
     };
 
     // check if an option is set

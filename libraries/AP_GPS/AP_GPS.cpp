@@ -71,7 +71,7 @@
 extern const AP_HAL::HAL &hal;
 
 // baudrates to try to detect GPSes with
-const uint32_t AP_GPS::_baudrates[] = {9600U, 115200U, 4800U, 19200U, 38400U, 57600U, 230400U, 460800U};
+const uint32_t AP_GPS::_baudrates[] = {9600U, 115200U, 4800U, 19200U, 38400U, 57600U, 230400U, 460800U, 921600U};
 #ifndef AP_GPS_UBLOX_DEFAULT_BAUDRATE
 #define AP_GPS_UBLOX_DEFAULT_BAUDRATE 230400
 #endif
@@ -242,7 +242,7 @@ const AP_Param::GroupInfo AP_GPS::var_info[] = {
     // @Param: _DRV_OPTIONS
     // @DisplayName: driver options
     // @Description: Additional backend specific options
-    // @Bitmask: 0:Use UART2 for moving baseline on ublox,1:Use base station for GPS yaw on SBF,2:Use baudrate 115200,3:Use dedicated CAN port b/w GPSes for moving baseline,4:Use ellipsoid height instead of AMSL, 5:Override GPS satellite health of L5 band from L1 health, 6:Enable RTCM full parse even for a single channel, 7:Disable automatic full RTCM parsing when RTCM seen on more than one channel
+    // @Bitmask: 0:Use UART2 for moving baseline on ublox,1:Use base station for GPS yaw on SBF,2:Use baudrate 115200,3:Use dedicated CAN port b/w GPSes for moving baseline,4:Use ellipsoid height instead of AMSL, 5:Override GPS satellite health of L5 band from L1 health, 6:Enable RTCM full parse even for a single channel, 7:Disable automatic full RTCM parsing when RTCM seen on more than one channel, 8:HSI trim using PPS (ublox), 9:HSI trim stats, 10:Enable u-blox debug messages on UART1
     // @User: Advanced
     AP_GROUPINFO("_DRV_OPTIONS", 22, AP_GPS, _driver_options, 0),
 
@@ -540,6 +540,12 @@ void AP_GPS::send_blob_start(uint8_t instance)
     const auto type = params[instance].type;
 
 #if AP_GPS_UBLOX_ENABLED
+    if (type == GPS_TYPE_UBLOX && option_set(DriverOptions::UBX_DebugMessages)) {
+        // bump UART1 to 921600 so the extra debug streams fit within nav-rate
+        static const char blob[] = UBLOX_SET_BINARY_921600;
+        send_blob_start(instance, blob, sizeof(blob));
+        return;
+    }
     if (type == GPS_TYPE_UBLOX && option_set(DriverOptions::UBX_Use115200)) {
         static const char blob[] = UBLOX_SET_BINARY_115200;
         send_blob_start(instance, blob, sizeof(blob));
@@ -718,6 +724,16 @@ AP_GPS_Backend *AP_GPS::_detect_instance(uint8_t instance)
         if (type == GPS_TYPE_UBLOX_RTK_BASE) {
             rx_size = 2048;
         }
+#if AP_GPS_UBLOX_ENABLED
+        if ((type == GPS_TYPE_AUTO || type == GPS_TYPE_UBLOX ||
+             type == GPS_TYPE_UBLOX_RTK_BASE || type == GPS_TYPE_UBLOX_RTK_ROVER) &&
+            option_set(DriverOptions::UBX_DebugMessages)) {
+            // F9 debug streams (NAV-SAT/SIG/CLOCK + MON-RF/HW3/COMMS/SPAN)
+            // push several KB per nav epoch in a single burst at 921600 -
+            // give the RX path enough headroom to absorb a full epoch
+            rx_size = MAX(rx_size, (uint16_t)4096);
+        }
+#endif
         _port[instance]->begin(dstate->probe_baud, rx_size, tx_size);
         _port[instance]->set_flow_control(AP_HAL::UARTDriver::FLOW_CONTROL_DISABLE);
         dstate->last_baud_change_ms = now;
@@ -768,7 +784,10 @@ AP_GPS_Backend *AP_GPS::_detect_instance(uint8_t instance)
              type == GPS_TYPE_UBLOX) &&
             ((!_auto_config && _baudrates[dstate->current_baud] >= 38400) ||
              (_baudrates[dstate->current_baud] >= 115200 && option_set(DriverOptions::UBX_Use115200)) ||
-             _baudrates[dstate->current_baud] == AP_GPS_UBLOX_DEFAULT_BAUDRATE) &&
+             _baudrates[dstate->current_baud] == AP_GPS_UBLOX_DEFAULT_BAUDRATE ||
+             // also accept 921600 so we can re-detect a u-blox that was
+             // previously configured to 921600 by the debug-msgs option
+             _baudrates[dstate->current_baud] == 921600U) &&
             AP_GPS_UBLOX::_detect(dstate->ublox_detect_state, data)) {
             return new AP_GPS_UBLOX(*this, params[instance], state[instance], _port[instance], GPS_ROLE_NORMAL);
         }

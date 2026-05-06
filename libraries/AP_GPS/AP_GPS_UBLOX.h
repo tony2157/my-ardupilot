@@ -55,6 +55,9 @@
 // a variant with 460800 baudrate
 #define UBLOX_SET_BINARY_460800 "\265\142\006\001\003\000\001\006\001\022\117$PUBX,41,1,0023,0001,460800,0*11\r\n"
 
+// a variant with 921600 baudrate
+#define UBLOX_SET_BINARY_921600 "\265\142\006\001\003\000\001\006\001\022\117$PUBX,41,1,0023,0001,921600,0*17\r\n"
+
 #define UBLOX_RXM_RAW_LOGGING 1
 #define UBLOX_MAX_RXM_RAW_SATS 22
 #define UBLOX_MAX_RXM_RAWX_SATS 80
@@ -101,7 +104,8 @@
 #define CONFIG_TIM_TM2       (1<<18)
 #define CONFIG_M10           (1<<19)
 #define CONFIG_L5            (1<<20)
-#define CONFIG_LAST          (1<<21) // this must always be the last bit
+#define CONFIG_F9_DEBUG      (1<<21)
+#define CONFIG_LAST          (1<<22) // this must always be the last bit
 
 #define CONFIG_REQUIRED_INITIAL (CONFIG_RATE_NAV | CONFIG_RATE_POSLLH | CONFIG_RATE_STATUS | CONFIG_RATE_VELNED)
 
@@ -295,6 +299,18 @@ private:
         MSGOUT_RTCM_3X_TYPE1127_UART2   = 0x209102d8,
         MSGOUT_RTCM_3X_TYPE1230_UART2   = 0x20910305,
         MSGOUT_UBX_NAV_RELPOSNED_UART2  = 0x2091008f,
+
+        // F9 debug message outputs on UART1 (used by CONFIG_F9_DEBUG).
+        // NAV-PVT/STATUS/VELNED/DOP/TIMEGPS and RXM-RAWX are intentionally
+        // omitted - they are owned by the standard rate-config path.
+        // Values cross-checked against u-blox HPG 2.02 interface description.
+        MSGOUT_UBX_NAV_SAT_UART1        = 0x20910016,
+        MSGOUT_UBX_NAV_CLOCK_UART1      = 0x20910066,
+        MSGOUT_UBX_NAV_SIG_UART1        = 0x20910346,
+        MSGOUT_UBX_MON_COMMS_UART1      = 0x20910350,
+        MSGOUT_UBX_MON_HW3_UART1        = 0x20910355,
+        MSGOUT_UBX_MON_RF_UART1         = 0x2091035a,
+        MSGOUT_UBX_MON_SPAN_UART1       = 0x2091038c,
 
         // enable specific signals and constellations
         CFG_SIGNAL_GPS_ENA              = 0x1031001f,
@@ -701,7 +717,18 @@ private:
         MSG_MON_HW = 0x09,
         MSG_MON_HW2 = 0x0B,
         MSG_MON_VER = 0x04,
+        // CLASS_MON debug message ids (consumed silently when GPS_DRV_OPTIONS
+        // bit 10 has them enabled so the unknown-message disable counter
+        // does not race with the F9 debug VALSET path)
+        MSG_MON_SPAN = 0x31,
+        MSG_MON_COMMS = 0x36,
+        MSG_MON_HW3 = 0x37,
+        MSG_MON_RF = 0x38,
         MSG_NAV_SVINFO = 0x30,
+        // CLASS_NAV debug message ids (same rationale as the MON_* group)
+        MSG_NAV_CLOCK = 0x22,
+        MSG_NAV_SAT = 0x35,
+        MSG_NAV_SIG = 0x43,
         MSG_RXM_RAW = 0x10,
         MSG_RXM_RAWX = 0x15,
         MSG_TIM_TM2 = 0x03
@@ -765,6 +792,7 @@ private:
         STEP_TIM_TM2,
         STEP_M10,
         STEP_L5,
+        STEP_F9_DEBUG,
         STEP_LAST
     };
 
@@ -816,7 +844,7 @@ private:
     bool _cfg_needs_save;
 
     bool noReceivedHdop;
-    
+
     bool havePvtMsg;
 
     bool        _configure_message_rate(uint8_t msg_class, uint8_t msg_id, uint8_t rate);
@@ -925,6 +953,10 @@ private:
     static const config_list config_M10[];
     static const config_list config_L5_ovrd_ena[];
     static const config_list config_L5_ovrd_dis[];
+
+    // F9 debug message MSGOUT enable/disable on UART1
+    static const config_list config_F9_debug_uart1[];
+    static const config_list config_F9_debug_uart1_dis[];
     bool in_safeboot_mode;
 };
 

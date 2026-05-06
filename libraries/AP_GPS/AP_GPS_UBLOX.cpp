@@ -276,6 +276,34 @@ const AP_GPS_UBLOX::config_list AP_GPS_UBLOX::config_L5_ovrd_dis[] {
     {ConfigKey::CFG_SIGNAL_L5_HEALTH_OVRD, 0},
 };
 
+/*
+  enable F9 debug message outputs on UART1.
+  NAV-PVT/STATUS/VELNED/DOP/TIMEGPS and RXM-RAWX are excluded - they
+  are managed by the standard rate-config path (CONFIG_RATE_*) and
+  would otherwise race with this list.
+  driven by GPS_DRV_OPTIONS bit 10 (UBX_DebugMessages).
+*/
+const AP_GPS_UBLOX::config_list AP_GPS_UBLOX::config_F9_debug_uart1[] {
+    { ConfigKey::MSGOUT_UBX_NAV_SAT_UART1,     1},
+    { ConfigKey::MSGOUT_UBX_NAV_CLOCK_UART1,   1},
+    { ConfigKey::MSGOUT_UBX_NAV_SIG_UART1,     1},
+    { ConfigKey::MSGOUT_UBX_MON_RF_UART1,      5},
+    { ConfigKey::MSGOUT_UBX_MON_HW3_UART1,     5},
+    { ConfigKey::MSGOUT_UBX_MON_COMMS_UART1,   5},
+    { ConfigKey::MSGOUT_UBX_MON_SPAN_UART1,    5},
+};
+
+// disable variant - applied when UBX_DebugMessages is cleared
+const AP_GPS_UBLOX::config_list AP_GPS_UBLOX::config_F9_debug_uart1_dis[] {
+    { ConfigKey::MSGOUT_UBX_NAV_SAT_UART1,     0},
+    { ConfigKey::MSGOUT_UBX_NAV_CLOCK_UART1,   0},
+    { ConfigKey::MSGOUT_UBX_NAV_SIG_UART1,     0},
+    { ConfigKey::MSGOUT_UBX_MON_RF_UART1,      0},
+    { ConfigKey::MSGOUT_UBX_MON_HW3_UART1,     0},
+    { ConfigKey::MSGOUT_UBX_MON_COMMS_UART1,   0},
+    { ConfigKey::MSGOUT_UBX_MON_SPAN_UART1,    0},
+};
+
 void
 AP_GPS_UBLOX::_request_next_config(void)
 {
@@ -493,6 +521,30 @@ AP_GPS_UBLOX::_request_next_config(void)
             if (!_configure_config_set(list, list_length, CONFIG_L5, UBX_VALSET_LAYER_RAM | UBX_VALSET_LAYER_BBR)) {
                 _next_message--;
             }
+        }
+        break;
+    }
+
+    case STEP_F9_DEBUG: {
+        if (supports_F9_config()) {
+            const config_list *list;
+            uint8_t list_length;
+            if (option_set(AP_GPS::DriverOptions::UBX_DebugMessages)) {
+                list = config_F9_debug_uart1;
+                list_length = ARRAY_SIZE(config_F9_debug_uart1);
+                Debug("Enabling F9 debug messages on UART1");
+            } else {
+                list = config_F9_debug_uart1_dis;
+                list_length = ARRAY_SIZE(config_F9_debug_uart1_dis);
+            }
+            // baud switch is handled by AP_GPS::send_blob_start() during
+            // detection - it picks UBLOX_SET_BINARY_921600 when this
+            // option is set, mirroring the moving-baseline 460800 path
+            if (!_configure_config_set(list, list_length, CONFIG_F9_DEBUG, UBX_VALSET_LAYER_RAM | UBX_VALSET_LAYER_BBR)) {
+                _next_message--;
+            }
+        } else {
+            _unconfigured_messages &= ~CONFIG_F9_DEBUG;
         }
         break;
     }
@@ -1409,8 +1461,16 @@ AP_GPS_UBLOX::_parse_gps(void)
             break;
         case MSG_MON_HW2:
             if (_payload_length == 28) {
-                log_mon_hw2();  
+                log_mon_hw2();
             }
+            break;
+        // F9 debug streams (enabled via CONFIG_F9_DEBUG). We don't decode
+        // them but must consume them so the unknown-message default path
+        // does not auto-disable them.
+        case MSG_MON_RF:
+        case MSG_MON_HW3:
+        case MSG_MON_COMMS:
+        case MSG_MON_SPAN:
             break;
         case MSG_MON_VER: {
             bool check_L1L5 = false;
@@ -1430,6 +1490,8 @@ AP_GPS_UBLOX::_parse_gps(void)
                     if (_hardware_generation != UBLOX_F9) {
                         // need to ensure time mode is correctly setup on F9
                         _unconfigured_messages |= CONFIG_TMODE_MODE;
+                        // F9 supports MSGOUT MSGOUT_UBX_* keys for debug streams
+                        _unconfigured_messages |= CONFIG_F9_DEBUG;
                     }
                     _hardware_generation = UBLOX_F9;
                 }
@@ -1862,6 +1924,13 @@ AP_GPS_UBLOX::_parse_gps(void)
         _configure_message_rate(CLASS_NAV, MSG_NAV_SVINFO, 0);
         break;
         }
+    // F9 debug streams (enabled via CONFIG_F9_DEBUG). We don't decode
+    // them but must consume them so the default path below does not
+    // auto-disable them when the option is on.
+    case MSG_NAV_SAT:
+    case MSG_NAV_SIG:
+    case MSG_NAV_CLOCK:
+        break;
     default:
         Debug("Unexpected NAV message 0x%02x", (unsigned)_msg_id);
         if (++_disable_counter == 0) {
@@ -2231,7 +2300,8 @@ static const char *reasons[] = {"navigation rate",
                                 "RTK MB",
                                 "TIM TM2",
                                 "M10",
-                                "L5 Enable Disable"};
+                                "L5 Enable Disable",
+                                "F9 debug messages"};
 
 static_assert((1 << ARRAY_SIZE(reasons)) == CONFIG_LAST, "UBLOX: Missing configuration description");
 
