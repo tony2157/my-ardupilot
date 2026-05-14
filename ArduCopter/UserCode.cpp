@@ -608,6 +608,180 @@ void Copter::userhook_auxSwitch1(const RC_Channel::AuxSwitchPos ch_flag)
 void Copter::userhook_auxSwitch2(const RC_Channel::AuxSwitchPos ch_flag)
 {
     // put your aux switch #2 handler here (CHx_OPT = 48)
+    // AutoVP "stepped profile": vertical column above current location with
+    // intermediate WPs every USR_AUTOVP_STP metres. Ascent WPs hold for
+    // USR_AUTOVP_HLD seconds; descent WPs do not hold. Mission ends with RTL
+    // after the bottom WP at USR_AUTOVP_BTM is reached.
+
+    // Check if drone is grounded and ready to create a mission
+    if(ap.land_complete && copter.position_ok() && ch_flag == RC_Channel::AuxSwitchPos::HIGH && (AP_HAL::millis() - mission_now) > 5000){
+
+        AP_Mission::Mission_Command cmd;
+
+        // Pull params (meters / seconds)
+        float top_m = g2.user_parameters.get_autovp_max_alt();
+        float stp_m = g2.user_parameters.get_autovp_step();
+        float btm_m = g2.user_parameters.get_autovp_bottom();
+        float hld_s = g2.user_parameters.get_autovp_hold();
+
+        // Match auxSwitch1 bounds on top altitude first
+        if(top_m > 1800.0f){
+            top_m = 1800.0f;
+            gcs().send_text(MAV_SEVERITY_INFO, "AutoVP: Max Alt set to 1800m");
+        }
+        if(top_m < 10.0f){
+            top_m = 10.0f;
+            gcs().send_text(MAV_SEVERITY_INFO, "AutoVP: Max Alt set to 10m");
+        }
+
+        // Refuse if BTM is not strictly below ALT (do not clear existing mission)
+        if(btm_m >= top_m){
+            gcs().send_text(MAV_SEVERITY_WARNING, "AutoVP: BTM (%.1f) must be < ALT (%.1f)", btm_m, top_m);
+            mission_now = AP_HAL::millis();
+            return;
+        }
+
+        // Sanity-clamp the remaining params
+        if(stp_m < 1.0f)   { stp_m = 1.0f; }
+        if(btm_m < 3.0f)   { btm_m = 3.0f; }
+        if(hld_s < 0.0f)   { hld_s = 0.0f; }
+        if(hld_s > 600.0f) { hld_s = 600.0f; }
+        const uint16_t hold_p1 = (uint16_t)hld_s;
+
+        // Get current position
+        int32_t vp_lat = copter.current_loc.lat;
+        int32_t vp_lng = copter.current_loc.lng;
+
+        // clear mission
+        if(!copter.mode_auto.mission.clear()){
+            gcs().send_text(MAV_SEVERITY_WARNING, "AutoVP: Mission could not be cleared");
+            return;
+        }
+
+        // Command #0 : home
+        cmd.id = MAV_CMD_NAV_WAYPOINT;
+        cmd.p1 = 0;
+        cmd.content.location = Location{
+                                    vp_lat,
+                                    vp_lng,
+                                    0,
+                                    Location::AltFrame::ABOVE_HOME};
+        if (!copter.mode_auto.mission.add_cmd(cmd)) {
+            gcs().send_text(MAV_SEVERITY_WARNING, "AutoVP: failed to create mission");
+            return;
+        }
+
+        // Command #1 : take-off to 3m (matches auxSwitch1)
+        cmd.id = MAV_CMD_NAV_TAKEOFF;
+        cmd.p1 = 0;
+        cmd.content.location = Location{
+                                    0,
+                                    0,
+                                    300,
+                                    Location::AltFrame::ABOVE_HOME};
+        if (!copter.mode_auto.mission.add_cmd(cmd)) {
+            gcs().send_text(MAV_SEVERITY_WARNING, "AutoVP: failed to create mission");
+            return;
+        }
+
+        // Ascent leg: WPs at STP, 2*STP, ... while strictly less than top
+        for (float a = stp_m; a < top_m - 0.01f; a += stp_m) {
+            cmd.id = MAV_CMD_NAV_WAYPOINT;
+            cmd.p1 = hold_p1;
+            cmd.content.location = Location{
+                                        vp_lat,
+                                        vp_lng,
+                                        (int32_t)(a * 100.0f),
+                                        Location::AltFrame::ABOVE_HOME};
+            if (!copter.mode_auto.mission.add_cmd(cmd)) {
+                gcs().send_text(MAV_SEVERITY_WARNING, "AutoVP: failed to add ascent WP at %.1f m", (double)a);
+                return;
+            }
+        }
+
+        // Top WP at ALT (with HLD hold — final ascent point)
+        cmd.id = MAV_CMD_NAV_WAYPOINT;
+        cmd.p1 = hold_p1;
+        cmd.content.location = Location{
+                                    vp_lat,
+                                    vp_lng,
+                                    (int32_t)(top_m * 100.0f),
+                                    Location::AltFrame::ABOVE_HOME};
+        if (!copter.mode_auto.mission.add_cmd(cmd)) {
+            gcs().send_text(MAV_SEVERITY_WARNING, "AutoVP: failed to add top WP");
+            return;
+        }
+
+        // Descent leg: WPs at TOP-STP, TOP-2*STP, ... while strictly greater than BTM
+        for (float a = top_m - stp_m; a > btm_m + 0.01f; a -= stp_m) {
+            cmd.id = MAV_CMD_NAV_WAYPOINT;
+            cmd.p1 = 0;
+            cmd.content.location = Location{
+                                        vp_lat,
+                                        vp_lng,
+                                        (int32_t)(a * 100.0f),
+                                        Location::AltFrame::ABOVE_HOME};
+            if (!copter.mode_auto.mission.add_cmd(cmd)) {
+                gcs().send_text(MAV_SEVERITY_WARNING, "AutoVP: failed to add descent WP at %.1f m", (double)a);
+                return;
+            }
+        }
+
+        // Bottom WP at BTM (no hold — RTL trigger)
+        cmd.id = MAV_CMD_NAV_WAYPOINT;
+        cmd.p1 = 0;
+        cmd.content.location = Location{
+                                    vp_lat,
+                                    vp_lng,
+                                    (int32_t)(btm_m * 100.0f),
+                                    Location::AltFrame::ABOVE_HOME};
+        if (!copter.mode_auto.mission.add_cmd(cmd)) {
+            gcs().send_text(MAV_SEVERITY_WARNING, "AutoVP: failed to add bottom WP");
+            return;
+        }
+
+        // Final RTL
+        cmd.id = MAV_CMD_NAV_RETURN_TO_LAUNCH;
+        cmd.p1 = 0;
+        cmd.content.location = Location{
+                                    0,
+                                    0,
+                                    0,
+                                    Location::AltFrame::ABOVE_HOME};
+        if (!copter.mode_auto.mission.add_cmd(cmd)) {
+            gcs().send_text(MAV_SEVERITY_WARNING, "AutoVP: failed to create mission");
+            return;
+        }
+
+        // Send successful creation message
+        gcs().send_text(MAV_SEVERITY_INFO, "AutoVP profile mission received");
+        gcs().send_text(MAV_SEVERITY_WARNING, "Top: %g m  Bottom: %g m  Step: %g m  Hold: %g s",
+                                              (double)top_m, (double)btm_m, (double)stp_m, (double)hld_s);
+
+        // Print failsafe parameters for reviewing
+        gcs().send_text(MAV_SEVERITY_INFO, "Review failsafe parameters");
+        gcs().send_text(MAV_SEVERITY_INFO, "Max Wind: %g m/s", (double)g2.user_parameters.get_wvane_spd_tol());
+        gcs().send_text(MAV_SEVERITY_INFO, "Min Voltage: %g V", (double)copter.battery.get_low_voltage());
+        gcs().send_text(MAV_SEVERITY_INFO, "Max Current: %g A", (double)g2.user_parameters.get_batt_max_curr());
+
+        mission_now = AP_HAL::millis();
+    }
+    else if (ap.land_complete && copter.position_ok() && ch_flag == RC_Channel::AuxSwitchPos::HIGH && (AP_HAL::millis() - mission_now) < 5000){
+        return;
+    }
+    else if (!copter.position_ok() && ch_flag == RC_Channel::AuxSwitchPos::HIGH && (AP_HAL::millis() - mission_now) > 5000){
+        // Send unable to create mission message warning
+        gcs().send_text(MAV_SEVERITY_WARNING, "AutoVP: Unable to create mission, EKF not ready");
+        mission_now = AP_HAL::millis();
+    }
+    else if (!ap.land_complete && ch_flag == RC_Channel::AuxSwitchPos::HIGH && (AP_HAL::millis() - mission_now) > 5000){
+        // Send unable to create mission message warning
+        gcs().send_text(MAV_SEVERITY_WARNING, "AutoVP: Unable to create mission while flying");
+        mission_now = AP_HAL::millis();
+    }
+    else {
+        return;
+    }
 }
 
 void Copter::userhook_auxSwitch3(const RC_Channel::AuxSwitchPos ch_flag)

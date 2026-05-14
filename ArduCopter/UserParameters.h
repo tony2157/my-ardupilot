@@ -146,6 +146,9 @@ public:
     AP_Float get_batt_max_curr_timeout() const{return max_curr_timeout; }
     // Mission auto-generator
     AP_Float get_autovp_max_alt() const{return autovp_max_altitude; }
+    AP_Float get_autovp_step()    const{return autovp_step; }
+    AP_Float get_autovp_bottom()  const{return autovp_bottom; }
+    AP_Float get_autovp_hold()    const{return autovp_hold; }
     // GPS-based Lidar activation
     AP_Float get_gpslidar_alt() const{return gpslidar_alt; }
     AP_Float get_gpslidar_hum() const{return gpslidar_hum; }
@@ -204,6 +207,9 @@ private:
 
     // BLISS AutoVP mission auto-generation
     AP_Float    autovp_max_altitude;
+    AP_Float    autovp_step;     // spacing between WPs (m)
+    AP_Float    autovp_bottom;   // bottom WP altitude AGL (m)
+    AP_Float    autovp_hold;     // hold time at each ascent WP (s)
 
     // GPS-based Lidar activation
     AP_Float    gpslidar_alt;
