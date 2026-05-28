@@ -2,11 +2,13 @@
 
 #include <AP_Param/AP_Param.h>
 
-// 12-coefficient blocks used as sub-groups inside UserParameters.
-// Sub-grouping is required because the parent UserParameters table
-// would otherwise exceed AP_Param's 64-entry-per-group hard limit
+// 6-coefficient blocks used as sub-groups inside UserParameters, one per
+// RH sensor. Each block holds the poly22 surface fit produced by the
+// MATLAB calibration pipeline (SWX_calibration_surface_iT.csv) in the
+// column order: c1=p00, c2=p10, c3=p01, c4=p20, c5=p11, c6=p02.
+// Sub-grouping is still used because the parent UserParameters table is
+// near AP_Param's 64-entry-per-group hard limit
 // (AP_Param.cpp check_group_info: idx >= 64 -> FATAL).
-// One class per RH sensor so each carries its own per-sensor defaults.
 class RHACoeffs {
 public:
     static const struct AP_Param::GroupInfo var_info[];
@@ -16,12 +18,6 @@ public:
     AP_Float c4;
     AP_Float c5;
     AP_Float c6;
-    AP_Float c7;
-    AP_Float c8;
-    AP_Float c9;
-    AP_Float c10;
-    AP_Float c11;
-    AP_Float c12;
 };
 
 class RHBCoeffs {
@@ -33,12 +29,6 @@ public:
     AP_Float c4;
     AP_Float c5;
     AP_Float c6;
-    AP_Float c7;
-    AP_Float c8;
-    AP_Float c9;
-    AP_Float c10;
-    AP_Float c11;
-    AP_Float c12;
 };
 
 class RHCCoeffs {
@@ -50,12 +40,6 @@ public:
     AP_Float c4;
     AP_Float c5;
     AP_Float c6;
-    AP_Float c7;
-    AP_Float c8;
-    AP_Float c9;
-    AP_Float c10;
-    AP_Float c11;
-    AP_Float c12;
 };
 
 class UserParameters {
@@ -93,43 +77,25 @@ public:
     AP_Float get_user_senC_c2() const{return _senC_c2; }
     AP_Float get_user_senC_c3() const{return _senC_c3; }
     AP_Float get_user_senC_c4() const{return _senC_c4; }
-    // Weather RH sensors coefficients
+    // Weather RH sensors coefficients (poly22 surface fit; mapping: c1=p00, c2=p10, c3=p01, c4=p20, c5=p11, c6=p02)
     AP_Float get_user_RHA_c1() const{return _RHA.c1; }
     AP_Float get_user_RHA_c2() const{return _RHA.c2; }
     AP_Float get_user_RHA_c3() const{return _RHA.c3; }
     AP_Float get_user_RHA_c4() const{return _RHA.c4; }
     AP_Float get_user_RHA_c5() const{return _RHA.c5; }
     AP_Float get_user_RHA_c6() const{return _RHA.c6; }
-    AP_Float get_user_RHA_c7() const{return _RHA.c7; }
-    AP_Float get_user_RHA_c8() const{return _RHA.c8; }
-    AP_Float get_user_RHA_c9() const{return _RHA.c9; }
-    AP_Float get_user_RHA_c10() const{return _RHA.c10; }
-    AP_Float get_user_RHA_c11() const{return _RHA.c11; }
-    AP_Float get_user_RHA_c12() const{return _RHA.c12; }
     AP_Float get_user_RHB_c1() const{return _RHB.c1; }
     AP_Float get_user_RHB_c2() const{return _RHB.c2; }
     AP_Float get_user_RHB_c3() const{return _RHB.c3; }
     AP_Float get_user_RHB_c4() const{return _RHB.c4; }
     AP_Float get_user_RHB_c5() const{return _RHB.c5; }
     AP_Float get_user_RHB_c6() const{return _RHB.c6; }
-    AP_Float get_user_RHB_c7() const{return _RHB.c7; }
-    AP_Float get_user_RHB_c8() const{return _RHB.c8; }
-    AP_Float get_user_RHB_c9() const{return _RHB.c9; }
-    AP_Float get_user_RHB_c10() const{return _RHB.c10; }
-    AP_Float get_user_RHB_c11() const{return _RHB.c11; }
-    AP_Float get_user_RHB_c12() const{return _RHB.c12; }
     AP_Float get_user_RHC_c1() const{return _RHC.c1; }
     AP_Float get_user_RHC_c2() const{return _RHC.c2; }
     AP_Float get_user_RHC_c3() const{return _RHC.c3; }
     AP_Float get_user_RHC_c4() const{return _RHC.c4; }
     AP_Float get_user_RHC_c5() const{return _RHC.c5; }
     AP_Float get_user_RHC_c6() const{return _RHC.c6; }
-    AP_Float get_user_RHC_c7() const{return _RHC.c7; }
-    AP_Float get_user_RHC_c8() const{return _RHC.c8; }
-    AP_Float get_user_RHC_c9() const{return _RHC.c9; }
-    AP_Float get_user_RHC_c10() const{return _RHC.c10; }
-    AP_Float get_user_RHC_c11() const{return _RHC.c11; }
-    AP_Float get_user_RHC_c12() const{return _RHC.c12; }
     // Wind Vane
     AP_Float get_wvane_cutoff() const{return wind_vane_cutoff; }
     AP_Float get_wvane_wsA() const{return wind_vane_wsA; }

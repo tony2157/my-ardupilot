@@ -53,7 +53,7 @@ void AC_CASS_HYT271::set_i2c_addr(uint8_t addr){
 }
 
 void AC_CASS_HYT271::set_sensor_coeff(float *k){
-    for(uint8_t i=0; i<12; i++){
+    for(uint8_t i=0; i<6; i++){
         coeff[i] = k[i];
     }
 }
@@ -95,17 +95,17 @@ bool AC_CASS_HYT271::_collect(float &hum, float &hum_corr, float &temp)
     hum = 0.00610388f * (float)raw;
 
     if (_iT >= 200.0f) {
-        const float h  = hum;
-        const float T  = _iT;
-        const float h2 = h*h;
-        const float h3 = h2*h;
-        const float h4 = h3*h;
-        const float T2 = T*T;
+        // poly22 surface fit: f(h,T) = p00 + p10*h + p01*T + p20*h^2 + p11*h*T + p02*T^2
+        // Coefficient layout matches SWX_calibration_surface_iT.csv column order.
+        const float h = hum;
+        const float T = _iT;
         hum_corr = coeff[0]
-                 + coeff[1]*h         + coeff[2]*T
-                 + coeff[3]*h2        + coeff[4]*h*T   + coeff[5]*T2
-                 + coeff[6]*h3        + coeff[7]*h2*T  + coeff[8]*h*T2
-                 + coeff[9]*h4        + coeff[10]*h3*T + coeff[11]*h2*T2;
+                 + coeff[1]*h
+                 + coeff[2]*T
+                 + coeff[3]*h*h
+                 + coeff[4]*h*T
+                 + coeff[5]*T*T;
+        hum_corr = constrain_float(hum_corr, 0.0f, 100.0f);
     } else {
         hum_corr = hum;   // no valid iT yet — fall back to raw humidity
     }

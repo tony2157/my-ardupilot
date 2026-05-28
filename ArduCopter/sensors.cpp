@@ -44,7 +44,8 @@ void Copter::init_CASS_imet(){
 
 void Copter::init_CASS_hyt271(){
 
-    float coeff[4][12];
+    // 6 poly22 coefficients per sensor: [p00, p10, p01, p20, p11, p02]
+    float coeff[4][6];
 
     //CS3D RH SENSORS
     coeff[0][0] = g2.user_parameters.get_user_RHA_c1()*1e-7f;
@@ -53,12 +54,6 @@ void Copter::init_CASS_hyt271(){
     coeff[0][3] = g2.user_parameters.get_user_RHA_c4()*1e-7f;
     coeff[0][4] = g2.user_parameters.get_user_RHA_c5()*1e-7f;
     coeff[0][5] = g2.user_parameters.get_user_RHA_c6()*1e-7f;
-    coeff[0][6] = g2.user_parameters.get_user_RHA_c7()*1e-7f;
-    coeff[0][7] = g2.user_parameters.get_user_RHA_c8()*1e-7f;
-    coeff[0][8] = g2.user_parameters.get_user_RHA_c9()*1e-7f;
-    coeff[0][9] = g2.user_parameters.get_user_RHA_c10()*1e-7f;
-    coeff[0][10] = g2.user_parameters.get_user_RHA_c11()*1e-7f;
-    coeff[0][11] = g2.user_parameters.get_user_RHA_c12()*1e-7f;
 
     coeff[1][0] = g2.user_parameters.get_user_RHB_c1()*1e-7f;
     coeff[1][1] = g2.user_parameters.get_user_RHB_c2()*1e-7f;
@@ -66,12 +61,6 @@ void Copter::init_CASS_hyt271(){
     coeff[1][3] = g2.user_parameters.get_user_RHB_c4()*1e-7f;
     coeff[1][4] = g2.user_parameters.get_user_RHB_c5()*1e-7f;
     coeff[1][5] = g2.user_parameters.get_user_RHB_c6()*1e-7f;
-    coeff[1][6] = g2.user_parameters.get_user_RHB_c7()*1e-7f;
-    coeff[1][7] = g2.user_parameters.get_user_RHB_c8()*1e-7f;
-    coeff[1][8] = g2.user_parameters.get_user_RHB_c9()*1e-7f;
-    coeff[1][9] = g2.user_parameters.get_user_RHB_c10()*1e-7f;
-    coeff[1][10] = g2.user_parameters.get_user_RHB_c11()*1e-7f;
-    coeff[1][11] = g2.user_parameters.get_user_RHB_c12()*1e-7f;
 
     coeff[2][0] = g2.user_parameters.get_user_RHC_c1()*1e-7f;
     coeff[2][1] = g2.user_parameters.get_user_RHC_c2()*1e-7f;
@@ -79,12 +68,6 @@ void Copter::init_CASS_hyt271(){
     coeff[2][3] = g2.user_parameters.get_user_RHC_c4()*1e-7f;
     coeff[2][4] = g2.user_parameters.get_user_RHC_c5()*1e-7f;
     coeff[2][5] = g2.user_parameters.get_user_RHC_c6()*1e-7f;
-    coeff[2][6] = g2.user_parameters.get_user_RHC_c7()*1e-7f;
-    coeff[2][7] = g2.user_parameters.get_user_RHC_c8()*1e-7f;
-    coeff[2][8] = g2.user_parameters.get_user_RHC_c9()*1e-7f;
-    coeff[2][9] = g2.user_parameters.get_user_RHC_c10()*1e-7f;
-    coeff[2][10] = g2.user_parameters.get_user_RHC_c11()*1e-7f;
-    coeff[2][11] = g2.user_parameters.get_user_RHC_c12()*1e-7f;
 
     coeff[3][0] = 0;
     coeff[3][1] = 0;
@@ -92,12 +75,6 @@ void Copter::init_CASS_hyt271(){
     coeff[3][3] = 0;
     coeff[3][4] = 0;
     coeff[3][5] = 0;
-    coeff[3][6] = 0;
-    coeff[3][7] = 0;
-    coeff[3][8] = 0;
-    coeff[3][9] = 0;
-    coeff[3][10] = 0;
-    coeff[3][11] = 0;
 
     // Initialize and set I2C addresses
     uint8_t deafult_i2cAddr = 0x10;

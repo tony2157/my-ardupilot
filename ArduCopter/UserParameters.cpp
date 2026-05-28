@@ -54,9 +54,9 @@ const AP_Param::GroupInfo UserParameters::var_info[] = {
     AP_GROUPINFO("_SEN_C3", 33, UserParameters, _senC_c3, 0.0f),
     AP_GROUPINFO("_SEN_C4", 34, UserParameters, _senC_c4, 1.48891207f),
     // BLISS RH sensor coefficients are nested in sub-groups: the
-    // parent table would otherwise exceed AP_Param's 64-entry hard
-    // limit. Each block collapses 12 entries into one sub-group entry.
-    // User-visible names remain USR_RH_A1..USR_RH_C12 unchanged.
+    // parent table would otherwise approach AP_Param's 64-entry hard
+    // limit. Each block holds the 6 poly22 coefficients in one entry.
+    // User-visible names are USR_RH_A1..USR_RH_C6.
     AP_SUBGROUPINFO(_RHA, "_RH_A", 35, UserParameters, RHACoeffs),
     AP_SUBGROUPINFO(_RHB, "_RH_B", 36, UserParameters, RHBCoeffs),
     AP_SUBGROUPINFO(_RHC, "_RH_C", 37, UserParameters, RHCCoeffs),
@@ -64,51 +64,37 @@ const AP_Param::GroupInfo UserParameters::var_info[] = {
     AP_GROUPEND
 };
 
+// Defaults are the identity transform (scaled by 1e7 to match the *1e-7f
+// reader convention in Copter::init_CASS_hyt271). c2 stores p10 = 1, so
+// an uncalibrated sensor with valid iT returns raw RH unchanged. Push
+// calibration values from SWX_calibration_surface_iT.csv (_x1e7 rows).
 const AP_Param::GroupInfo RHACoeffs::var_info[] = {
-    AP_GROUPINFO("1",  0,  RHACoeffs, c1,  12386.8608f),
-    AP_GROUPINFO("2",  1,  RHACoeffs, c2,  17022.2288f),
-    AP_GROUPINFO("3",  2,  RHACoeffs, c3,  1779786.3116f),
-    AP_GROUPINFO("4",  3,  RHACoeffs, c4,  1076288.8976f),
-    AP_GROUPINFO("5",  4,  RHACoeffs, c5,  -41865.2086f),
-    AP_GROUPINFO("6",  5,  RHACoeffs, c6,  -5943.8831f),
-    AP_GROUPINFO("7",  6,  RHACoeffs, c7,  -6298.4062f),
-    AP_GROUPINFO("8",  7,  RHACoeffs, c8,  -4039.3164f),
-    AP_GROUPINFO("9",  8,  RHACoeffs, c9,  230.8740f),
-    AP_GROUPINFO("10", 9,  RHACoeffs, c10, 12.9706f),
-    AP_GROUPINFO("11", 10, RHACoeffs, c11, 12.8721f),
-    AP_GROUPINFO("12", 11, RHACoeffs, c12, 3.1870f),
+    AP_GROUPINFO("1", 0, RHACoeffs, c1, 0.0f),         // p00
+    AP_GROUPINFO("2", 1, RHACoeffs, c2, 10000000.0f),  // p10 = 1 (identity)
+    AP_GROUPINFO("3", 2, RHACoeffs, c3, 0.0f),         // p01
+    AP_GROUPINFO("4", 3, RHACoeffs, c4, 0.0f),         // p20
+    AP_GROUPINFO("5", 4, RHACoeffs, c5, 0.0f),         // p11
+    AP_GROUPINFO("6", 5, RHACoeffs, c6, 0.0f),         // p02
     AP_GROUPEND
 };
 
 const AP_Param::GroupInfo RHBCoeffs::var_info[] = {
-    AP_GROUPINFO("1",  0,  RHBCoeffs, c1,  12169.3356f),
-    AP_GROUPINFO("2",  1,  RHBCoeffs, c2,  7991.2309f),
-    AP_GROUPINFO("3",  2,  RHBCoeffs, c3,  1771509.7306f),
-    AP_GROUPINFO("4",  3,  RHBCoeffs, c4,  508948.7724f),
-    AP_GROUPINFO("5",  4,  RHBCoeffs, c5,  -31145.3196f),
-    AP_GROUPINFO("6",  5,  RHBCoeffs, c6,  -5933.6122f),
-    AP_GROUPINFO("7",  6,  RHBCoeffs, c7,  -5890.1048f),
-    AP_GROUPINFO("8",  7,  RHBCoeffs, c8,  -435.1848f),
-    AP_GROUPINFO("9",  8,  RHBCoeffs, c9,  195.9107f),
-    AP_GROUPINFO("10", 9,  RHBCoeffs, c10, 13.3835f),
-    AP_GROUPINFO("11", 10, RHBCoeffs, c11, 11.4385f),
-    AP_GROUPINFO("12", 11, RHBCoeffs, c12, -2.5781f),
+    AP_GROUPINFO("1", 0, RHBCoeffs, c1, 0.0f),         // p00
+    AP_GROUPINFO("2", 1, RHBCoeffs, c2, 10000000.0f),  // p10 = 1 (identity)
+    AP_GROUPINFO("3", 2, RHBCoeffs, c3, 0.0f),         // p01
+    AP_GROUPINFO("4", 3, RHBCoeffs, c4, 0.0f),         // p20
+    AP_GROUPINFO("5", 4, RHBCoeffs, c5, 0.0f),         // p11
+    AP_GROUPINFO("6", 5, RHBCoeffs, c6, 0.0f),         // p02
     AP_GROUPEND
 };
 
 const AP_Param::GroupInfo RHCCoeffs::var_info[] = {
-    AP_GROUPINFO("1",  0,  RHCCoeffs, c1,  13123.4403f),
-    AP_GROUPINFO("2",  1,  RHCCoeffs, c2,  3639.7364f),
-    AP_GROUPINFO("3",  2,  RHCCoeffs, c3,  1922025.0525f),
-    AP_GROUPINFO("4",  3,  RHCCoeffs, c4,  215521.2076f),
-    AP_GROUPINFO("5",  4,  RHCCoeffs, c5,  -42127.4389f),
-    AP_GROUPINFO("6",  5,  RHCCoeffs, c6,  -6363.9524f),
-    AP_GROUPINFO("7",  6,  RHCCoeffs, c7,  -5797.4928f),
-    AP_GROUPINFO("8",  7,  RHCCoeffs, c8,  1703.2685f),
-    AP_GROUPINFO("9",  8,  RHCCoeffs, c9,  226.9615f),
-    AP_GROUPINFO("10", 9,  RHCCoeffs, c10, 15.6081f),
-    AP_GROUPINFO("11", 10, RHCCoeffs, c11, 9.7073f),
-    AP_GROUPINFO("12", 11, RHCCoeffs, c12, -6.1066f),
+    AP_GROUPINFO("1", 0, RHCCoeffs, c1, 0.0f),         // p00
+    AP_GROUPINFO("2", 1, RHCCoeffs, c2, 10000000.0f),  // p10 = 1 (identity)
+    AP_GROUPINFO("3", 2, RHCCoeffs, c3, 0.0f),         // p01
+    AP_GROUPINFO("4", 3, RHCCoeffs, c4, 0.0f),         // p20
+    AP_GROUPINFO("5", 4, RHCCoeffs, c5, 0.0f),         // p11
+    AP_GROUPINFO("6", 5, RHCCoeffs, c6, 0.0f),         // p02
     AP_GROUPEND
 };
 
