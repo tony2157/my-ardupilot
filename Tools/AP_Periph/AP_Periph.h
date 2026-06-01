@@ -172,6 +172,7 @@ public:
     void can_gps_update();
     void send_moving_baseline_msg();
     void send_relposheading_msg();
+    void send_hpposecef_msg();
     void can_baro_update();
     void can_airspeed_update();
 #ifdef HAL_PERIPH_ENABLE_IMU
