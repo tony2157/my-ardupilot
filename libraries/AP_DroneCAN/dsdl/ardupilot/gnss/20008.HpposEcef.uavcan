@@ -1,0 +1,38 @@
+# Raw u-blox UBX-NAV-HPPOSECEF high precision ECEF position, for SD-card logging.
+# Carries the raw receiver integer fields (no conversion) so the autopilot can
+# log them and reconstruct metres in post-processing:
+#   x_m = ecef_x*0.01 + ecef_x_hp*0.0001  (same for y,z); pacc_m = p_acc*0.0001
+# This is logging-only data: it does not feed the navigation/EKF solution.
+
+# source autopilot time on the peripheral node
+uavcan.Timestamp timestamp
+
+# GPS week number (from receiver)
+uint16 gps_week
+
+# GPS time of week [ms] (UBX iTOW)
+uint32 itow
+
+# ECEF X base [cm]
+int32 ecef_x
+
+# ECEF Y base [cm]
+int32 ecef_y
+
+# ECEF Z base [cm]
+int32 ecef_z
+
+# ECEF X high precision correction [0.1 mm]
+int8 ecef_x_hp
+
+# ECEF Y high precision correction [0.1 mm]
+int8 ecef_y_hp
+
+# ECEF Z high precision correction [0.1 mm]
+int8 ecef_z_hp
+
+# UBX flags bitfield (bit0 = invalidEcef)
+uint8 flags
+
+# 3D position accuracy estimate [0.1 mm]
+uint32 p_acc

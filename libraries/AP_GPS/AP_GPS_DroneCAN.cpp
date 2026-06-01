@@ -110,6 +110,13 @@ void AP_GPS_DroneCAN::subscribe_msgs(AP_DroneCAN* ap_dronecan)
     if (Canard::allocate_sub_arg_callback(ap_dronecan, &handle_status_msg_trampoline, ap_dronecan->get_driver_index()) == nullptr) {
         AP_BoardConfig::allocation_error("status_sub");
     }
+#if HAL_LOGGING_ENABLED
+    // high precision ECEF position (UBX-NAV-HPPOSECEF) forwarded by an AP_Periph
+    // node (e.g. Here4); used for SD-card logging only.
+    if (Canard::allocate_sub_arg_callback(ap_dronecan, &handle_hpposecef_msg_trampoline, ap_dronecan->get_driver_index()) == nullptr) {
+        AP_BoardConfig::allocation_error("hpposecef_sub");
+    }
+#endif
 #if GPS_MOVING_BASELINE
     if (Canard::allocate_sub_arg_callback(ap_dronecan, &handle_moving_baseline_msg_trampoline, ap_dronecan->get_driver_index()) == nullptr) {
         AP_BoardConfig::allocation_error("moving_baseline_sub");
@@ -559,6 +566,37 @@ void AP_GPS_DroneCAN::handle_status_msg(const ardupilot_gnss_Status& msg)
     }
 }
 
+#if HAL_LOGGING_ENABLED
+/*
+  handle HPPOSECEF message - log raw u-blox UBX-NAV-HPPOSECEF to the SD card.
+  This is logging-only data forwarded from an AP_Periph node (e.g. a Here4); it is
+  deliberately NOT fed into the navigation/EKF solution. Reconstruct metres in
+  post: x_m = X*0.01 + XHp*0.0001 (y,z alike); pacc_m = PAcc*0.0001
+*/
+void AP_GPS_DroneCAN::handle_hpposecef_msg(const ardupilot_gnss_HpposEcef& msg, uint8_t node_id)
+{
+    if (!should_log()) {
+        return;
+    }
+    const struct log_ECEF pkt {
+        LOG_PACKET_HEADER_INIT(LOG_ECEF_MSG),
+        time_us   : AP_HAL::micros64(),
+        instance  : state.instance,
+        gps_week  : msg.gps_week,
+        itow      : msg.itow,
+        ecef_x    : msg.ecef_x,
+        ecef_y    : msg.ecef_y,
+        ecef_z    : msg.ecef_z,
+        ecef_x_hp : msg.ecef_x_hp,
+        ecef_y_hp : msg.ecef_y_hp,
+        ecef_z_hp : msg.ecef_z_hp,
+        p_acc     : msg.p_acc,
+        flags     : msg.flags,
+    };
+    AP::logger().WriteBlock(&pkt, sizeof(pkt));
+}
+#endif // HAL_LOGGING_ENABLED
+
 #if GPS_MOVING_BASELINE
 /*
   handle moving baseline data.
@@ -661,6 +699,19 @@ void AP_GPS_DroneCAN::handle_status_msg_trampoline(AP_DroneCAN *ap_dronecan, con
         driver->handle_status_msg(msg);
     }
 }
+
+#if HAL_LOGGING_ENABLED
+// HPPOSECEF msg trampoline
+void AP_GPS_DroneCAN::handle_hpposecef_msg_trampoline(AP_DroneCAN *ap_dronecan, const CanardRxTransfer& transfer, const ardupilot_gnss_HpposEcef& msg)
+{
+    WITH_SEMAPHORE(_sem_registry);
+
+    AP_GPS_DroneCAN* driver = get_dronecan_backend(ap_dronecan, transfer.source_node_id);
+    if (driver != nullptr) {
+        driver->handle_hpposecef_msg(msg, transfer.source_node_id);
+    }
+}
+#endif // HAL_LOGGING_ENABLED
 
 #if GPS_MOVING_BASELINE
 // Moving Baseline msg trampoline

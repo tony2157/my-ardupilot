@@ -68,6 +68,7 @@ void AP_Periph_FW::can_gps_update(void)
     gps.update();
     send_moving_baseline_msg();
     send_relposheading_msg();
+    send_hpposecef_msg();
     if (last_gps_update_ms == gps.last_message_time_ms()) {
         return;
     }
@@ -315,6 +316,38 @@ void AP_Periph_FW::send_relposheading_msg() {
                     &buffer[0],
                     total_size);
 #endif // GPS_MOVING_BASELINE
+}
+
+// publish raw u-blox UBX-NAV-HPPOSECEF so the vehicle can log high-precision ECEF.
+// This is logging-only data; it is not used by the vehicle navigation/EKF.
+void AP_Periph_FW::send_hpposecef_msg()
+{
+#if AP_GPS_UBLOX_HPPOSECEF_ENABLED
+    AP_GPS::GPS_HPPOSECEF data;
+    if (!gps.get_hpposecef(data)) {
+        // nothing new to send (also false on non-F9 / non-ublox receivers)
+        return;
+    }
+    ardupilot_gnss_HpposEcef pkt {};
+    pkt.timestamp.usec = AP_HAL::micros64();
+    pkt.gps_week = data.gps_week;
+    pkt.itow = data.itow;
+    pkt.ecef_x = data.ecef_x;
+    pkt.ecef_y = data.ecef_y;
+    pkt.ecef_z = data.ecef_z;
+    pkt.ecef_x_hp = data.ecef_x_hp;
+    pkt.ecef_y_hp = data.ecef_y_hp;
+    pkt.ecef_z_hp = data.ecef_z_hp;
+    pkt.flags = data.flags;
+    pkt.p_acc = data.p_acc;
+    uint8_t buffer[ARDUPILOT_GNSS_HPPOSECEF_MAX_SIZE];
+    const uint16_t total_size = ardupilot_gnss_HpposEcef_encode(&pkt, buffer, !canfdout());
+    canard_broadcast(ARDUPILOT_GNSS_HPPOSECEF_SIGNATURE,
+                     ARDUPILOT_GNSS_HPPOSECEF_ID,
+                     CANARD_TRANSFER_PRIORITY_LOW,
+                     &buffer[0],
+                     total_size);
+#endif // AP_GPS_UBLOX_HPPOSECEF_ENABLED
 }
 
 #endif // HAL_PERIPH_ENABLE_GPS
