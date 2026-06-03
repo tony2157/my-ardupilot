@@ -82,6 +82,7 @@
 #define RATE_HW 5
 #define RATE_HW2 5
 #define RATE_TIM_TM2 1
+#define RATE_HPPOSECEF 1
 
 #define CONFIG_RATE_NAV      (1<<0)
 #define CONFIG_RATE_POSLLH   (1<<1)
@@ -105,7 +106,8 @@
 #define CONFIG_M10           (1<<19)
 #define CONFIG_L5            (1<<20)
 #define CONFIG_F9_DEBUG      (1<<21)
-#define CONFIG_LAST          (1<<22) // this must always be the last bit
+#define CONFIG_RATE_HPPOSECEF (1<<22)
+#define CONFIG_LAST          (1<<23) // this must always be the last bit
 
 #define CONFIG_REQUIRED_INITIAL (CONFIG_RATE_NAV | CONFIG_RATE_POSLLH | CONFIG_RATE_STATUS | CONFIG_RATE_VELNED)
 
@@ -168,6 +170,12 @@ public:
     // support for retrieving RTCMv3 data from a moving baseline base
     bool get_RTCMV3(const uint8_t *&bytes, uint16_t &len) override;
     void clear_RTCMV3(void) override;
+
+#if AP_GPS_UBLOX_HPPOSECEF_ENABLED
+    // fetch the latest raw UBX-NAV-HPPOSECEF data (logging only). Returns true and
+    // fills data once per new message, then clears the new-data flag.
+    bool get_hpposecef(AP_GPS::GPS_HPPOSECEF &data) override;
+#endif
 
     // ublox specific healthy checks
     bool is_healthy(void) const override;
@@ -488,6 +496,22 @@ private:
         uint32_t speed_accuracy;
         uint32_t heading_accuracy;
     };
+    // UBX-NAV-HPPOSECEF (NAV class 0x01, id 0x13): high precision ECEF position.
+    // 28-byte payload. Raw fields are preserved for logging; reconstruct metres as
+    //   x_m = ecefX*0.01 + ecefXHp*0.0001 (y,z alike); pAcc_m = pAcc*0.0001
+    struct PACKED ubx_nav_hpposecef {
+        uint8_t version;
+        uint8_t reserved1[3];
+        uint32_t iTOW;                                  // GPS msToW
+        int32_t ecefX;                                  // cm
+        int32_t ecefY;                                  // cm
+        int32_t ecefZ;                                  // cm
+        int8_t ecefXHp;                                 // 0.1 mm
+        int8_t ecefYHp;                                 // 0.1 mm
+        int8_t ecefZHp;                                 // 0.1 mm
+        uint8_t flags;
+        uint32_t pAcc;                                  // 0.1 mm
+    };
 
     struct PACKED ubx_nav_timegps {
         uint32_t itow;
@@ -642,6 +666,7 @@ private:
         ubx_nav_pvt pvt;
         ubx_nav_timegps timegps;
         ubx_nav_velned velned;
+        ubx_nav_hpposecef hpposecef;
         ubx_cfg_msg_rate msg_rate;
         ubx_cfg_msg_rate_6 msg_rate_6;
         ubx_cfg_nav_settings nav_settings;
@@ -703,6 +728,7 @@ private:
         MSG_TIMEGPS = 0x20,
         MSG_RELPOSNED = 0x3c,
         MSG_VELNED = 0x12,
+        MSG_HPPOSECEF = 0x13,
         MSG_CFG_CFG = 0x09,
         MSG_CFG_RATE = 0x08,
         MSG_CFG_MSG = 0x01,
@@ -793,6 +819,7 @@ private:
         STEP_M10,
         STEP_L5,
         STEP_F9_DEBUG,
+        STEP_HPPOSECEF,
         STEP_LAST
     };
 
@@ -824,6 +851,12 @@ private:
     uint32_t        _last_pvt_itow;
     uint32_t        _last_relposned_itow;
     uint32_t        _last_relposned_ms;
+
+#if AP_GPS_UBLOX_HPPOSECEF_ENABLED
+    // latest raw UBX-NAV-HPPOSECEF, stored for logging and DroneCAN publishing
+    AP_GPS::GPS_HPPOSECEF _hpposecef;
+    bool            _hpposecef_new;  // true when _hpposecef holds unread data
+#endif
 
     // the role set from GPS_TYPE
     AP_GPS::GPS_Role role;
@@ -867,6 +900,9 @@ private:
     void log_mon_hw(void);
     void log_mon_hw2(void);
     void log_tim_tm2(void);
+#if AP_GPS_UBLOX_HPPOSECEF_ENABLED
+    void log_ecef(void);
+#endif
     void log_rxm_raw(const struct ubx_rxm_raw &raw);
     void log_rxm_rawx(const struct ubx_rxm_rawx &raw);
 #if HAL_HSI_TRIM_USING_PPS

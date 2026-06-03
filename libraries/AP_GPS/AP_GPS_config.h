@@ -100,6 +100,18 @@
   #define AP_GPS_UBLOX_ENABLED AP_GPS_BACKEND_DEFAULT_ENABLED
 #endif
 
+// u-blox UBX-NAV-HPPOSECEF parsing for high-precision ECEF logging. Enabled when
+// the u-blox driver is present and there is a consumer for the data: either
+// onboard logging (vehicle logs it directly / from DroneCAN), or an AP_Periph
+// build (a Here4 GNSS node parses it and publishes it on DroneCAN to the vehicle).
+#ifndef AP_GPS_UBLOX_HPPOSECEF_ENABLED
+  #if defined(HAL_BUILD_AP_PERIPH)
+    #define AP_GPS_UBLOX_HPPOSECEF_ENABLED AP_GPS_UBLOX_ENABLED
+  #else
+    #define AP_GPS_UBLOX_HPPOSECEF_ENABLED (AP_GPS_UBLOX_ENABLED && HAL_LOGGING_ENABLED)
+  #endif
+#endif
+
 #ifndef AP_GPS_RTCM_DECODE_ENABLED
   #define AP_GPS_RTCM_DECODE_ENABLED BOARD_FLASH_SIZE > 1024
 #endif

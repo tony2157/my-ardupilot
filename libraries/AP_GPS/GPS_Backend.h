@@ -107,6 +107,10 @@ public:
 
     virtual bool get_error_codes(uint32_t &error_codes) const { return false; }
 
+    // optional support for fetching the latest raw UBX-NAV-HPPOSECEF data
+    // (logging only). Returns true and fills data once per new message.
+    virtual bool get_hpposecef(AP_GPS::GPS_HPPOSECEF &data) { return false; }
+
     // return iTOW of last message, or zero if not supported
     uint32_t get_last_itow_ms(void) const;
 

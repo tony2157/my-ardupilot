@@ -11,6 +11,7 @@
     LOG_GPS_RAWS_MSG,                           \
     LOG_GPS_UBX1_MSG,                           \
     LOG_GPS_UBX2_MSG,                           \
+    LOG_ECEF_MSG,                               \
     LOG_IDS_FROM_GPS_SBP
 
 
@@ -203,6 +204,36 @@ struct PACKED log_GPS_RAWS {
     uint8_t trkStat;
 };
 
+// @LoggerMessage: ECEF
+// @Description: Raw u-blox UBX-NAV-HPPOSECEF high-precision ECEF position (logging only; not used by the EKF)
+// @Field: TimeUS: Time since system startup
+// @Field: I: GPS instance number
+// @Field: GWk: GPS week number
+// @Field: GMS: milliseconds since start of GPS week (UBX iTOW)
+// @Field: X: ECEF X base; reconstruct metres as X*0.01 + XHp*0.0001
+// @Field: Y: ECEF Y base; reconstruct metres as Y*0.01 + YHp*0.0001
+// @Field: Z: ECEF Z base; reconstruct metres as Z*0.01 + ZHp*0.0001
+// @Field: XHp: ECEF X high-precision correction
+// @Field: YHp: ECEF Y high-precision correction
+// @Field: ZHp: ECEF Z high-precision correction
+// @Field: PAcc: 3D position accuracy estimate; metres as PAcc*0.0001
+// @Field: Flags: UBX flags bitfield (bit0 = invalidEcef)
+struct PACKED log_ECEF {
+    LOG_PACKET_HEADER;
+    uint64_t time_us;
+    uint8_t  instance;
+    uint16_t gps_week;
+    uint32_t itow;        // ms
+    int32_t  ecef_x;      // cm
+    int32_t  ecef_y;      // cm
+    int32_t  ecef_z;      // cm
+    int8_t   ecef_x_hp;   // 0.1 mm
+    int8_t   ecef_y_hp;   // 0.1 mm
+    int8_t   ecef_z_hp;   // 0.1 mm
+    uint32_t p_acc;       // 0.1 mm
+    uint8_t  flags;
+};
+
 #define LOG_STRUCTURE_FROM_GPS \
     { LOG_GPS_MSG, sizeof(log_GPS), \
       "GPS",  "QBBIHBcLLeffffB", "TimeUS,I,Status,GMS,GWk,NSats,HDop,Lat,Lng,Alt,Spd,GCrs,VZ,Yaw,U", "s#-s-S-DUmnhnh-", "F--C-0BGGB000--" , true }, \
@@ -218,4 +249,6 @@ struct PACKED log_GPS_RAWS {
       "GRXH", "QdHbBB", "TimeUS,rcvTime,week,leapS,numMeas,recStat", "s-----", "F-----" , true }, \
     { LOG_GPS_RAWS_MSG, sizeof(log_GPS_RAWS), \
       "GRXS", "QddfBBBHBBBBB", "TimeUS,prMes,cpMes,doMes,gnss,sv,freq,lock,cno,prD,cpD,doD,trk", "s------------", "F------------" , true }, \
+    { LOG_ECEF_MSG, sizeof(log_ECEF), \
+      "ECEF", "QBHIiiibbbIB", "TimeUS,I,GWk,GMS,X,Y,Z,XHp,YHp,ZHp,PAcc,Flags", "s#-smmmmmmm-", "F--CBBBDDDD-" , true }, \
     LOG_STRUCTURE_FROM_GPS_SBP

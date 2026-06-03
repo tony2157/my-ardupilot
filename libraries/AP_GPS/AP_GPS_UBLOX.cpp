@@ -549,6 +549,21 @@ AP_GPS_UBLOX::_request_next_config(void)
         break;
     }
 
+    case STEP_HPPOSECEF:
+#if AP_GPS_UBLOX_HPPOSECEF_ENABLED
+        // UBX-NAV-HPPOSECEF is a high-precision message only available on u-blox
+        // F9 receivers (e.g. the Here4 F9P). Only request it on F9 hardware so
+        // other generations are completely unaffected (no extra CFG-MSG traffic
+        // and no risk of stalling the config state machine on an unsupported
+        // message). It is deliberately kept out of CONFIG_ALL.
+        if (_hardware_generation == UBLOX_F9) {
+            if (!_request_message_rate(CLASS_NAV, MSG_HPPOSECEF)) {
+                _next_message--;
+            }
+        }
+#endif
+        break;
+
     default:
         // this case should never be reached, do a full reset if it is hit
         _next_message = STEP_PVT;
@@ -591,6 +606,12 @@ AP_GPS_UBLOX::_verify_rate(uint8_t msg_class, uint8_t msg_id, uint8_t rate) {
             desired_rate = RATE_DOP;
             config_msg_id = CONFIG_RATE_DOP;
             break;
+#if AP_GPS_UBLOX_HPPOSECEF_ENABLED
+        case MSG_HPPOSECEF:
+            desired_rate = RATE_HPPOSECEF;
+            config_msg_id = CONFIG_RATE_HPPOSECEF;
+            break;
+#endif
         default:
             return;
         }
@@ -891,6 +912,46 @@ void AP_GPS_UBLOX::log_mon_hw2(void)
     AP::logger().WriteBlock(&pkt, sizeof(pkt));
 #endif
 }
+
+#if AP_GPS_UBLOX_HPPOSECEF_ENABLED
+// log the latest raw UBX-NAV-HPPOSECEF fields to the ECEF DataFlash message.
+// Reconstruct metres in post: x_m = X*0.01 + XHp*0.0001 (y,z alike); pacc_m = PAcc*0.0001
+void AP_GPS_UBLOX::log_ecef(void)
+{
+#if HAL_LOGGING_ENABLED
+    if (!should_log()) {
+        return;
+    }
+    const struct log_ECEF pkt {
+        LOG_PACKET_HEADER_INIT(LOG_ECEF_MSG),
+        time_us   : AP_HAL::micros64(),
+        instance  : state.instance,
+        gps_week  : _hpposecef.gps_week,
+        itow      : _hpposecef.itow,
+        ecef_x    : _hpposecef.ecef_x,
+        ecef_y    : _hpposecef.ecef_y,
+        ecef_z    : _hpposecef.ecef_z,
+        ecef_x_hp : _hpposecef.ecef_x_hp,
+        ecef_y_hp : _hpposecef.ecef_y_hp,
+        ecef_z_hp : _hpposecef.ecef_z_hp,
+        p_acc     : _hpposecef.p_acc,
+        flags     : _hpposecef.flags,
+    };
+    AP::logger().WriteBlock(&pkt, sizeof(pkt));
+#endif
+}
+
+// fetch the latest raw UBX-NAV-HPPOSECEF data; returns true once per new message
+bool AP_GPS_UBLOX::get_hpposecef(AP_GPS::GPS_HPPOSECEF &data)
+{
+    if (!_hpposecef_new) {
+        return false;
+    }
+    data = _hpposecef;
+    _hpposecef_new = false;
+    return true;
+}
+#endif // AP_GPS_UBLOX_HPPOSECEF_ENABLED
 
 #if UBLOX_TIM_TM2_LOGGING
 void AP_GPS_UBLOX::log_tim_tm2(void)
@@ -1896,6 +1957,33 @@ AP_GPS_UBLOX::_parse_gps(void)
 #endif
         _new_speed = true;
         break;
+#if AP_GPS_UBLOX_HPPOSECEF_ENABLED
+    case MSG_HPPOSECEF:
+        Debug("MSG_HPPOSECEF");
+        // validate payload length before using the data
+        if (_payload_length != sizeof(ubx_nav_hpposecef)) {
+            break;
+        }
+        // store the raw fields for logging and for DroneCAN publishing by an
+        // AP_Periph node. This is logging-only data: it intentionally sets no
+        // navigation state (no _new_position/_new_speed) and does not adjust the
+        // time base via _check_new_itow(), so the EKF/nav solution is untouched.
+        _hpposecef.gps_week  = state.time_week;
+        _hpposecef.itow      = _buffer.hpposecef.iTOW;
+        _hpposecef.ecef_x    = _buffer.hpposecef.ecefX;
+        _hpposecef.ecef_y    = _buffer.hpposecef.ecefY;
+        _hpposecef.ecef_z    = _buffer.hpposecef.ecefZ;
+        _hpposecef.ecef_x_hp = _buffer.hpposecef.ecefXHp;
+        _hpposecef.ecef_y_hp = _buffer.hpposecef.ecefYHp;
+        _hpposecef.ecef_z_hp = _buffer.hpposecef.ecefZHp;
+        _hpposecef.flags     = _buffer.hpposecef.flags;
+        _hpposecef.p_acc     = _buffer.hpposecef.pAcc;
+        _hpposecef_new = true;
+        // log locally too; on a Here4/AP_Periph node should_log() is false (no SD)
+        // so this is a no-op there and the vehicle does the logging on receipt.
+        log_ecef();
+        break;
+#endif // AP_GPS_UBLOX_HPPOSECEF_ENABLED
     case MSG_NAV_SVINFO:
         {
         Debug("MSG_NAV_SVINFO\n");
@@ -2301,7 +2389,8 @@ static const char *reasons[] = {"navigation rate",
                                 "TIM TM2",
                                 "M10",
                                 "L5 Enable Disable",
-                                "F9 debug messages"};
+                                "F9 debug messages",
+                                "HPPOSECEF rate"};
 
 static_assert((1 << ARRAY_SIZE(reasons)) == CONFIG_LAST, "UBLOX: Missing configuration description");
 

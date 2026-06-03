@@ -1078,6 +1078,20 @@ void AP_GPS::inject_MBL_data(uint8_t* data, uint16_t length)
 #endif //#if GPS_MOVING_BASELINE
 
 /*
+  fetch the latest raw UBX-NAV-HPPOSECEF data from whichever backend has it.
+  Used for logging and for DroneCAN transport from an AP_Periph node.
+*/
+bool AP_GPS::get_hpposecef(GPS_HPPOSECEF &data)
+{
+    for (uint8_t i=0; i< GPS_MAX_RECEIVERS; i++) {
+        if (drivers[i] && drivers[i]->get_hpposecef(data)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+/*
   update all GPS instances
  */
 void AP_GPS::update(void)

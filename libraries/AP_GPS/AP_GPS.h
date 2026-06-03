@@ -244,6 +244,26 @@ public:
         uint32_t relposheading_ts;        ///< True if new data has been received since last time it was false
     };
 
+    /*
+      Raw u-blox UBX-NAV-HPPOSECEF high precision ECEF position fields, used only
+      for SD-card logging (and DroneCAN transport from an AP_Periph node). The raw
+      receiver integers are preserved; metres are reconstructed in post-processing:
+        x_m = ecef_x*0.01 + ecef_x_hp*0.0001 (y,z alike); pacc_m = p_acc*0.0001
+      This data does NOT feed the navigation/EKF solution.
+     */
+    struct GPS_HPPOSECEF {
+        uint16_t gps_week;                  ///< GPS week number
+        uint32_t itow;                      ///< GPS time of week (ms), UBX iTOW
+        int32_t  ecef_x;                    ///< ECEF X base (cm)
+        int32_t  ecef_y;                    ///< ECEF Y base (cm)
+        int32_t  ecef_z;                    ///< ECEF Z base (cm)
+        int8_t   ecef_x_hp;                 ///< ECEF X high precision correction (0.1 mm)
+        int8_t   ecef_y_hp;                 ///< ECEF Y high precision correction (0.1 mm)
+        int8_t   ecef_z_hp;                 ///< ECEF Z high precision correction (0.1 mm)
+        uint8_t  flags;                     ///< UBX flags bitfield (bit0 = invalidEcef)
+        uint32_t p_acc;                     ///< 3D position accuracy estimate (0.1 mm)
+    };
+
     /// Startup initialisation.
     void init();
 
@@ -611,6 +631,10 @@ public:
     bool get_RTCMV3(const uint8_t *&bytes, uint16_t &len);
     void clear_RTCMV3();
 #endif // GPS_MOVING_BASELINE
+
+    // fetch the latest raw UBX-NAV-HPPOSECEF data (logging only). Returns true and
+    // fills data once per new message; used by AP_Periph to publish it on DroneCAN.
+    bool get_hpposecef(GPS_HPPOSECEF &data) WARN_IF_UNUSED;
 
 #if !AP_GPS_BLENDED_ENABLED
     uint8_t get_auto_switch_type() const { return _auto_switch; }
