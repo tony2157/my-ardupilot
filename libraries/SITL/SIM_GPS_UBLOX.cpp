@@ -5,6 +5,7 @@
 #include "SIM_GPS_UBLOX.h"
 
 #include <SITL/SITL.h>
+#include <AP_Math/AP_Math.h>  // for wgsllh2ecef(), Vector3d, M_PI
 
 using namespace SITL;
 
@@ -176,6 +177,22 @@ void GPS_UBlox::publish(const GPS_Data *d)
         uint8_t reserved3[4];
         uint32_t flags;
     } relposned {};
+    // UBX-NAV-HPPOSECEF: high precision ECEF position. Must match the driver's
+    // ubx_nav_hpposecef (AP_GPS_UBLOX.h) byte-for-byte (28-byte payload).
+    struct PACKED ubx_nav_hpposecef {
+        uint8_t  version;
+        uint8_t  reserved1[3];
+        uint32_t iTOW;      // GPS msToW
+        int32_t  ecefX;     // cm
+        int32_t  ecefY;     // cm
+        int32_t  ecefZ;     // cm
+        int8_t   ecefXHp;   // 0.1 mm
+        int8_t   ecefYHp;   // 0.1 mm
+        int8_t   ecefZHp;   // 0.1 mm
+        uint8_t  flags;
+        uint32_t pAcc;      // 0.1 mm
+    } hpposecef {};
+    static_assert(sizeof(hpposecef) == 28, "ubx_nav_hpposecef must be 28 bytes");
 
     const uint8_t MSG_POSLLH = 0x2;
     const uint8_t MSG_STATUS = 0x3;
@@ -185,6 +202,7 @@ void GPS_UBlox::publish(const GPS_Data *d)
     const uint8_t MSG_PVT = 0x7;
     const uint8_t MSG_SVINFO = 0x30;
     const uint8_t MSG_RELPOSNED = 0x3c;
+    const uint8_t MSG_HPPOSECEF = 0x13;
 
     uint32_t _next_nav_sv_info_time = 0;
 
@@ -290,12 +308,52 @@ void GPS_UBlox::publish(const GPS_Data *d)
         relposned.flags = gnssFixOK | diffSoln | carrSolnFixed | isMoving | relPosValid | relPosHeadingValid;
     }
 
+    // UBX-NAV-HPPOSECEF: synthesise high precision ECEF from the simulated
+    // lat/lon/alt so the vehicle's u-blox driver can log the ECEF message.
+    // All of the llh->ECEF math is done in double precision: ECEF magnitudes are
+    // ~6.4e6 m, so float (~0.5 m resolution there) would make the 0.1 mm high
+    // precision fields meaningless.
+    {
+        const Vector3d llh { d->latitude  * (M_PI / 180.0),
+                             d->longitude * (M_PI / 180.0),
+                             (double)d->altitude };
+        Vector3d ecef;          // metres, ECEF
+        wgsllh2ecef(llh, ecef);
+
+        // split a metre value into int32 cm base + int8 0.1mm remainder so that
+        //   base*0.01 + hp*0.0001 == value (to 0.1 mm).  |hp| <= 99 -> fits int8.
+        // uses only arithmetic (no libc math fns) to sidestep the double-math guard.
+        // returns a struct (rather than writing through references) because the
+        // destination fields live in a PACKED struct and cannot be bound to refs.
+        struct EcefSplit { int32_t base_cm; int8_t hp; };
+        auto split_ecef = [](double m) -> EcefSplit {
+            const int64_t total_tmm = (int64_t)(m * 10000.0 + (m >= 0 ? 0.5 : -0.5)); // 0.1mm units
+            const int64_t cm = total_tmm / 100;        // truncates toward zero
+            const int64_t r  = total_tmm - cm * 100;   // remainder in (-100, 100), same sign as cm
+            return EcefSplit{ (int32_t)cm, (int8_t)r };
+        };
+        const EcefSplit sx = split_ecef(ecef[0]);
+        const EcefSplit sy = split_ecef(ecef[1]);
+        const EcefSplit sz = split_ecef(ecef[2]);
+        hpposecef.ecefX = sx.base_cm;  hpposecef.ecefXHp = sx.hp;
+        hpposecef.ecefY = sy.base_cm;  hpposecef.ecefYHp = sy.hp;
+        hpposecef.ecefZ = sz.base_cm;  hpposecef.ecefZHp = sz.hp;
+
+        hpposecef.iTOW  = gps_tow.ms;   // version/reserved1 already 0 (zero-init)
+        hpposecef.flags = d->have_lock ? 0 : 0x01;  // bit0 invalidEcef when no fix
+        const float acc3d_m = norm(d->horizontal_acc, d->vertical_acc);
+        hpposecef.pAcc = (uint32_t)constrain_float(acc3d_m * 10000.0f, 0, (float)UINT32_MAX);
+    }
+
     send_ubx(MSG_POSLLH, (uint8_t*)&pos, sizeof(pos));
     send_ubx(MSG_STATUS, (uint8_t*)&status, sizeof(status));
     send_ubx(MSG_VELNED, (uint8_t*)&velned, sizeof(velned));
     send_ubx(MSG_SOL,    (uint8_t*)&sol, sizeof(sol));
     send_ubx(MSG_DOP,    (uint8_t*)&dop, sizeof(dop));
     send_ubx(MSG_PVT,    (uint8_t*)&pvt, sizeof(pvt));
+    // emit HPPOSECEF after PVT so the driver's state.time_week (used for the
+    // ECEF log's GWk field) is already set from SOL/PVT this cycle.
+    send_ubx(MSG_HPPOSECEF, (uint8_t*)&hpposecef, sizeof(hpposecef));
     if (_sitl->gps_hdg_enabled[instance] > SITL::SIM::GPS_HEADING_NONE) {
         send_ubx(MSG_RELPOSNED,    (uint8_t*)&relposned, sizeof(relposned));
     }
