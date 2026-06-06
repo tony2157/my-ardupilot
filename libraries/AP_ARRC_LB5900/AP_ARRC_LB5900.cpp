@@ -62,9 +62,10 @@ bool AP_ARRC_LB5900::init(uint8_t busId, uint8_t i2cAddr, uint16_t freq, uint8_t
     uint32_t measurement_period_us = _calculate_measurement_period_us(_rate, _avg_cnt);
     measurement_period_us = (measurement_period_us * 11) / 10;  // Add 10% margin
 
-    // Clamp to reasonable bounds (minimum 5ms, maximum 500ms)
-    measurement_period_us = MAX(measurement_period_us, 5000);
-    measurement_period_us = MIN(measurement_period_us, 500000);
+    // Clamp to reasonable bounds (minimum 5ms, maximum 500ms).
+    // Unsigned literals so MAX/MIN don't compare signed/unsigned (-Werror=sign-compare).
+    measurement_period_us = MAX(measurement_period_us, 5000U);
+    measurement_period_us = MIN(measurement_period_us, 500000U);
 
     _dev->register_periodic_callback(measurement_period_us, FUNCTOR_BIND_MEMBER(&AP_ARRC_LB5900::_timer, void));
 
@@ -93,10 +94,15 @@ bool AP_ARRC_LB5900::configSensor(uint16_t freq, uint8_t avg_cnt, uint8_t rate)
     if (rate == 2) avg_cnt = 1;
     if (freq > 18000) freq = 18000;
 
-    char FREQ[10 + sizeof(char)] = "FREQ ";
-    char AVG_CNT[17 + sizeof(char)] = "SENS:AVER:COUN ";
-    char MRATE[16 + sizeof(char)] = "SENS:MRAT ";
-    char temp[5 + sizeof(char)];
+    // Buffers must fit the full built command including the trailing NUL:
+    //   FREQ:    "FREQ " (5) + up to 5 digits + " MHZ" (4) + NUL  = 15
+    //   AVG_CNT: "SENS:AVER:COUN " (15) + up to 3 digits + NUL    = 19
+    //   MRATE:   "SENS:MRAT " (10) + up to 6 chars (e.g. NORMAL)  = 17
+    // (the previous sizes overflowed on strcat, e.g. "FREQ 3000 MHZ" into FREQ[11])
+    char FREQ[16] = "FREQ ";
+    char AVG_CNT[20] = "SENS:AVER:COUN ";
+    char MRATE[20] = "SENS:MRAT ";
+    char temp[6];
 
     // Convert user params freq, avg_cnt and mrate to strings
     snprintf(temp,6,"%d",freq);
