@@ -51,6 +51,7 @@
 #define HAL_BOARD_SUBTYPE_LINUX_POCKET2    1028
 #define HAL_BOARD_SUBTYPE_LINUX_T3_GEM_O1  1029
 #define HAL_BOARD_SUBTYPE_LINUX_RSAXVC_V1  1030
+#define HAL_BOARD_SUBTYPE_LINUX_RPI        1031
 
 /* HAL CHIBIOS sub-types, starting at 5000
 
@@ -332,16 +333,16 @@
 #if defined(STM32H7) || CONFIG_HAL_BOARD == HAL_BOARD_SITL || CONFIG_HAL_BOARD == HAL_BOARD_LINUX
 // Enough for a double-notch per motor on an octa using three IMUs and one harmonics
 // plus one static notch with one double-notch harmonics
-#define HAL_HNF_MAX_FILTERS 54
+#define HAL_HNF_MAX_FILTERS 78
 #elif defined(STM32F7)
 // Enough for a notch per motor on an octa using three IMUs and one harmonics
 // plus one static notch with one harmonics
-#define HAL_HNF_MAX_FILTERS 27
+#define HAL_HNF_MAX_FILTERS 39
 #else
 // Enough for a notch per motor on an octa quad using two IMUs and one harmonic
 // plus one static notch with one harmonic
 // Or triple-notch per motor on one IMU with one harmonic
-#define HAL_HNF_MAX_FILTERS 24
+#define HAL_HNF_MAX_FILTERS 30
 #endif
 #endif // HAL_HNF_MAX_FILTERS
 

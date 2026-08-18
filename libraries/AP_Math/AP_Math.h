@@ -288,6 +288,13 @@ ftype norm(const T first, const U second, const Params... parameters)
     return sqrtF(sq(first, second, parameters...));
 }
 
+inline float norm(const float first, const float second) {
+    return sqrtf(sq(first) + sq(second));
+}
+inline float norm(const float first, const float second, const float third) {
+    return sqrtf(sq(first) + sq(second) + sq(third));
+}
+
 #undef MIN
 template<typename A, typename B>
 static inline auto MIN(const A &one, const B &two) -> decltype(one < two ? one : two)
@@ -403,7 +410,7 @@ uint16_t float2fixed(const float input, const uint8_t fractional_bits = 8);
  */
 float fixedwing_turn_rate(float bank_angle_deg, float airspeed);
 
-// convert degrees farenheight to Kelvin
+// convert degrees fahrenheit to Kelvin
 float degF_to_Kelvin(float temp_f);
 
 /*

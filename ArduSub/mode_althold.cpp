@@ -40,7 +40,7 @@ void ModeAlthold::run_pre()
     if (!motors.armed()) {
         motors.set_desired_spool_state(AP_Motors::DesiredSpoolState::GROUND_IDLE);
         // Sub vehicles do not stabilize roll/pitch/yaw when not auto-armed (i.e. on the ground, pilot has never raised throttle)
-        attitude_control->set_throttle_out(0.5,true,g.throttle_filt);
+        attitude_control->set_throttle_out(NEUTRAL_THROTTLE,true,g.throttle_filt);
         attitude_control->relax_attitude_controllers();
         position_control->D_relax_controller(motors.get_throttle_hover());
         sub.last_pilot_heading_rad = ahrs.get_yaw_rad();
@@ -108,7 +108,7 @@ void ModeAlthold::run_post()
 void ModeAlthold::control_depth() {
     // return 0.2f when at the surface to p
     // scale linearly between 0.2f and 1.0f as we approach the surface
-    float distance_to_surface = (g.surface_depth - inertial_nav.get_position_z_up_cm()) * 0.01f;
+    float distance_to_surface = (g.surface_depth - position_control->get_pos_estimate_U_m() * 100.0f) * 0.01f;
     distance_to_surface = constrain_float(distance_to_surface, 0.0f, 1.0f);
     motors.set_max_throttle(g.surface_max_throttle + (1.0f - g.surface_max_throttle) * distance_to_surface);
 
@@ -121,7 +121,7 @@ void ModeAlthold::control_depth() {
         if (sub.ap.at_surface) {
             position_control->set_pos_desired_U_cm(MIN(position_control->get_pos_desired_U_cm(), g.surface_depth)); // set target to 5 cm below surface level
         } else if (sub.ap.at_bottom) {
-            position_control->set_pos_desired_U_cm(MAX(inertial_nav.get_position_z_up_cm() + 10.0f, position_control->get_pos_desired_U_cm())); // set target to 10 cm above bottom
+            position_control->set_pos_desired_U_cm(MAX(position_control->get_pos_estimate_U_m() * 100.0f + 10.0f, position_control->get_pos_desired_U_cm())); // set target to 10 cm above bottom
         }
     }
 
