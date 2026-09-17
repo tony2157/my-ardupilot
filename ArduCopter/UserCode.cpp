@@ -28,7 +28,7 @@ static constexpr float WVANE_MIN_ALT_DESC_CM     = 600.0f;   // Min altitude for
 static constexpr float WVANE_LAT_SPD_THRESH_CMS  = 150.0f;   // Max lateral speed for wind vane active
 static constexpr float WVANE_SPD_MARGIN_CMS      = 300.0f;   // Speed margin for wind vane activation
 static constexpr float WVANE_MIN_WSPD_ASC_MS     = 1.5f;     // Min wind speed for ascending (m/s)
-static constexpr float WVANE_MIN_WSPD_DESC_MS    = 6.0f;     // Min wind speed for descending (m/s)
+static constexpr float WVANE_MIN_WSPD_DESC_MS    = 5.0f;     // Min wind speed for descending (m/s)
 static constexpr float WVANE_VERT_VEL_THRESH_CMS = -0.5f;    // Vertical velocity threshold (cm/s, negative=descending)
 static constexpr float WVANE_WIND_HYSTERESIS_MS  = 3.0f;     // Wind speed hysteresis for high wind warning (m/s)
 static constexpr uint16_t WVANE_FAN_PWM_THRESH   = 50;       // PWM threshold for fan state detection
@@ -540,8 +540,8 @@ void Copter::userhook_auxSwitch1(const RC_Channel::AuxSwitchPos ch_flag)
         }
 
         // Constrain target altitude
-        if(max_alt > 180000){
-            max_alt = 180000;
+        if(max_alt > 304800){
+            max_alt = 304800;
             gcs().send_text(MAV_SEVERITY_INFO, "AutoVP: Max Alt set to 1800m");
         }
         if(max_alt < 1000){
