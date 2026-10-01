@@ -64,8 +64,8 @@ bool AP_ARRC_LB5900::init(uint8_t busId, uint8_t i2cAddr, uint16_t freq, uint8_t
     measurement_period_us = (measurement_period_us * 125) / 100;  // Add 25% margin
 
     // Clamp to reasonable bounds (minimum 5ms, maximum 500ms)
-    measurement_period_us = MAX(measurement_period_us, 5000);
-    measurement_period_us = MIN(measurement_period_us, 500000);
+    measurement_period_us = MAX(measurement_period_us, 5000U);
+    measurement_period_us = MIN(measurement_period_us, 500000U);
 
     _dev->register_periodic_callback(measurement_period_us, FUNCTOR_BIND_MEMBER(&AP_ARRC_LB5900::_timer, void));
 
