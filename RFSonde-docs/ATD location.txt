@@ -1,0 +1,34 @@
+================= NAD83 Oklahoma South Feet (US ft) format ==================
+THE HORIZONTAL AND VERTICAL DATUMS FOR THIS SURVEY ARE BASED ON THE 
+OKLAHOMA STATE PLANE SOUTH COORDINATE SYSTEM 3502 (NAD83) AND NAVD 88 (HARN)(GEOID12B). 
+THE SURVEYING METHODS USED ARE RTK AND VRS GPS OBSERVATIONS BASED ON 
+A STATIC BENCHMARK PROCESSED THROUGH OPUS.
+
+The center of the ATD radome is:
+N: 692969.00 (35°14'10.64" N)
+E: 2128664.18 (97°27'49.26" W)
+Elevation: 1211.04 ft (369.124992 m)
+Note the array face is 1.63 m forward from the center of the radome, so the antenna center exact location is dependent on mechanical az/el positioning.
+
+The top of the calibration tower is:
+N: 694363.35 (35°14'24.38" N)
+E: 2128695.89 (97°27'48.78' W)
+Elevation: 1324.26 ft (base is 1176.42 ft)
+
+
+================= WGS84 (G1150) format ==================
+The center of the ATD radome is:
+Lat: 35.2362801551
+Lng: -97.4636934874
+Elevation: 341.334 m (+/- 0.06)
+Ortho elevation: 368.668 m
+
+The probe of the Cal tower is:
+Lat: 35.2401106492
+Lng: -97.4635615285
+Elevation: 375.890 m (+/- 0.06)
+Ortho elevation: 403.23 m
+
+Distance ATD to Cal tower = 425.1437 m
+Azimuth ATD-Cal tower = 1.6189 deg
+Elevation ATD-Cal tower = 4.6476 deg
