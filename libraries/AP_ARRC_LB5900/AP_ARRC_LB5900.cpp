@@ -94,18 +94,15 @@ bool AP_ARRC_LB5900::configSensor(uint16_t freq, uint8_t avg_cnt, uint8_t rate)
     if (rate == 2) avg_cnt = 1;
     if (freq > 18000) freq = 18000;
 
-    char FREQ[10 + sizeof(char)] = "FREQ ";
-    char AVG_CNT[17 + sizeof(char)] = "SENS:AVER:COUN ";
-    char MRATE[16 + sizeof(char)] = "SENS:MRAT ";
-    char temp[5 + sizeof(char)];
+    // Sized for the longest values: "FREQ 18000 MHZ", "SENS:AVER:COUN 255", "SENS:MRAT NORMAL"
+    char FREQ[16];
+    char AVG_CNT[20];
+    char MRATE[20];
 
     // Convert user params freq, avg_cnt and mrate to strings
-    snprintf(temp,6,"%d",freq);
-    strcat(FREQ, temp);
-    strcat(FREQ, " MHZ");
-    snprintf(temp,6,"%d",avg_cnt);
-    strcat(AVG_CNT, temp);
-    strcat(MRATE, mrate[0][rate]);
+    snprintf(FREQ, sizeof(FREQ), "FREQ %u MHZ", (unsigned)freq);
+    snprintf(AVG_CNT, sizeof(AVG_CNT), "SENS:AVER:COUN %u", (unsigned)avg_cnt);
+    snprintf(MRATE, sizeof(MRATE), "SENS:MRAT %s", mrate[0][rate]);
 
     // List of initial commands to configure the LB5900
     const char* (cmd[1])[10] = 
