@@ -1,0 +1,315 @@
+<?xml version="1.0"?>
+<sdf version="1.9">
+  <model name="rfsonde_gimbal">
+    <pose>0 0 0.18 0 0 0</pose>
+    <link name="base_link">
+      <inertial>
+        <mass>0.2</mass>
+        <inertia>
+          <ixx>0.0001</ixx>
+          <ixy>0</ixy>
+          <ixz>0</ixz>
+          <iyy>0.0001</iyy>
+          <iyz>0</iyz>
+          <izz>0.0001</izz>
+        </inertia>
+      </inertial>
+      <visual name="base_visual">
+        <geometry>
+          <mesh>
+            <uri>model://gimbal_small_3d/meshes/base_plate.dae</uri>
+          </mesh>
+        </geometry>
+        <material>
+          <ambient>0.1 0.1 0.1</ambient>
+          <diffuse>0.1 0.1 0.1</diffuse>
+          <specular>0.01 0.01 0.01 1.0</specular>
+        </material>
+      </visual>
+      <collision name="base_collision">
+        <pose>0.01 0.075 -0.025 0 0 0</pose>
+        <geometry>
+          <box>
+            <size>0.1 0.05 0.15</size>
+          </box>
+        </geometry>
+      </collision>
+    </link>
+
+    <link name="yaw_link">
+      <inertial>
+        <mass>0.01</mass>
+        <inertia>
+          <ixx>0.00001</ixx>
+          <ixy>0</ixy>
+          <ixz>0</ixz>
+          <iyy>0.00001</iyy>
+          <iyz>0</iyz>
+          <izz>0.00001</izz>
+        </inertia>
+      </inertial>
+      <visual name="yaw_visual">
+        <geometry>
+          <mesh>
+            <uri>model://gimbal_small_3d/meshes/yaw_arm.dae</uri>
+          </mesh>
+        </geometry>
+        <material>
+          <ambient>0.1 0.1 0.1</ambient>
+          <diffuse>0.1 0.1 0.1</diffuse>
+          <specular>0.01 0.01 0.01 1.0</specular>
+        </material>
+      </visual>
+      <collision name="yaw_collision">
+        <geometry>
+          <mesh>
+            <uri>model://gimbal_small_3d/meshes/yaw_arm.dae</uri>
+          </mesh>
+        </geometry>
+      </collision>
+    </link>
+    <joint name="yaw_joint" type="revolute">
+      <parent>base_link</parent>
+      <child>yaw_link</child>
+      <axis>
+        <xyz>0 1 0</xyz>
+        <dynamics>
+          <damping>0.01</damping>
+        </dynamics>
+        <limit>
+          <lower>-3.1415926</lower>
+          <upper>3.1415926</upper>
+        </limit>
+      </axis>
+      <pose>0.0105 0.065 -0.002 0 0 0</pose>
+    </joint>
+
+    <link name="roll_link">
+      <inertial>
+        <mass>0.01</mass>
+        <inertia>
+          <ixx>0.00001</ixx>
+          <ixy>0</ixy>
+          <ixz>0</ixz>
+          <iyy>0.00001</iyy>
+          <iyz>0</iyz>
+          <izz>0.00001</izz>
+        </inertia>
+      </inertial>
+      <visual name="roll_visual">
+        <geometry>
+          <mesh>
+            <uri>model://gimbal_small_3d/meshes/roll_arm.dae</uri>
+          </mesh>
+        </geometry>
+        <material>
+          <ambient>0.1 0.1 0.1</ambient>
+          <diffuse>0.1 0.1 0.1</diffuse>
+          <specular>0.01 0.01 0.01 1.0</specular>
+        </material>
+      </visual>
+      <collision name="roll_collision">
+        <geometry>
+          <mesh>
+            <uri>model://gimbal_small_3d/meshes/roll_arm.dae</uri>
+          </mesh>
+        </geometry>
+      </collision>
+    </link>
+    <joint name="roll_joint" type="revolute">
+      <parent>yaw_link</parent>
+      <child>roll_link</child>
+      <axis>
+        <xyz>0 0 1</xyz>
+        <dynamics>
+          <damping>0.01</damping>
+        </dynamics>
+        <limit>
+          <lower>-3.1415926</lower>
+          <upper>3.1415926</upper>
+        </limit>
+      </axis>
+      <pose>0.0099 0.002 -0.05 0 0 0</pose>
+    </joint>
+
+    <link name="pitch_link">
+      <inertial>
+        <mass>0.01</mass>
+        <inertia>
+          <ixx>0.00001</ixx>
+          <ixy>0</ixy>
+          <ixz>0</ixz>
+          <iyy>0.00001</iyy>
+          <iyz>0</iyz>
+          <izz>0.00001</izz>
+        </inertia>
+      </inertial>
+      <visual name="pitch_visual">
+        <pose>0 0 0 0 0 0</pose>
+        <geometry>
+          <mesh>
+            <uri>model://gimbal_small_3d/meshes/camera_enclosure.dae</uri>
+          </mesh>
+        </geometry>
+        <material>
+          <ambient>0.4 0.4 0.4</ambient>
+          <diffuse>0.4 0.4 0.4</diffuse>
+          <specular>0.1 0.1 0.1 1.0</specular>
+        </material>
+      </visual>
+      <collision name="pitch_collision">
+        <pose>0 0 0 0 0 0</pose>
+        <geometry>
+          <mesh>
+            <uri>model://gimbal_small_3d/meshes/camera_enclosure.dae</uri>
+          </mesh>
+        </geometry>
+      </collision>
+      <visual name="camera_visual">
+        <pose>0 0 0.02 0 0 0</pose>
+        <geometry>
+          <cylinder>
+            <radius>0.025</radius>
+            <length>0.050</length>
+          </cylinder>
+        </geometry>
+        <material>
+          <ambient>0.4 0.4 0.4</ambient>
+          <diffuse>0.4 0.4 0.4</diffuse>
+          <specular>0.1 0.1 0.1 1.0</specular>
+        </material>
+      </visual>
+      <collision name="camera_collision">
+        <pose>0 0 0.02 0 0 0</pose>
+        <geometry>
+          <cylinder>
+            <radius>0.025</radius>
+            <length>0.050</length>
+          </cylinder>
+        </geometry>
+      </collision>
+      <!-- ============ RFSonde frame triad and pointing visuals (visual only: no mass, no collision) ============
+           Triad on the antenna_rf frame: X red (boresight, 1 m), Y green (0.6 m), Z blue (0.6 m).
+           Laser line and beam cone are drawn along +X (antenna boresight). visibility_flags 0x2 hides them
+           from the gimbal camera (its visibility_mask excludes bit 1); the Gazebo GUI still shows them.
+           Beam cone: radius = length * tan(beamwidth / 2). Currently 30 deg full beamwidth, 20 m long.
+           Delete these visuals to hide the pointer. -->
+      <visual name="pointer_axis_x_shaft">
+        <pose relative_to="antenna_rf">0.5 0 0 0 1.5708 0</pose>
+        <geometry><cylinder><radius>0.008</radius><length>1.0</length></cylinder></geometry>
+        <material><ambient>1 0 0 1</ambient><diffuse>1 0 0 1</diffuse><emissive>0.6 0 0 1</emissive></material>
+        <cast_shadows>false</cast_shadows><visibility_flags>2</visibility_flags>
+      </visual>
+      <visual name="pointer_axis_x_head">
+        <pose relative_to="antenna_rf">1.06 0 0 0 1.5708 0</pose>
+        <geometry><cone><radius>0.035</radius><length>0.12</length></cone></geometry>
+        <material><ambient>1 0 0 1</ambient><diffuse>1 0 0 1</diffuse><emissive>0.6 0 0 1</emissive></material>
+        <cast_shadows>false</cast_shadows><visibility_flags>2</visibility_flags>
+      </visual>
+      <visual name="pointer_axis_y_shaft">
+        <pose relative_to="antenna_rf">0 0.3 0 -1.5708 0 0</pose>
+        <geometry><cylinder><radius>0.008</radius><length>0.6</length></cylinder></geometry>
+        <material><ambient>0 0.85 0 1</ambient><diffuse>0 0.85 0 1</diffuse><emissive>0.0 0.5 0.0 1</emissive></material>
+        <cast_shadows>false</cast_shadows><visibility_flags>2</visibility_flags>
+      </visual>
+      <visual name="pointer_axis_y_head">
+        <pose relative_to="antenna_rf">0 0.66 0 -1.5708 0 0</pose>
+        <geometry><cone><radius>0.035</radius><length>0.12</length></cone></geometry>
+        <material><ambient>0 0.85 0 1</ambient><diffuse>0 0.85 0 1</diffuse><emissive>0.0 0.5 0.0 1</emissive></material>
+        <cast_shadows>false</cast_shadows><visibility_flags>2</visibility_flags>
+      </visual>
+      <visual name="pointer_axis_z_shaft">
+        <pose relative_to="antenna_rf">0 0 0.3 0 0 0</pose>
+        <geometry><cylinder><radius>0.008</radius><length>0.6</length></cylinder></geometry>
+        <material><ambient>0.1 0.3 1 1</ambient><diffuse>0.1 0.3 1 1</diffuse><emissive>0.1 0.2 0.6 1</emissive></material>
+        <cast_shadows>false</cast_shadows><visibility_flags>2</visibility_flags>
+      </visual>
+      <visual name="pointer_axis_z_head">
+        <pose relative_to="antenna_rf">0 0 0.66 0 0 0</pose>
+        <geometry><cone><radius>0.035</radius><length>0.12</length></cone></geometry>
+        <material><ambient>0.1 0.3 1 1</ambient><diffuse>0.1 0.3 1 1</diffuse><emissive>0.1 0.2 0.6 1</emissive></material>
+        <cast_shadows>false</cast_shadows><visibility_flags>2</visibility_flags>
+      </visual>
+      <visual name="pointer_origin">
+        <pose relative_to="antenna_rf">0 0 0 0 0 0</pose>
+        <geometry><sphere><radius>0.025</radius></sphere></geometry>
+        <material><ambient>1 1 1 1</ambient><diffuse>1 1 1 1</diffuse><emissive>0.5 0.5 0.5 1</emissive></material>
+        <cast_shadows>false</cast_shadows><visibility_flags>2</visibility_flags>
+      </visual>
+      <visual name="pointer_laser">
+        <pose relative_to="antenna_rf">151 0 0 0 1.5708 0</pose>
+        <geometry><cylinder><radius>0.04</radius><length>300</length></cylinder></geometry>
+        <material><ambient>1 0.1 0.1 1</ambient><diffuse>1 0.1 0.1 1</diffuse><emissive>1 0.1 0.1 1</emissive></material>
+        <transparency>0.4</transparency>
+        <cast_shadows>false</cast_shadows><visibility_flags>2</visibility_flags>
+      </visual>
+      <visual name="pointer_beam_cone">
+        <pose relative_to="antenna_rf">10.000 0 0 0 -1.5708 0</pose>
+        <geometry><cone><radius>5.359</radius><length>20.000</length></cone></geometry>
+        <material><ambient>1 0.85 0.1 1</ambient><diffuse>1 0.85 0.1 1</diffuse><emissive>0.4 0.3 0 1</emissive></material>
+        <transparency>0.8</transparency>
+        <cast_shadows>false</cast_shadows><visibility_flags>2</visibility_flags>
+      </visual>
+      <sensor name="camera" type="camera">
+        <gz_frame_id>pitch_link</gz_frame_id>
+        <pose>0 0 0 -1.57 -1.57 0</pose>
+        <camera>
+          <visibility_mask>4294967293</visibility_mask>
+          <horizontal_fov>2.0</horizontal_fov>
+          <image>
+            <width>640</width>
+            <height>480</height>
+          </image>
+          <clip>
+            <near>0.05</near>
+            <far>15000</far>
+          </clip>
+        </camera>
+        <always_on>1</always_on>
+        <update_rate>10</update_rate>
+        <visualize>1</visualize>
+
+        <plugin filename="CameraZoomPlugin"
+            name="CameraZoomPlugin">
+          <max_zoom>125.0</max_zoom>
+          <slew_rate>0.42514285714</slew_rate>
+        </plugin>
+        
+        <plugin name="GstCameraPlugin"
+            filename="GstCameraPlugin">
+          <udp_host>127.0.0.1</udp_host>
+          <udp_port>5600</udp_port>
+          <use_basic_pipeline>true</use_basic_pipeline>
+          <use_cuda>false</use_cuda>
+        </plugin>
+
+      </sensor>
+    </link>
+    <joint name="pitch_joint" type="revolute">
+      <parent>roll_link</parent>
+      <child>pitch_link</child>
+      <axis>
+        <xyz>1 0 0</xyz>
+        <dynamics>
+          <damping>0.01</damping>
+        </dynamics>
+        <limit>
+          <lower>-3.1415926</lower>
+          <upper>3.1415926</upper>
+        </limit>
+      </axis>
+      <pose>0.045 0.0021 0.0199 0 0 0</pose>
+    </joint>
+    <!-- RFSonde antenna reference frame (same orientation as the gimbal camera):
+           +X = boresight, +Y = left, +Z = up (vertical polarization reference) when the gimbal is at
+           neutral on a level vehicle. Roll turns about X, pitch about Y, yaw about Z.
+         Move this pose to your antenna phase centre; the frame triad and pointer visuals follow it. -->
+    <frame name="antenna_rf" attached_to="pitch_link">
+      <pose relative_to="pitch_link">0 0 0 -1.5708 -1.5708 0</pose>
+    </frame>
+    <!-- RFSonde: publish the actual gimbal joint angles (rad) on
+         /world/<world>/model/rfsonde_iris/model/gimbal/joint_state -->
+    <plugin filename="gz-sim-joint-state-publisher-system"
+        name="gz::sim::systems::JointStatePublisher"/>
+  </model>
+</sdf>
