@@ -192,20 +192,8 @@ void AP_Mount_Servo::update_angle_outputs(const MountTarget& angle_rad)
     _angle_bf_output_rad.x -= ahrs_angle_rad.x;
     _angle_bf_output_rad.y -= ahrs_angle_rad.y;
 
-    // lead filter
-    const Vector3f &gyro = ahrs.get_gyro();
-
-    if (!is_zero(_params.roll_stb_lead) && fabsf(ahrs.get_pitch()) < M_PI/3.0f) {
-        // Compute rate of change of euler roll angle
-        float roll_rate = gyro.x + (ahrs.sin_pitch() / ahrs.cos_pitch()) * (gyro.y * ahrs.sin_roll() + gyro.z * ahrs.cos_roll());
-        _angle_bf_output_rad.x -= roll_rate * _params.roll_stb_lead;
-    }
-
-    if (!is_zero(_params.pitch_stb_lead)) {
-        // Compute rate of change of euler pitch angle
-        float pitch_rate = ahrs.cos_pitch() * gyro.y - ahrs.sin_roll() * gyro.z;
-        _angle_bf_output_rad.y -= pitch_rate * _params.pitch_stb_lead;
-    }
+    // ARRC mod: no lead filter. roll_stb_lead and pitch_stb_lead are repurposed as MNT1_ARRC_AZTH (deg)
+    // and MNT1_ARRC_GMODE, so using them as lead times (s) would saturate the servos whenever the vehicle rotates.
 }
 
 // move_servo - moves servo with the given id to the specified angle.  all angles are in degrees * 10
