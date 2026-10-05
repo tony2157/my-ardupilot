@@ -1,0 +1,15 @@
+# RFSonde SITL GPS profile: GNSS with SBAS corrections (u-blox ZED-F9P class: ~1.0 m CEP).
+# Load the same way as gps-standard.parm (see that file for the model description).
+SIM_GPS_HBIAS    0.8
+SIM_GPS_HWN      0.25
+SIM_GPS_VBIAS    1.3
+SIM_GPS_VWN      0.3
+SIM_GPS_BTAU     60
+SIM_GPS_VELNSE   0.05
+SIM_GPS_ACC      0.3
+SIM_GPS2_ACC     0.3
+
+EK3_SRC1_POSZ    3
+EK3_POSNE_M_NSE  0.5
+EK3_VELNE_M_NSE  0.3
+EK3_VELD_M_NSE   0.5
