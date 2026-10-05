@@ -683,6 +683,60 @@ const AP_Param::GroupInfo SIM::var_gps[] = {
     // 15 was GPS_VERR
     // 16 was GPS_JAM
 
+    // @Param: GPS_HBIAS
+    // @DisplayName: GPS horizontal correlated error
+    // @Description: RFSonde GNSS error model: 1-sigma size, per north and east axis, of the slowly varying (first-order Gauss-Markov) horizontal position error. 0 disables this term. When all RFSonde GNSS model parameters are 0 the stock SITL GPS behaviour applies.
+    // @Units: m
+    // @Range: 0 100
+    // @User: Advanced
+    AP_GROUPINFO("GPS_HBIAS",    17, SIM,  gps_h_bias, 0),
+
+    // @Param: GPS_VBIAS
+    // @DisplayName: GPS vertical correlated error
+    // @Description: RFSonde GNSS error model: 1-sigma size of the slowly varying (first-order Gauss-Markov) vertical position error.
+    // @Units: m
+    // @Range: 0 100
+    // @User: Advanced
+    AP_GROUPINFO("GPS_VBIAS",    18, SIM,  gps_v_bias, 0),
+
+    // @Param: GPS_BTAU
+    // @DisplayName: GPS error correlation time
+    // @Description: RFSonde GNSS error model: correlation time of the slowly varying position error.
+    // @Units: s
+    // @Range: 0.1 3600
+    // @User: Advanced
+    AP_GROUPINFO("GPS_BTAU",    19, SIM,  gps_bias_tau, 60),
+
+    // @Param: GPS_HWN
+    // @DisplayName: GPS horizontal white noise
+    // @Description: RFSonde GNSS error model: 1-sigma white noise added to each horizontal axis of every GPS sample.
+    // @Units: m
+    // @Range: 0 10
+    // @User: Advanced
+    AP_GROUPINFO("GPS_HWN",    20, SIM,  gps_h_white, 0),
+
+    // @Param: GPS_VWN
+    // @DisplayName: GPS vertical white noise
+    // @Description: RFSonde GNSS error model: 1-sigma white noise added to the height of every GPS sample.
+    // @Units: m
+    // @Range: 0 10
+    // @User: Advanced
+    AP_GROUPINFO("GPS_VWN",    21, SIM,  gps_v_white, 0),
+
+    // @Param: GPS_VELNSE
+    // @DisplayName: GPS velocity noise
+    // @Description: RFSonde GNSS error model: 1-sigma white noise added to each axis of the GPS velocity.
+    // @Units: m/s
+    // @Range: 0 5
+    // @User: Advanced
+    AP_GROUPINFO("GPS_VELNSE",    22, SIM,  gps_vel_noise, 0),
+
+    // @Param: GPS_SEED
+    // @DisplayName: GPS error model seed
+    // @Description: RFSonde GNSS error model: random seed. 0 picks a new random seed on every start; any other value makes runs repeatable.
+    // @User: Advanced
+    AP_GROUPINFO("GPS_SEED",    23, SIM,  gps_seed, 0),
+
     // 30 was GPS2_DISABLE
     // 31 was GPS2_LAG_MS
     // 32 was GPS2_TYPE
