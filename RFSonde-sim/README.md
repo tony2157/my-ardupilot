@@ -18,17 +18,14 @@ python3 ~/Github/my-ardupilot/RFSonde-sim/tools/make_norman_world.py
 # Terminal A
 gz sim -v4 -r norman_radars.sdf
 
-# Terminal B
-cd ~/Github/my-ardupilot
-Tools/autotest/sim_vehicle.py -v ArduCopter -f gazebo-iris --model JSON -L RFSonde_Norman \
-  --add-param-file=$HOME/Github/my-ardupilot/RFSonde-sim/config/rfsonde-gimbal.parm \
-  --no-mavproxy
+# Terminal B: SITL plus GPS accuracy squares (--rtk to start with RTK, --no-squares to skip them)
+~/Github/my-ardupilot/RFSonde-sim/tools/rfsonde_sitl.sh
 
 # Terminal C (optional): MAVProxy console for the gimbal and quick commands
 mavproxy.py --master tcp:127.0.0.1:5762 --console
 ```
 
-Connect your ground station to TCP `127.0.0.1:5760`. With `--no-mavproxy`, SITL does not start (and does not link to Gazebo) until that connection is made. SITL also accepts a second connection on TCP 5762, which the optional MAVProxy console uses. Don't give MAVProxy an `--out` to a port your ground station listens on: every packet would arrive twice, and mission uploads fail with `MAV_MISSION_INVALID_SEQUENCE`.
+`rfsonde_sitl.sh` runs `sim_vehicle.py` with the `RFSonde_Norman` location, `config/rfsonde-gimbal.parm`, `config/gps-standard.parm` (or `gps-rtk.parm` with `--rtk`) and `--no-mavproxy`, and starts `tools/accuracy_squares.py` in the background. Other `sim_vehicle.py` options are passed on, and Ctrl+C stops everything. Connect your ground station to TCP `127.0.0.1:5760`: SITL does not start, or link to Gazebo, until that connection is made. SITL also accepts connections on TCP 5762 (the MAVProxy console) and 5763 (the squares helper). Don't give MAVProxy an `--out` to a port your ground station listens on: every packet would arrive twice, and mission uploads fail with `MAV_MISSION_INVALID_SEQUENCE`.
 
 `RFSonde_Norman` is defined in `~/.config/ardupilot/locations.txt`. It must match the world origin below, or SITL GPS positions will be wrong.
 
@@ -92,6 +89,77 @@ gz topic -e -t /world/norman_radars/model/rfsonde_iris/model/gimbal/joint_state
 ```
 
 **Firmware requirement.** The gimbal only holds its angles in flight with the `AP_Mount_Servo` fix (October 2026). `MNT1_ARRC_AZTH` and `MNT1_ARRC_GMODE` reuse the storage of the stock servo lead-filter gains. Without the fix, roll and pitch saturate whenever the vehicle rotates.
+
+### GPS accuracy and RTK
+
+SITL simulates the GPS receiver; Gazebo only supplies the true position. The RFSonde GNSS error model (`libraries/SITL/SIM_GPS.h`, `GNSSErrorModel`) adds two terms to each axis:
+
+- a slowly varying error, a first-order Gauss-Markov process with exact discretisation, so the statistics don't depend on `SIM_GPS_HZ`;
+- white noise.
+
+It also adds white noise to the velocity. The simulated u-blox reports the configured 1-sigma accuracy (`hAcc`, `vAcc`, `sAcc`), and reports RTK Fixed when `hAcc` is below 0.1 m. With all model parameters at 0, the stock SITL GPS applies (`SIM_GPS_ACC`, `SIM_GPS_NOISE`).
+
+| Parameter | Meaning |
+|---|---|
+| `SIM_GPS_HBIAS` / `SIM_GPS_VBIAS` | slowly varying error, 1σ per horizontal axis / vertical (m) |
+| `SIM_GPS_BTAU` | its correlation time (s) |
+| `SIM_GPS_HWN` / `SIM_GPS_VWN` | white noise per sample (m) |
+| `SIM_GPS_VELNSE` | velocity noise per axis (m/s) |
+| `SIM_GPS_SEED` | random seed (0 = new each start) |
+
+The profiles (u-blox ZED-F9P class) include matching EKF3 settings:
+
+| Profile | Horizontal | Vertical 1σ | Fix | EKF3 |
+|---|---|---|---|---|
+| `config/gps-standard.parm` | 1.5 m CEP | 1.9 m | 3D | defaults (`EK3_POSNE_M_NSE 0.5`) |
+| `config/gps-sbas.parm` | 1.0 m CEP | 1.3 m | 3D | defaults |
+| `config/gps-rtk.parm` | 1.1 cm CEP | 1.4 cm | RTK Fixed | `EK3_POSNE_M_NSE 0.05`, `EK3_VELNE_M_NSE 0.1` |
+
+All profiles set `EK3_SRC1_POSZ 3` (GPS height). EKF3 weighs GPS position by `max(hAcc, EK3_POSNE_M_NSE)`, so the RTK profile lowers that floor.
+
+Start with `tools/rfsonde_sitl.sh --gps sbas` or `--rtk`. To switch at any time, run in Terminal C:
+
+```
+param load ~/Github/my-ardupilot/RFSonde-sim/config/gps-rtk.parm        # or gps-sbas.parm / gps-standard.parm
+```
+
+In Mission Planner, use Config → Full Parameter List → Load from file → Write Params. The error changes size immediately, with no RTK float stage. Home altitude is set at arming, so arming in standard mode and then enabling RTK leaves a constant height offset until the next arming.
+
+### Evaluate GNSS and EKF accuracy
+
+```bash
+python3 tools/gnss_flight_test.py --profile rtk              # takeoff, hover, box, land, then evaluate (TCP 5762)
+python3 tools/gnss_flight_test.py --profile standard --hover 300 --box 30
+python3 tools/gnss_eval.py --latest                          # evaluate the newest log in ~/Github/my-ardupilot/logs
+```
+
+`gnss_eval.py` compares the raw GPS (delayed by `SIM_GPS_LAG_MS`) and the EKF3 estimate with the true position. It reports, for the whole flight, hovering and moving:
+
+- error per axis, RMS, CEP50/95 and vertical RMS;
+- the fast-noise RMS;
+- how closely EKF3 follows the GPS error;
+- reported vs actual accuracy;
+- the error's correlation time;
+- timing: the measured GPS delay, and how far the EKF3 output trails the truth (about 20–30 ms in SITL, which adds about speed × lag while moving);
+- EKF3 innovation test ratios (`XKF4`).
+
+The report is saved next to the log as `*_gnss_report.txt`, and `--csv` exports the time series. With a correlation time of a minute, one short flight can read ±20% from the configured accuracy; set `SIM_GPS_SEED` to compare configurations on the same error sequence. To check the model's own statistics, record a long stationary run (`LOG_DISARMED 1`, `SIM_SPEEDUP 10`, several times `SIM_GPS_BTAU`), then run `gnss_eval.py --all`.
+
+### Accuracy squares
+
+`tools/accuracy_squares.py` draws a red 1 m square and an orange 60 cm square, each with a vertical counterpart across the drone. They are centred on ArduPilot's estimated position (MAVLink on TCP 5763), level with the ground and turned with the drone's heading. The drone model is at its true position, so it moves inside the squares by the actual position error. They are Gazebo markers: visible in the Gazebo window only, with no physics, and not in camera images.
+
+The squares are on by default with `rfsonde_sitl.sh`. These commands work from any terminal and act on the running helper:
+
+| To | Do this |
+|---|---|
+| Hide the squares | `python3 tools/accuracy_squares.py --off` |
+| Show them again | `python3 tools/accuracy_squares.py --on` |
+| Show one square | `--on --show large` (1 m) or `--on --show small` (60 cm) |
+| Start SITL without squares | `tools/rfsonde_sitl.sh --no-squares` |
+| Squares for a SITL started with `sim_vehicle.py` directly | `python3 tools/accuracy_squares.py` (Ctrl+C removes them) |
+
+The helper waits for SITL, reconnects if SITL restarts, and logs to `~/.cache/rfsonde/accuracy_squares.log`.
 
 ### Assumptions
 
