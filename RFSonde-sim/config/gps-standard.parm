@@ -1,0 +1,23 @@
+# RFSonde SITL GPS profile: standalone GNSS, no corrections (u-blox ZED-F9P class: ~1.5 m CEP).
+# Load at start (rfsonde_sitl.sh) or at any time: MAVProxy "param load <this file>",
+# Mission Planner: Config > Full Parameter List > Load from file > Write Params.
+#
+# GNSS error model (libraries/SITL/SIM_GPS.h, GNSSErrorModel), 1-sigma values:
+#   position error = slowly varying part (SIM_GPS_HBIAS/VBIAS, correlation time SIM_GPS_BTAU)
+#                    + white noise (SIM_GPS_HWN/VWN); velocity white noise SIM_GPS_VELNSE.
+#   Reported accuracy = sqrt(BIAS^2 + WN^2); RTK Fixed is reported when it is below 0.1 m.
+SIM_GPS_HBIAS    1.2
+SIM_GPS_HWN      0.3
+SIM_GPS_VBIAS    1.9
+SIM_GPS_VWN      0.4
+SIM_GPS_BTAU     60
+SIM_GPS_VELNSE   0.05
+# stock SITL values for the parameters the old RFSonde model reused
+SIM_GPS_ACC      0.3
+SIM_GPS2_ACC     0.3
+
+# EKF3: GPS height instead of barometer; default GPS noise floors (the reported accuracy is larger)
+EK3_SRC1_POSZ    3
+EK3_POSNE_M_NSE  0.5
+EK3_VELNE_M_NSE  0.3
+EK3_VELD_M_NSE   0.5

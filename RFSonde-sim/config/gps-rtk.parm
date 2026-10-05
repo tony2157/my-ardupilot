@@ -1,0 +1,17 @@
+# RFSonde SITL GPS profile: RTK fixed (u-blox ZED-F9P class: 0.01 m + 1 ppm CEP, base within a few km).
+# Reported as RTK Fixed straight away (no float stage). Load the same way as gps-standard.parm.
+SIM_GPS_HBIAS    0.008
+SIM_GPS_HWN      0.005
+SIM_GPS_VBIAS    0.012
+SIM_GPS_VWN      0.008
+SIM_GPS_BTAU     30
+SIM_GPS_VELNSE   0.02
+SIM_GPS_ACC      0.3
+SIM_GPS2_ACC     0.3
+
+# EKF3: GPS height; lower GPS noise floors so the filter uses the RTK accuracy
+# (EKF3 uses max(reported accuracy, EK3_POSNE_M_NSE); GPS height uses max(vAcc, 1.5 x EK3_POSNE_M_NSE))
+EK3_SRC1_POSZ    3
+EK3_POSNE_M_NSE  0.05
+EK3_VELNE_M_NSE  0.1
+EK3_VELD_M_NSE   0.15
