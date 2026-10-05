@@ -60,86 +60,42 @@ struct GPS_Data {
     float speed_2d() const WARN_IF_UNUSED;
 };
 
-// Stochastic model for GNSS bias and noise
-class GNSSStochasticModel {
-    std::mt19937 generator; // Mersenne Twister random engine
-    std::normal_distribution<double> gnss_velocity_distribution;
-
+// RFSonde GNSS error model (SIM_GPS_HBIAS ... SIM_GPS_SEED).
+// Per axis (north, east, down) the position error is a first-order Gauss-Markov process (slowly
+// varying error from atmosphere, orbits, multipath) plus white noise, and the velocity gets white
+// noise. The Gauss-Markov state is kept in units of its standard deviation and propagated with the
+// exact discretisation x <- phi*x + sqrt(1 - phi^2)*n, phi = exp(-dt/tau), so the statistics do not
+// depend on the GPS update rate and a change of the configured sizes applies immediately.
+class GNSSErrorModel {
 public:
-    GNSSStochasticModel(double vel_std, double noise_std)
-        : gnss_velocity_distribution(0.0, vel_std),
-          lat_bias(0.0), lng_bias(0.0), vertical_bias(0.0),
-          gnss_vel_std(vel_std), lambda(1.0), last_now(AP_HAL::millis()){
-        // Seed random engine with a high-quality random seed
-        std::random_device rd;
-        generator.seed(rd());
+    struct Params {
+        float h_bias;       // horizontal correlated error, 1-sigma per axis (m)
+        float v_bias;       // vertical correlated error, 1-sigma (m)
+        float tau;          // correlation time of the correlated error (s)
+        float h_white;      // horizontal white noise, 1-sigma per axis (m)
+        float v_white;      // vertical white noise, 1-sigma (m)
+        float vel_noise;    // velocity white noise, 1-sigma per axis (m/s)
+        uint32_t seed;      // 0 = random seed
+    };
+    struct Error {
+        double north, east, down;   // position error (m)
+        float vel_north, vel_east, vel_down;   // velocity error (m/s)
+    };
+
+    static bool enabled(const Params &p) {
+        return p.h_bias > 0 || p.v_bias > 0 || p.h_white > 0 || p.v_white > 0 || p.vel_noise > 0;
     }
 
-    void set_gnss_velocity_std(double vel_std, double l) {
-        gnss_vel_std = vel_std;
-        lambda = l;
-        lat_bias = 0.0;
-        lng_bias = 0.0;
-        vertical_bias = 0.0;
-    }
+    // advance the model to now_ms and return the current error
+    Error update(const Params &p, uint32_t now_ms, uint8_t instance);
 
-    void updateBias() {
-        // Update bias using a random walk
-        gnss_velocity_distribution = std::normal_distribution<double>(-lat_bias*lambda, gnss_vel_std);
-        double v_lat_bias = gnss_velocity_distribution(generator);
-        lat_bias += v_lat_bias*(double)(AP_HAL::millis() - last_now)/1000.0;
-
-        gnss_velocity_distribution = std::normal_distribution<double>(-lng_bias*lambda, gnss_vel_std);
-        double v_lng_bias = gnss_velocity_distribution(generator);
-        lng_bias += v_lng_bias*(double)(AP_HAL::millis() - last_now)/1000.0;
-
-        gnss_velocity_distribution = std::normal_distribution<double>(-vertical_bias*lambda, gnss_vel_std);
-        double v_vertical_bias = 1.5*gnss_velocity_distribution(generator);
-        vertical_bias += v_vertical_bias*(double)(AP_HAL::millis() - last_now)/1000.0;
-
-        last_now = AP_HAL::millis();
-    }
-
-    double getLatBias() const {
-        return lat_bias;
-    }
-
-    double getLngBias() const {
-        return lng_bias;
-    }
-
-    double getVerticalBias() const {
-        return vertical_bias;
-    }
-
-    double lat_bias;
-    double lng_bias;
-    double vertical_bias;
-    double gnss_vel_std;
-    double lambda;
-    uint32_t last_now;
-};
-
-class LowFrequencyNoise {
-    std::vector<double> history;
-    size_t max_history_size;
-
-public:
-    LowFrequencyNoise(size_t history_size) : max_history_size(history_size) {}
-
-    double addAndGetSmoothedNoise(double noise) {
-        if (history.size() >= max_history_size) {
-            history.erase(history.begin());
-        }
-        history.push_back(noise);
-
-        // Calculate the average
-        double sum = 0.0;
-        for (double n : history) {
-            sum += n;
-        }
-        return sum / history.size();
-    }
+private:
+    std::mt19937 generator;
+    std::normal_distribution<double> unit_normal{0.0, 1.0};
+    double state[3] {};         // correlated error per axis in units of its sigma
+    uint32_t last_ms;
+    uint32_t seed_used;
+    bool initialised;
 };
 
 class GPS_Backend {
@@ -259,11 +215,8 @@ private:
     GPS_Backend *backend;
     void check_backend_allocation();
 
-    // Create noise filters with history size for smoothing
-    GNSSStochasticModel gnss_model;
-    LowFrequencyNoise lat_noise_filter;
-    LowFrequencyNoise lon_noise_filter;
-    LowFrequencyNoise height_noise_filter;
+    // RFSonde GNSS error model
+    GNSSErrorModel error_model;
 };
 
 }

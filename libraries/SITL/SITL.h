@@ -215,6 +215,15 @@ public:
     AP_Float engine_mul;  // engine multiplier
     AP_Int32 engine_fail; // mask of engine/motor servo outputs to fail
 
+    // RFSonde GNSS error model, shared by all simulated GPS instances (SIM_GPS.h, GNSSErrorModel)
+    AP_Float gps_h_bias;    // horizontal correlated error, 1-sigma per axis (m)
+    AP_Float gps_v_bias;    // vertical correlated error, 1-sigma (m)
+    AP_Float gps_bias_tau;  // correlation time (s)
+    AP_Float gps_h_white;   // horizontal white noise, 1-sigma per axis (m)
+    AP_Float gps_v_white;   // vertical white noise, 1-sigma (m)
+    AP_Float gps_vel_noise; // velocity white noise, 1-sigma per axis (m/s)
+    AP_Int32 gps_seed;      // random seed, 0 = random
+
     // initial offset on GPS lat/lon, used to shift origin
     AP_Float gps_init_lat_ofs;
     AP_Float gps_init_lon_ofs;
