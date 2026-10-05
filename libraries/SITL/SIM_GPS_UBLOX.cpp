@@ -246,7 +246,11 @@ void GPS_UBlox::publish(const GPS_Data *d)
     pvt.t_acc = 0;
     pvt.nano = 0;
     pvt.fix_type = d->have_lock? 0x3 : 0;
-    pvt.flags = 0b10000011; // carrsoln=fixed, psm = na, diffsoln and fixok
+    // RFSonde: report an RTK fixed solution only when the reported horizontal accuracy is RTK grade (< 0.1 m),
+    // otherwise a standard 3D fix, so RTK can be switched on and off with parameters
+    pvt.flags = (d->horizontal_acc < 0.1f) ? 0b10000011  // carrsoln=fixed, psm = na, diffsoln and fixok
+                                           : 0b00000001; // fixok only
+
     pvt.flags2 =0;
     pvt.num_sv = d->have_lock ? d->num_sats : 3;
     pvt.lon = d->longitude * 1.0e7;
@@ -260,7 +264,7 @@ void GPS_UBlox::publish(const GPS_Data *d)
     pvt.velD = 1000.0f * d->speedD;
     pvt.gspeed = norm(d->speedN, d->speedE) * 1000;
     pvt.head_mot = ToDeg(atan2f(d->speedE, d->speedN)) * 1.0e5;
-    pvt.s_acc = velned.speed_accuracy;
+    pvt.s_acc = d->speed_acc * 1000;   // NAV-PVT sAcc is mm/s (NAV-VELNED speed_accuracy above is cm/s)
     pvt.head_acc = 38 * 1.0e5;
     pvt.p_dop = 65535;
     memset(pvt.reserved1, '\0', ARRAY_SIZE(pvt.reserved1));
