@@ -211,6 +211,14 @@ public:
     AP_Float gps_drift_alt[2]; // altitude drift error
     AP_Vector3f gps_pos_offset[2];  // XYZ position of the GPS antenna phase centre relative to the body frame origin (m)
     AP_Float gps_accuracy[2];
+    // RFSonde GNSS error model, shared by all simulated GPS instances (SIM_GPS.h, GNSSErrorModel)
+    AP_Float gps_h_bias;    // horizontal correlated error, 1-sigma per axis (m)
+    AP_Float gps_v_bias;    // vertical correlated error, 1-sigma (m)
+    AP_Float gps_bias_tau;  // correlation time (s)
+    AP_Float gps_h_white;   // horizontal white noise, 1-sigma per axis (m)
+    AP_Float gps_v_white;   // vertical white noise, 1-sigma (m)
+    AP_Float gps_vel_noise; // velocity white noise, 1-sigma per axis (m/s)
+    AP_Int32 gps_seed;      // random seed, 0 = random
     AP_Vector3f gps_vel_err[2]; // Velocity error offsets in NED (x = N, y = E, z = D)
     AP_Int8 gps_jam[2]; // jamming simulation enable
 

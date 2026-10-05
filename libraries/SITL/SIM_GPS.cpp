@@ -57,11 +57,41 @@ ssize_t GPS_Backend::read_from_autopilot(char *buffer, size_t size) const
 
 GPS::GPS(uint8_t _instance) :
     SerialDevice(8192, 2048),
-    instance{_instance},
-    gnss_model(1, 3),
-    lat_noise_filter(5),
-    lon_noise_filter(5),
-    height_noise_filter(3) {}
+    instance{_instance} {}
+
+GNSSErrorModel::Error GNSSErrorModel::update(const Params &p, uint32_t now_ms, uint8_t instance)
+{
+    const uint32_t seed = p.seed != 0 ? p.seed + instance : 0;
+    if (!initialised || seed != seed_used) {
+        // (re)seed, and start the correlated error in its steady state
+        generator.seed(seed != 0 ? seed : std::random_device{}());
+        for (double &x : state) {
+            x = unit_normal(generator);
+        }
+        seed_used = seed;
+        last_ms = now_ms;
+        initialised = true;
+    }
+
+    const double dt = (now_ms - last_ms) * 1.0e-3;
+    last_ms = now_ms;
+    if (dt > 0) {
+        const double phi = exp(-dt / MAX(p.tau, 0.1f));
+        const double drive = sqrt(1.0 - phi * phi);
+        for (double &x : state) {
+            x = phi * x + drive * unit_normal(generator);
+        }
+    }
+
+    Error e;
+    e.north = p.h_bias * state[0] + p.h_white * unit_normal(generator);
+    e.east = p.h_bias * state[1] + p.h_white * unit_normal(generator);
+    e.down = p.v_bias * state[2] + p.v_white * unit_normal(generator);
+    e.vel_north = p.vel_noise * unit_normal(generator);
+    e.vel_east = p.vel_noise * unit_normal(generator);
+    e.vel_down = p.vel_noise * unit_normal(generator);
+    return e;
+}
 
 uint32_t GPS::device_baud() const
 {
@@ -358,49 +388,48 @@ void GPS::update()
 
     last_write_update_ms = now_ms;
 
-    const double EARTH_RADIUS = 6378137.0; // in meters
-    // const double DEG_TO_RAD = 0.01745329252;
-    // const double RAD_TO_DEG = 57.29577951;
-
-    const float epsilon = 1e-6; // Adjust the value of epsilon based on precision needs
-    if (std::abs(_sitl->gps_accuracy[0] - (float)gnss_model.gnss_vel_std) > epsilon ||
-        std::abs(_sitl->gps_accuracy[1] - (float)gnss_model.lambda) > epsilon) {
-        gnss_model.set_gnss_velocity_std(_sitl->gps_accuracy[0], _sitl->gps_accuracy[1]);
+    // RFSonde GNSS error model; with all its parameters at 0 the stock SITL behaviour applies
+    const GNSSErrorModel::Params model_params {
+        _sitl->gps_h_bias, _sitl->gps_v_bias, _sitl->gps_bias_tau,
+        _sitl->gps_h_white, _sitl->gps_v_white, _sitl->gps_vel_noise,
+        (uint32_t)_sitl->gps_seed.get(),
+    };
+    const bool use_model = GNSSErrorModel::enabled(model_params);
+    GNSSErrorModel::Error err {};
+    if (use_model) {
+        err = error_model.update(model_params, now_ms, instance);
     }
 
-    gnss_model.updateBias();
-
-    double raw_lat_offset = (gnss_model.getLatBias()) / EARTH_RADIUS * RAD_TO_DEG;
-    double raw_lon_offset = (gnss_model.getLngBias()) / (EARTH_RADIUS * cos(latitude * DEG_TO_RAD)) * RAD_TO_DEG;
-    double raw_height_offset = gnss_model.getVerticalBias();
-
-    // Smooth the noise using the filter
-    double lat_offset = lat_noise_filter.addAndGetSmoothedNoise(raw_lat_offset);
-    double lon_offset = lon_noise_filter.addAndGetSmoothedNoise(raw_lon_offset);
-    double height_offset = height_noise_filter.addAndGetSmoothedNoise(raw_height_offset);
-
-    d.latitude = latitude + lat_offset;
-    d.longitude = longitude + lon_offset;
+    // position error applied with the same spherical-earth scaling as the antenna offset below
+    const double err_rad_per_m = 1.569612305760477e-7;
     d.num_sats = _sitl->gps_numsats[idx];
+    d.latitude = latitude + degrees(err.north * err_rad_per_m);
+    d.longitude = longitude + degrees(err.east * err_rad_per_m / cos(radians(latitude)));
     d.yaw_deg = _sitl->state.yawDeg;
     d.roll_deg = _sitl->state.rollDeg;
     d.pitch_deg = _sitl->state.pitchDeg;
 
     // add an altitude error controlled by a slow sine wave
-    d.altitude = altitude + height_offset; // _sitl->gps_noise[idx] * sinf(now_ms * 0.0005f) + _sitl->gps_alt_offset[idx];
+    d.altitude = altitude - err.down + _sitl->gps_noise[idx] * sinf(now_ms * 0.0005f) + _sitl->gps_alt_offset[idx];
 
     // Add offset to c.g. velocity to get velocity at antenna and add simulated error
     Vector3f velErrorNED = _sitl->gps_vel_err[idx];
-    d.speedN = speedN + (velErrorNED.x * rand_float());
-    d.speedE = speedE + (velErrorNED.y * rand_float());
-    d.speedD = speedD + (velErrorNED.z * rand_float());
+    d.speedN = speedN + (velErrorNED.x * rand_float()) + err.vel_north;
+    d.speedE = speedE + (velErrorNED.y * rand_float()) + err.vel_east;
+    d.speedD = speedD + (velErrorNED.z * rand_float()) + err.vel_down;
 
     d.have_lock = have_lock;
 
-    // fill in accuracies
-    d.horizontal_acc = _sitl->gps_accuracy[idx];
-    d.vertical_acc = _sitl->gps_accuracy[idx];
-    d.speed_acc = _sitl->gps_vel_err[instance].get().xy().length();
+    // fill in accuracies: the model's 1-sigma values when it is enabled, otherwise SIM_GPS_ACC
+    if (use_model) {
+        d.horizontal_acc = norm(model_params.h_bias, model_params.h_white);
+        d.vertical_acc = norm(model_params.v_bias, model_params.v_white);
+        d.speed_acc = norm(model_params.vel_noise, velErrorNED.xy().length());
+    } else {
+        d.horizontal_acc = _sitl->gps_accuracy[idx];
+        d.vertical_acc = _sitl->gps_accuracy[idx];
+        d.speed_acc = _sitl->gps_vel_err[instance].get().xy().length();
+    }
 
     if (_sitl->gps_drift_alt[idx] > 0) {
         // add slow altitude drift controlled by a slow sine wave
