@@ -100,8 +100,21 @@ public:
     // ARRC set fixed yaw angle after antenna alignment
     void set_fixed_yaw_angle(float fixed_yaw);
 
-    // ARRC set Rotation matrix offset after antenna alignment
-    void set_RotM_offset(Matrix3d rotm_off);
+    // ARRC gimbal modes (MNT1_ARRC_GMODE)
+    enum class ARRCGimbalMode : uint8_t {
+        ARDUPILOT = 0,      // original ArduPilot pointing, roll is zero
+        PARALLEL = 1,       // probe plane parallel to the AUT plane
+        HPOL = 2,           // Hpol aligned
+        VPOL = 3,           // Vpol aligned
+        UNKNOWN = 255,
+    };
+    ARRCGimbalMode get_ARRC_gimbal_mode() const;
+
+    // ARRC set polarization offset (rotation about the probe boresight) in degrees. save writes it to storage
+    void set_ARRC_pol_offset(float offset_deg, bool save);
+
+    // ARRC gimbal's measured attitude as an earth-frame (NED) quaternion, for gimbals that report it
+    virtual bool get_measured_attitude_ef(Quaternion &q_ef) const { return false; }
 
     // ARRC get elevation
     float get_AUT_elevation() {return _params.ARRC_elev;};
@@ -165,6 +178,9 @@ public:
 
     // write mount log packet
     void write_log(uint64_t timestamp_us);
+
+    // ARRC write probe geometry and commanded vs measured attitude
+    void write_ARRC_log(uint64_t timestamp_us) const;
 
     //
     // camera controls for gimbals that include a camera
@@ -318,6 +334,20 @@ protected:
 
     // sent warning to GCS
     void send_warning_to_GCS(const char* warning_str);
+
+    // ARRC state of the last angle target computed by get_angle_target_to_location()
+    enum ARRCFlags : uint8_t {
+        ARRC_ROLL_LIMIT = (1U << 0),    // roll limited: still pointing at the AUT but polarization not aligned
+        ARRC_PITCH_LIMIT = (1U << 1),   // pitch limited: not pointing at the AUT
+        ARRC_TOO_CLOSE = (1U << 2),     // closer than the minimum distance: holding the last target
+    };
+    mutable struct {
+        uint32_t update_ms;     // system time of the last update
+        uint32_t warn_ms;       // system time of the last limit warning
+        Vector3f pos;           // probe position in the AUT frame (x along MNT1_ARRC_AZTH, y left, z up) in meters
+        ARRCGimbalMode mode;
+        uint8_t flags;          // ARRCFlags
+    } _arrc {};
 
     AP_Mount    &_frontend; // reference to the front end which holds parameters
     AP_Mount_Params &_params; // parameters for this backend
