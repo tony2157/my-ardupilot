@@ -319,8 +319,10 @@ void AP_Mount_Gremsy::send_gimbal_device_set_attitude(float roll_rad, float pitc
     const uint16_t flags = earth_frame ? (GIMBAL_DEVICE_FLAGS_ROLL_LOCK | GIMBAL_DEVICE_FLAGS_PITCH_LOCK | GIMBAL_DEVICE_FLAGS_YAW_LOCK) : 0;
 
     // convert euler angles to quaternion
+    // ARRC mod: yaw-roll-pitch (312) order, the gimbal's axis order and the order the ARRC angles are computed in.
+    // Same as the default yaw-pitch-roll order when roll is zero
     Quaternion q;
-    q.from_euler(roll_rad, pitch_rad, yaw_rad);
+    q.from_vector312(roll_rad, pitch_rad, yaw_rad);
 
     const mavlink_gimbal_device_set_attitude_t pkt {
         {q.q1, q.q2, q.q3, q.q4},
