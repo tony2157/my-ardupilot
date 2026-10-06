@@ -54,7 +54,7 @@ Each radar model has named SDF frames for RF calculations:
 
 ### Vehicle and gimbal
 
-The world flies `models/rfsonde_iris`, the ArduPilot Iris carrying `models/rfsonde_gimbal`. Both are copies of the upstream ardupilot_gazebo models, so the upstream repo stays untouched. The gimbal is a 3-axis servo gimbal (vehicle → yaw → roll → pitch). The launch command under Run loads `config/rfsonde-gimbal.parm`: the upstream gimbal parameters plus `MNT1_DEFLT_MODE 2`, so the gimbal boots at neutral.
+The world flies `models/rfsonde_iris`, the ArduPilot Iris carrying `models/rfsonde_gimbal`. Both are copies of the upstream ardupilot_gazebo models, so the upstream repo stays untouched. The gimbal is a 3-axis servo gimbal (vehicle → yaw → roll → pitch). The launch command under Run loads `config/rfsonde-gimbal.parm`: the upstream gimbal parameters plus `MNT1_DEFLT_MODE 2`, so the gimbal boots at neutral, and a 500-2500 µs servo range (instead of 1100-1900) so a 1 µs PWM step moves the gimbal at most 0.16° (yaw). The `servo_min`/`servo_max` of channels 8-10 in `rfsonde_iris/model.sdf` must match `SERVO9-11_MIN/MAX`.
 
 | Axis | ArduPilot limits | Positive | Servo / RC | Gazebo joint |
 |---|---|---|---|---|

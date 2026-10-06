@@ -281,13 +281,14 @@
         <controlVelocitySlowdownSim>1</controlVelocitySlowdownSim>
       </control>
 
+      <!-- gimbal servos use 500-2500 us (SERVO9-11_MIN/MAX in config/rfsonde-gimbal.parm) for finer steps -->
       <!-- roll range is -30 to +30 deg -->
       <control channel="8">
         <jointName>gimbal::roll_joint</jointName>
         <multiplier>1.047197551196</multiplier>
         <offset>-0.5</offset>
-        <servo_min>1100</servo_min>
-        <servo_max>1900</servo_max>
+        <servo_min>500</servo_min>
+        <servo_max>2500</servo_max>
         <type>COMMAND</type>
         <cmd_topic>/gimbal/cmd_roll</cmd_topic>
         <p_gain>2</p_gain>
@@ -298,8 +299,8 @@
         <jointName>gimbal::pitch_joint</jointName>
         <multiplier>-3.14159265</multiplier>
         <offset>-0.75</offset>
-        <servo_min>1100</servo_min>
-        <servo_max>1900</servo_max>
+        <servo_min>500</servo_min>
+        <servo_max>2500</servo_max>
         <type>COMMAND</type>
         <cmd_topic>/gimbal/cmd_pitch</cmd_topic>
         <p_gain>2</p_gain>
@@ -310,8 +311,8 @@
         <jointName>gimbal::yaw_joint</jointName>
         <multiplier>-5.5850536</multiplier>
         <offset>-0.5</offset>
-        <servo_min>1100</servo_min>
-        <servo_max>1900</servo_max>
+        <servo_min>500</servo_min>
+        <servo_max>2500</servo_max>
         <type>COMMAND</type>
         <cmd_topic>/gimbal/cmd_yaw</cmd_topic>
         <p_gain>2</p_gain>
