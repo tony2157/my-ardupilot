@@ -42,6 +42,19 @@ SERVO10_FUNCTION 7
 # Mount1Yaw
 SERVO11_FUNCTION 6
 
+# Gimbal servo PWM range 500-2500 us (must match servo_min/servo_max of channels 8-10 in
+# models/rfsonde_iris/model.sdf). A 1 us step is then 0.03 deg roll, 0.09 deg pitch and 0.16 deg yaw,
+# 2.5x finer than 1100-1900, which made the gimbal move in visible steps.
+SERVO9_MIN       500
+SERVO9_MAX       2500
+SERVO9_TRIM      1500
+SERVO10_MIN      500
+SERVO10_MAX      2500
+SERVO10_TRIM     1500
+SERVO11_MIN      500
+SERVO11_MAX      2500
+SERVO11_TRIM     1500
+
 # RFSonde: start in MAVLink targeting (gimbal at neutral) instead of RC targeting.
 # SITL RC6-8 default to 1000/1000/1800, which would point the gimbal backwards at boot.
 # Use "gimbal mode RC" in MAVProxy to drive it with rc 6/7/8 instead.
