@@ -10,6 +10,7 @@ extern const AP_HAL::HAL &hal;
 AP_ARRC_LB5900::AP_ARRC_LB5900() :
     _dev(nullptr),
     _power(0),
+    _sample_count(0),
     _healthy(false),
     _initialized(false),
     _avg_cnt(1),
@@ -213,6 +214,11 @@ bool AP_ARRC_LB5900::_fetch_and_read(void)
     // Check status bit 4 (0x10) indicates data ready
     if((header.c[0] & 0x10) && (bufLength.ui != 0))
     {
+        // The length comes from the sensor: reject anything that would not fit the read buffer and its terminator
+        if (bufLength.ui >= sizeof(read_sensor_buffer.byte)) {
+            return false;
+        }
+
         // Step 3: Request the complete output buffer using header 0x0C
         memset(write_sensor_buffer.byte, 0x00, 68);
         write_sensor_buffer.field.commandAndLength[0] = (uint8_t)nextReadIsCompleteOutputBuffer;
@@ -231,7 +237,14 @@ bool AP_ARRC_LB5900::_fetch_and_read(void)
         }
 
         // Convert ASCII response to float (e.g., "-6.38395844E+01" -> -63.8395844)
-        _power = strtof(read_sensor_buffer.string, nullptr);
+        read_sensor_buffer.byte[bufLength.ui] = 0;
+        char *end = nullptr;
+        const float power = strtof(read_sensor_buffer.string, &end);
+        if (end == read_sensor_buffer.string || !isfinite(power)) {
+            return false;
+        }
+        _power = power;
+        _sample_count++;
 
         return true;
     }

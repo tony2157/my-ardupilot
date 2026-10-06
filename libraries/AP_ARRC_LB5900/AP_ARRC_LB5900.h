@@ -123,6 +123,9 @@ public:
     // Returns true if sensor is responding and providing valid readings
     bool healthy(void) { return _healthy; }
 
+    // Number of measurements read so far. Changes when power_measure() has a new value
+    uint32_t sample_count(void) const { return _sample_count; }
+
     // Returns true if sensor has been successfully initialized
     bool has_init(void) { return _initialized; }
 
@@ -133,6 +136,7 @@ private:
     AP_HAL::OwnPtr<AP_HAL::I2CDevice> _dev;
     HAL_Semaphore _sem;                     // Semaphore for thread-safe access
     float _power;                           // Last measured power in dBm
+    uint32_t _sample_count;                 // Number of measurements read
     bool _healthy;                          // Sensor communication status
     bool _initialized;                      // Initialization complete flag
     uint32_t Sensor_TimeOut;                // I2C timeout counter
