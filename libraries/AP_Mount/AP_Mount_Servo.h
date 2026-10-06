@@ -50,8 +50,9 @@ private:
     // update body-frame angle outputs from earth-frame targets
     void update_angle_outputs(const MountTarget& angle_rad);
 
-    ///  moves servo with the given function id to the specified angle.  all angles are in body-frame and degrees * 10
-    void move_servo(uint8_t rc, int16_t angle, int16_t angle_min, int16_t angle_max);
+    ///  moves servo with the given function id to the specified angle.  all angles are in body-frame and degrees
+    ///  ARRC mod: float degrees instead of int16 degrees * 10, which quantized the angle to 0.1 deg
+    void move_servo(uint8_t rc, float angle, float angle_min, float angle_max);
 
     /// Servo gimbals require stabilization, BrushlessPWM gimbals self-stabilize
     const bool requires_stabilization;

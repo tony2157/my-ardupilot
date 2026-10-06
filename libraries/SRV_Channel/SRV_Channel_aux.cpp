@@ -515,7 +515,7 @@ SRV_Channels::function_assigned(SRV_Channel::Aux_servo_function_t function)
  */
 void
 SRV_Channels::move_servo(SRV_Channel::Aux_servo_function_t function,
-                         int16_t value, int16_t angle_min, int16_t angle_max)
+                         float value, float angle_min, float angle_max)
 {
     if (!function_assigned(function)) {
         return;
@@ -523,13 +523,14 @@ SRV_Channels::move_servo(SRV_Channel::Aux_servo_function_t function,
     if (angle_max <= angle_min) {
         return;
     }
-    float v = float(value - angle_min) / float(angle_max - angle_min);
+    float v = (value - angle_min) / (angle_max - angle_min);
     v = constrain_float(v, 0.0f, 1.0f);
     for (uint8_t i = 0; i < NUM_SERVO_CHANNELS; i++) {
         SRV_Channel &c = channels[i];
         if (c.function == function) {
             float v2 = c.get_reversed()? (1-v) : v;
-            uint16_t pwm = c.servo_min + v2 * (c.servo_max - c.servo_min);
+            // ARRC mod: round to the nearest PWM instead of truncating
+            const uint16_t pwm = uint16_t(roundf(c.servo_min + v2 * (c.servo_max - c.servo_min)));
             c.set_output_pwm(pwm);
         }
     }
