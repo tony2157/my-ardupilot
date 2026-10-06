@@ -114,9 +114,9 @@ void AP_Mount_Servo::update()
     move_servo(_open_idx, mount_open, 0, 1);
 
     // write the results to the servos
-    move_servo(_roll_idx, degrees(_angle_bf_output_rad.x)*10, _params.roll_angle_min*10, _params.roll_angle_max*10);
-    move_servo(_tilt_idx, degrees(_angle_bf_output_rad.y)*10, _params.pitch_angle_min*10, _params.pitch_angle_max*10);
-    move_servo(_pan_idx,  degrees(_angle_bf_output_rad.z)*10, _params.yaw_angle_min*10, _params.yaw_angle_max*10);
+    move_servo(_roll_idx, degrees(_angle_bf_output_rad.x), _params.roll_angle_min, _params.roll_angle_max);
+    move_servo(_tilt_idx, degrees(_angle_bf_output_rad.y), _params.pitch_angle_min, _params.pitch_angle_max);
+    move_servo(_pan_idx,  degrees(_angle_bf_output_rad.z), _params.yaw_angle_min, _params.yaw_angle_max);
 }
 
 // returns true if this mount can control its roll
@@ -196,8 +196,8 @@ void AP_Mount_Servo::update_angle_outputs(const MountTarget& angle_rad)
     // and MNT1_ARRC_GMODE, so using them as lead times (s) would saturate the servos whenever the vehicle rotates.
 }
 
-// move_servo - moves servo with the given id to the specified angle.  all angles are in degrees * 10
-void AP_Mount_Servo::move_servo(uint8_t function_idx, int16_t angle, int16_t angle_min, int16_t angle_max)
+// move_servo - moves servo with the given id to the specified angle.  all angles are in degrees
+void AP_Mount_Servo::move_servo(uint8_t function_idx, float angle, float angle_min, float angle_max)
 {
 	SRV_Channels::move_servo((SRV_Channel::Aux_servo_function_t)function_idx, angle, angle_min, angle_max);
 }
