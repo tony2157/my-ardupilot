@@ -189,9 +189,13 @@ public:
     void set_fixed_yaw_angle(float fixed_yaw) { set_fixed_yaw_angle(_primary, fixed_yaw); }
     void set_fixed_yaw_angle(uint8_t instance, float fixed_yaw);
 
-    // ARRC set Rotation matrix offset after antenna alignment
-    void set_RotM_offset(Matrix3d rotm_off) { set_RotM_offset(_primary, rotm_off); }
-    void set_RotM_offset(uint8_t instance, Matrix3d rotm_off);
+    // ARRC set polarization offset (rotation about the probe boresight) in degrees. save writes it to storage
+    void set_ARRC_pol_offset(float offset_deg, bool save) { set_ARRC_pol_offset(_primary, offset_deg, save); }
+    void set_ARRC_pol_offset(uint8_t instance, float offset_deg, bool save);
+
+    // ARRC get gimbal mode (MNT1_ARRC_GMODE)
+    uint8_t get_ARRC_gimbal_mode() const { return get_ARRC_gimbal_mode(_primary); }
+    uint8_t get_ARRC_gimbal_mode(uint8_t instance) const;
 
     // ARRC get elevation
     float get_AUT_elevation() const { return get_AUT_elevation(_primary); }

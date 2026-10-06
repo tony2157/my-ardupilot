@@ -135,21 +135,19 @@ const AP_Param::GroupInfo AP_Mount_Params::var_info[] = {
     // @User: Standard
     AP_GROUPINFO("_NEUTRAL", 11, AP_Mount_Params, neutral_angles, 0),
 
-    // @Param: _LEAD_RLL
-    // @DisplayName: Mount Roll stabilization lead time
-    // @Description: Servo mount roll angle output leads the vehicle angle by this amount of time based on current roll rate. Increase until the servo is responsive but does not overshoot
-    // @Units: s
-    // @Range: 0.0 0.2
-    // @Increment: .005
+    // @Param: _ARRC_AZTH
+    // @DisplayName: ARRC AUT frame azimuth
+    // @Description: Azimuth the probe faces when it looks at the AUT along the AUT boresight (AUT boresight azimuth + 180). Sets the probe yaw in mode 1 and the AUT reference frame in modes 2 and 3
+    // @Units: deg
+    // @Range: -180 180
+    // @Increment: .1
     // @User: Standard
     AP_GROUPINFO("_ARRC_AZTH", 12, AP_Mount_Params, roll_stb_lead, 0.0f),
 
-    // @Param: _LEAD_PTCH
-    // @DisplayName: Mount Pitch stabilization lead time
-    // @Description: Servo mount pitch angle output leads the vehicle angle by this amount of time based on current pitch rate. Increase until the servo is responsive but does not overshoot
-    // @Units: s
-    // @Range: 0.0 0.2
-    // @Increment: .005
+    // @Param: _ARRC_GMODE
+    // @DisplayName: ARRC gimbal mode
+    // @Description: How the probe is oriented while pointing at a location (ROI, home or sysid target)
+    // @Values: 0:ArduPilot pointing, 1:Probe plane parallel to AUT plane, 2:Hpol aligned, 3:Vpol aligned
     // @User: Standard
     AP_GROUPINFO("_ARRC_GMODE", 13, AP_Mount_Params, pitch_stb_lead, 0.0f),
 
@@ -163,10 +161,10 @@ const AP_Param::GroupInfo AP_Mount_Params::var_info[] = {
     AP_GROUPINFO("_ARRC_ELEV", 14, AP_Mount_Params, ARRC_elev, 0.0f),
 
     // @Param: _ARRC_ZOFF
-    // @DisplayName: Offset between UAS CoM and Probe
-    // @Description: Separation distance between UAS CoM and Probe in meters
+    // @DisplayName: ARRC gimbal up offset
+    // @Description: Offset of the gimbal rotation center from the vehicle origin (IMU) along the body up axis. Down is negative. Rotated with the vehicle attitude
     // @Units: m
-    // @Range: 0.0 10
+    // @Range: -2 2
     // @Increment: .01
     // @User: Standard
     AP_GROUPINFO("_ARRC_ZOFF", 15, AP_Mount_Params, ARRC_z_offset, 0.0f),
@@ -190,6 +188,42 @@ const AP_Param::GroupInfo AP_Mount_Params::var_info[] = {
     // @Bitmask: 0:RC lock state from previous mode
     // @User: Standard
     AP_GROUPINFO("_OPTIONS", 18, AP_Mount_Params, options, 0),
+
+    // @Param: _ARRC_XOFF
+    // @DisplayName: ARRC gimbal forward offset
+    // @Description: Offset of the gimbal rotation center from the vehicle origin (IMU) along the body forward axis. Rotated with the vehicle attitude
+    // @Units: m
+    // @Range: -2 2
+    // @Increment: .01
+    // @User: Standard
+    AP_GROUPINFO("_ARRC_XOFF", 19, AP_Mount_Params, ARRC_x_offset, 0.0f),
+
+    // @Param: _ARRC_YOFF
+    // @DisplayName: ARRC gimbal right offset
+    // @Description: Offset of the gimbal rotation center from the vehicle origin (IMU) along the body right axis. Rotated with the vehicle attitude
+    // @Units: m
+    // @Range: -2 2
+    // @Increment: .01
+    // @User: Standard
+    AP_GROUPINFO("_ARRC_YOFF", 20, AP_Mount_Params, ARRC_y_offset, 0.0f),
+
+    // @Param: _ARRC_POFF
+    // @DisplayName: ARRC polarization offset
+    // @Description: Rotation of the probe about its boresight applied in modes 2 and 3. Set by the gimbal alignment (aux switch) and kept across reboots; the switch clears it to 0
+    // @Units: deg
+    // @Range: -90 90
+    // @Increment: .01
+    // @User: Standard
+    AP_GROUPINFO("_ARRC_POFF", 21, AP_Mount_Params, ARRC_pol_offset, 0.0f),
+
+    // @Param: _ARRC_LEAD
+    // @DisplayName: ARRC position lead time
+    // @Description: The probe position used for the gimbal angles is predicted this far ahead using the vehicle velocity, to compensate the gimbal command latency. 0 disables
+    // @Units: s
+    // @Range: 0 0.3
+    // @Increment: .01
+    // @User: Advanced
+    AP_GROUPINFO("_ARRC_LEAD", 22, AP_Mount_Params, ARRC_lead, 0.0f),
 
     AP_GROUPEND
 };

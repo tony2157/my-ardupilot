@@ -1,24 +1,42 @@
 #include "Copter.h"
+#include "arrc_polfit.h"
 
-//ARRC Gimbal function global params
-uint32_t gimbal_now;
-uint32_t switch_pause;
-bool gimbal_execute;
-uint8_t gimbal_iter;
-const uint8_t gimbal_angle_span = 64;        // Must be an even number
-const uint8_t gimbal_step = 8;              // Angle steps
-const uint16_t gimbal_init_wait = 4000;      // Gimbal initial waiting time
-const uint16_t gimbal_wait = 3000;           // Waiting time while gimbal is rotating
-const uint16_t gimbal_sample_time = 10000;    // Sampling time at each angle step in milliseconds
-float gimbal_probe_samples[gimbal_angle_span/gimbal_step + 1];
-uint8_t gimbal_num_samples;
-bool alignment_done;
-Matrix3d rotm_step;
+// ARRC gimbal alignment
+// Rotates the probe about its boresight from -ALIGN_HALF_SPAN_DEG to +ALIGN_HALF_SPAN_DEG, averages the received
+// power at each angle step and fits the polarization loss (see arrc_polfit.h) to find the rotation that aligns the
+// probe polarization with the AUT. The result is saved in MNT1_ARRC_POFF. Runs from aux switch 1 (CHx_OPT = 47)
+// while MNT1_ARRC_GMODE is 2 (Hpol) or 3 (Vpol)
+static constexpr int8_t ALIGN_HALF_SPAN_DEG = 32;           // scan from -32 to +32 degrees
+static constexpr uint8_t ALIGN_STEP_DEG = 8;                // angle step
+static constexpr uint8_t ALIGN_NUM_STEPS = 2 * ALIGN_HALF_SPAN_DEG / ALIGN_STEP_DEG + 1;
+static constexpr uint32_t ALIGN_INIT_WAIT_MS = 4000;        // waiting time for the gimbal to reach the first angle
+static constexpr uint32_t ALIGN_STEP_WAIT_MS = 3000;        // waiting time for the gimbal to reach each following angle
+static constexpr uint32_t ALIGN_SAMPLE_MS = 10000;          // power sampling time at each angle step
+static constexpr uint32_t ALIGN_SENSOR_TIMEOUT_MS = 1000;   // abort if the power sensor has no new sample for this long
+static constexpr uint16_t ALIGN_MIN_SAMPLES = 5;            // minimum number of power samples at each angle step
+static constexpr float ALIGN_MIN_R = 0.7f;                  // minimum correlation coefficient of the fit
+static_assert((2 * ALIGN_HALF_SPAN_DEG) % ALIGN_STEP_DEG == 0, "the angle span must be a multiple of the step");
 
-float mean(const float* v, int n);
-float dot_product(const float* v1, const float* v2, int n);
-float standard_deviation(const float* v, float mean, int n);
-float correlation(const float* v1, const float* v2, int n);
+enum class AlignState : uint8_t {
+    IDLE,
+    MOVING,     // waiting for the gimbal to reach the angle step
+    SAMPLING,   // averaging the power at the angle step
+};
+
+static struct {
+    AlignState state;
+    uint8_t step;                       // angle step index
+    uint32_t state_start_ms;            // system time the state started
+    uint32_t last_sample_ms;            // system time of the last new power sample
+    uint32_t last_sample_count;         // power sensor sample count at the last power sample
+    uint32_t num_samples;               // number of power samples at this angle step
+    double power_sum_mw;                // sum of the power samples at this angle step in mW
+    float angle_deg[ALIGN_NUM_STEPS];   // probe rotation at each angle step
+    float power_mw[ALIGN_NUM_STEPS];    // average power at each angle step in mW
+} gimbal_align;
+
+static bool alignment_done;             // true if the next switch change clears the offset instead of aligning
+static uint32_t switch_pause_ms;        // system time of the last switch change
 
 //LB5900 global params
 uint32_t LB_now;
@@ -30,13 +48,9 @@ void Copter::userhook_init()
     // this will be called once at start-up
 
     //ARRC Gimbal params init
-    gimbal_now = AP_HAL::millis();
-    switch_pause = AP_HAL::millis();
-    gimbal_execute = false;
-    gimbal_iter = 0;
-    gimbal_num_samples = 0;
+    switch_pause_ms = AP_HAL::millis();
+    gimbal_align.state = AlignState::IDLE;
     alignment_done = true;
-    memset(gimbal_probe_samples, 0, (gimbal_angle_span/gimbal_step + 1) * sizeof(float));
 
     //LB5900 initialize
     LB_now = AP_HAL::millis();
@@ -46,169 +60,102 @@ void Copter::userhook_init()
 #ifdef USER_GIMBAL_LOOP
 void Copter::user_ARRC_gimbal()
 {
-    if(gimbal_execute == true){
+    if (gimbal_align.state == AlignState::IDLE) {
+        return;
+    }
 
-        // Rotate about the axis that is pointing to the AUT (Gimbal frame)
-        Vector3d axis = {-1.0, 0.0, 0.0};
-        uint8_t N = gimbal_angle_span/2;
+    // stop the alignment and remove the offset
+    auto abort_alignment = [this](const char *reason) {
+        camera_mount.set_ARRC_pol_offset(0.0f, true);
+        gimbal_align.state = AlignState::IDLE;
+        gcs().send_text(MAV_SEVERITY_WARNING, "Gimbal alignment failed: %s", reason);
+    };
 
-        // Set Gimbal to initial rotation
-        rotm_step.from_axis_angle(axis, ((double)(-N))*DEG_TO_RAD);
-        copter.camera_mount.set_RotM_offset(rotm_step);
+    const uint8_t gimbal_mode = camera_mount.get_ARRC_gimbal_mode();
+    if (gimbal_mode != 2 && gimbal_mode != 3) {
+        abort_alignment("gimbal mode changed");
+        return;
+    }
+    if (!ARRC_LB5900.healthy()) {
+        abort_alignment("power sensor unhealthy");
+        return;
+    }
 
-        // Wait for a certain amount of time before starting the measurements
-        if((AP_HAL::millis() - gimbal_now) < gimbal_init_wait){ return;}
+    const uint32_t now_ms = AP_HAL::millis();
 
-        repeat:
-        if(gimbal_iter <= 2*N){
+    switch (gimbal_align.state) {
+    case AlignState::IDLE:
+        break;
 
-            // rotate gimbal to the next angle step
-            rotm_step.from_axis_angle(axis, ((double)(-N+gimbal_iter))*DEG_TO_RAD);
-            copter.camera_mount.set_RotM_offset(rotm_step);
-
-            // Wait for the gimbal to complete rotating
-            if((AP_HAL::millis() - gimbal_now) < (uint32_t)(gimbal_init_wait + gimbal_wait*(gimbal_iter/gimbal_step+1))){ 
-                return;
-            }
-
-            // Collect power measurements during a time period
-            if((AP_HAL::millis() - gimbal_now) < (uint32_t)(gimbal_init_wait + (gimbal_sample_time+gimbal_wait)*(gimbal_iter/gimbal_step+1))){ 
-                gimbal_probe_samples[gimbal_iter/gimbal_step] = gimbal_probe_samples[gimbal_iter/gimbal_step] + copter.ARRC_LB5900.power_measure();
-                gimbal_num_samples++;
-                return;
-            }
-
-            // Average the collected power measurements
-            gimbal_probe_samples[gimbal_iter/gimbal_step] /= gimbal_num_samples;
-            gimbal_num_samples = 0;
-
-            // Reapeat the process until completing all angle steps
-            gimbal_iter = gimbal_iter + gimbal_step;
-            goto repeat;
+    case AlignState::MOVING: {
+        // Wait for the gimbal to complete rotating
+        const uint32_t wait_ms = (gimbal_align.step == 0) ? ALIGN_INIT_WAIT_MS : ALIGN_STEP_WAIT_MS;
+        if (now_ms - gimbal_align.state_start_ms < wait_ms) {
+            return;
         }
+        gimbal_align.state = AlignState::SAMPLING;
+        gimbal_align.state_start_ms = now_ms;
+        gimbal_align.last_sample_ms = now_ms;
+        gimbal_align.last_sample_count = ARRC_LB5900.sample_count();
+        gimbal_align.num_samples = 0;
+        gimbal_align.power_sum_mw = 0;
+        break;
+    }
 
-        // Simulated data points for code test and debugging
-        // if (kek == 0){
-        //     float newValues[] = {-10.6525, -10.2897, -10.0700, -10.0001, -10.0821, -10.3136, -10.6874}; // -0.2 deg offset, measured: -0.200017
-        //     for(int i = 0; i < 7; i++) {
-        //         gimbal_probe_samples[i] = newValues[i];
-        //     }
-        //     kek = kek + 1;
-        // }
-        // else if (kek == 1){
-        //     float newValues[] = {-10.5450, -10.2185, -10.0373, -10.0069, -10.1281, -10.3975, -10.8066}; // -1.5 deg offset, measured: -1.49966
-        //     for(int i = 0; i < 7; i++) {
-        //         gimbal_probe_samples[i] = newValues[i];
-        //     }
-        //     kek = kek + 1;
-        // }
-        // else{
-        //     float newValues[] = {-10.0760, -10.0000, -10.0760, -10.3015, -10.6699, -11.1698, -11.7861}; // -10 deg offset, measured: -10.00034
-        //     for(int i = 0; i < 7; i++) {
-        //         gimbal_probe_samples[i] = newValues[i];
-        //     }
-        //     kek = 0;
-        // }
-
-        // Create array of angle steps corresponding to each power measurement
-        // This method is called the Harmonic regression (or trigonometric regression)
-        // The ceoficients are calculated using Ordinary Least Square (OLS) method
-        // Polarization Loss factor is assumed equal to cos(phi)^2 which can be expressed as (1 + cos(2*phi))/2
-
-        int8_t n = gimbal_angle_span/gimbal_step;
-        float x[n+1];
-        for(int8_t i = 0; i <= 2*N; i = i+gimbal_step){
-            x[i/gimbal_step] = (i - N)*2;
+    case AlignState::SAMPLING: {
+        // Collect new power measurements in linear units (mW) during the sampling time
+        const uint32_t sample_count = ARRC_LB5900.sample_count();
+        if (sample_count != gimbal_align.last_sample_count) {
+            gimbal_align.last_sample_count = sample_count;
+            gimbal_align.last_sample_ms = now_ms;
+            gimbal_align.power_sum_mw += powf(10.0f, 0.1f * ARRC_LB5900.power_measure());
+            gimbal_align.num_samples++;
+        } else if (now_ms - gimbal_align.last_sample_ms > ALIGN_SENSOR_TIMEOUT_MS) {
+            abort_alignment("no power samples");
+            return;
         }
-
-        float sin_x_values[n+1];
-        float cos_x_values[n+1];
-
-        for (int8_t i = 0; i < n+1; i++) {
-            sin_x_values[i] = sinf(x[i]*DEG_TO_RAD);
-            cos_x_values[i] = cosf(x[i]*DEG_TO_RAD);
+        if (now_ms - gimbal_align.state_start_ms < ALIGN_SAMPLE_MS) {
+            return;
         }
-
-        float sin_mean = mean(sin_x_values, n+1);
-        float cos_mean = mean(cos_x_values, n+1);
-        float y_mean = mean(gimbal_probe_samples, n+1);
-
-        float A1 = (dot_product(gimbal_probe_samples, sin_x_values, n+1) - y_mean * sin_mean * (n+1)) /
-                    (dot_product(sin_x_values, sin_x_values, n+1) - sin_mean * sin_mean * (n+1));
-
-        float B1 = (dot_product(gimbal_probe_samples, cos_x_values, n+1) - y_mean * cos_mean * (n+1)) /
-                    (dot_product(cos_x_values, cos_x_values, n+1) - cos_mean * cos_mean * (n+1));
-
-        float D = y_mean - A1 * sin_mean - B1 * cos_mean;
-
-        float fitted_values[n+1];
-        for(int i = 0; i < n+1; i++){
-            fitted_values[i] = A1*sinf(x[i]*DEG_TO_RAD) + B1*cosf(x[i]*DEG_TO_RAD) + D;
-        }
-        
-        float corr = correlation(gimbal_probe_samples, fitted_values, n+1);
-
-        // Check the correlation coefficient. Alignment failed if corr is too low
-        if(fabsf(corr) < 0.70){
-            gcs().send_text(MAV_SEVERITY_INFO, "Gimbal alignment failed: R = %f",corr);
-            rotm_step.identity();
-            copter.camera_mount.set_RotM_offset(rotm_step);
-            gimbal_execute = false;
+        if (gimbal_align.num_samples < ALIGN_MIN_SAMPLES) {
+            abort_alignment("too few power samples");
             return;
         }
 
-        // Resultant angle offset
-        float angle_offset = 0.5*atan2f(A1,B1)*RAD_TO_DEG;
+        // Average the collected power measurements
+        gimbal_align.power_mw[gimbal_align.step] = gimbal_align.power_sum_mw / gimbal_align.num_samples;
 
-        gcs().send_text(MAV_SEVERITY_INFO, "Gimbal alignment correction: %f deg",angle_offset);
-        gcs().send_text(MAV_SEVERITY_INFO, "Gimbal alignment success: R = %f",corr);
+        // Rotate the gimbal to the next angle step
+        gimbal_align.step++;
+        if (gimbal_align.step < ALIGN_NUM_STEPS) {
+            camera_mount.set_ARRC_pol_offset(gimbal_align.angle_deg[gimbal_align.step], false);
+            gimbal_align.state = AlignState::MOVING;
+            gimbal_align.state_start_ms = now_ms;
+            return;
+        }
 
-        // Send and apply resultant rotation matrix offset to the gimbal
-        rotm_step.from_axis_angle(axis, ((double)angle_offset)*DEG_TO_RAD);
-        copter.camera_mount.set_RotM_offset(rotm_step);
-
-        gimbal_execute = false;
+        // All angle steps done: fit the polarization loss and apply the resultant offset
+        gimbal_align.state = AlignState::IDLE;
+        float angle_offset = 0;
+        float corr = 0;
+        if (!ARRC_fit_polarization(gimbal_align.angle_deg, gimbal_align.power_mw, ALIGN_NUM_STEPS, angle_offset, corr)) {
+            camera_mount.set_ARRC_pol_offset(0.0f, true);
+            gcs().send_text(MAV_SEVERITY_WARNING, "Gimbal alignment failed: no power variation");
+            return;
+        }
+        // Check the correlation coefficient. Alignment failed if corr is too low
+        if (corr < ALIGN_MIN_R) {
+            camera_mount.set_ARRC_pol_offset(0.0f, true);
+            gcs().send_text(MAV_SEVERITY_WARNING, "Gimbal alignment failed: R = %.3f", corr);
+            return;
+        }
+        camera_mount.set_ARRC_pol_offset(angle_offset, true);
+        gcs().send_text(MAV_SEVERITY_INFO, "Gimbal alignment correction: %.2f deg", angle_offset);
+        gcs().send_text(MAV_SEVERITY_INFO, "Gimbal alignment success: R = %.3f", corr);
+        break;
+    }
     }
 }
-
-float mean(const float* v, int n) {
-    float sum = 0.0;
-    for (int8_t i = 0; i < n; i++) {
-        sum += v[i];
-    }
-    return sum / n;
-}
-
-float dot_product(const float* v1, const float* v2, int n) {
-    double result = 0.0;
-    for (int8_t i = 0; i < n; i++) {
-        result += v1[i] * v2[i];
-    }
-    return result;
-}
-
-float standard_deviation(const float* v, float mean, int n) {
-    float sum = 0.0;
-    for (int8_t i = 0; i < n; i++) {
-        float diff = v[i] - mean;
-        sum += diff * diff;
-    }
-    return sqrtf(sum / (n - 1));
-}
-
-float correlation(const float* v1, const float* v2, int n) {
-    float mean1 = mean(v1, n);
-    float mean2 = mean(v2, n);
-    float std_dev1 = standard_deviation(v1, mean1, n);
-    float std_dev2 = standard_deviation(v2, mean2, n);
-    float sum = 0.0;
-    for (int8_t i = 0; i < n; i++) {
-        sum += (v1[i] - mean1) * (v2[i] - mean2);
-    }
-
-    return sum / ((n - 1) * std_dev1 * std_dev2);
-}
-
 #endif
 
 #ifdef USER_ARRC_SDR_LOOP
@@ -288,31 +235,40 @@ void Copter::userhook_SuperSlowLoop()
 void Copter::userhook_auxSwitch1(const RC_Channel::AuxSwitchPos ch_flag)
 {
     // put your aux switch #1 handler here (CHx_OPT = 47)
-    // Execution of the ARRC gimbal movement
+    // Execution of the ARRC gimbal alignment: switch changes alternately clear the polarization offset and start the
+    // alignment. Changes within 5 seconds of the previous one, or while the alignment runs, are ignored
 
-    if(AP_HAL::millis() - switch_pause > 5000){
-        if(alignment_done == false && gimbal_execute == false){
-            gcs().send_text(MAV_SEVERITY_INFO, "Executing Gimbal alignment");
-            memset(gimbal_probe_samples, 0, (gimbal_angle_span/gimbal_step + 1) * sizeof(float));
-            gimbal_num_samples = 0;
-            gimbal_iter = 0;
-            gimbal_now = AP_HAL::millis();
-            gimbal_execute = true;
-            alignment_done = true;
-        }
-        else if(alignment_done == true && gimbal_execute == false){
-            rotm_step.identity();
-            copter.camera_mount.set_RotM_offset(rotm_step);
-            gcs().send_text(MAV_SEVERITY_INFO, "Gimbal RotM offset cleared");
-            alignment_done = false;
-            gimbal_execute = false;
-        }
-        else{
+    const uint32_t now_ms = AP_HAL::millis();
+    if (now_ms - switch_pause_ms > 5000) {
+        if (gimbal_align.state != AlignState::IDLE) {
             return;
         }
+        if (!alignment_done) {
+            const uint8_t gimbal_mode = camera_mount.get_ARRC_gimbal_mode();
+            if (gimbal_mode != 2 && gimbal_mode != 3) {
+                gcs().send_text(MAV_SEVERITY_WARNING, "Gimbal alignment needs MNT1_ARRC_GMODE 2 or 3");
+            } else if (!ARRC_LB5900.healthy()) {
+                gcs().send_text(MAV_SEVERITY_WARNING, "Gimbal alignment needs a healthy power sensor");
+            } else {
+                gcs().send_text(MAV_SEVERITY_INFO, "Executing Gimbal alignment");
+                for (uint8_t i = 0; i < ALIGN_NUM_STEPS; i++) {
+                    gimbal_align.angle_deg[i] = -ALIGN_HALF_SPAN_DEG + i * ALIGN_STEP_DEG;
+                    gimbal_align.power_mw[i] = 0;
+                }
+                gimbal_align.step = 0;
+                gimbal_align.state_start_ms = now_ms;
+                gimbal_align.state = AlignState::MOVING;
+                camera_mount.set_ARRC_pol_offset(gimbal_align.angle_deg[0], false);
+                alignment_done = true;
+            }
+        } else {
+            camera_mount.set_ARRC_pol_offset(0.0f, true);
+            gcs().send_text(MAV_SEVERITY_INFO, "Gimbal polarization offset cleared");
+            alignment_done = false;
+        }
     }
-    
-    switch_pause = AP_HAL::millis();
+
+    switch_pause_ms = now_ms;
 }
 
 void Copter::userhook_auxSwitch2(const RC_Channel::AuxSwitchPos ch_flag)

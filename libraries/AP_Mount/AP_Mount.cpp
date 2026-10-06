@@ -69,7 +69,6 @@ void AP_Mount::init()
 
     // create each instance
     for (uint8_t instance=0; instance<AP_MOUNT_MAX_INSTANCES; instance++) {
-        _params[instance].rotM_offset.identity(); // ARRC mod
         switch (get_mount_type(instance)) {
         case Type::None:
             break;
@@ -825,15 +824,24 @@ void AP_Mount::set_fixed_yaw_angle(uint8_t instance, float fixed_yaw)
     backend->set_fixed_yaw_angle(fixed_yaw);
 }
 
-// ARRC set Rotation matrix offset after antenna alignment
-void AP_Mount::set_RotM_offset(uint8_t instance, Matrix3d rotm_off)
+// ARRC set polarization offset (rotation about the probe boresight) in degrees
+void AP_Mount::set_ARRC_pol_offset(uint8_t instance, float offset_deg, bool save)
 {
     auto *backend = get_instance(instance);
     if (backend == nullptr) {
         return;
     }
-    // send command to backend
-    backend->set_RotM_offset(rotm_off);
+    backend->set_ARRC_pol_offset(offset_deg, save);
+}
+
+// ARRC get gimbal mode
+uint8_t AP_Mount::get_ARRC_gimbal_mode(uint8_t instance) const
+{
+    auto *backend = get_instance(instance);
+    if (backend == nullptr) {
+        return 0;
+    }
+    return uint8_t(backend->get_ARRC_gimbal_mode());
 }
 
 // ARRC get AUT elevation

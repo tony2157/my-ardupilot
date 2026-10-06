@@ -7,8 +7,6 @@
 
 extern const AP_HAL::HAL& hal;
 
-//uint32_t _now = 0; // Uncomment this for debugging
-
 #define AP_MOUNT_UPDATE_DT 0.02     // update rate in seconds.  update() should be called at this rate
 #define AP_MOUNT_POI_REQUEST_TIMEOUT_MS 30000   // POI calculations continue to be updated for this many seconds after last request
 #define AP_MOUNT_POI_RESULT_TIMEOUT_MS  3000    // POI calculations valid for 3 seconds
@@ -130,11 +128,26 @@ void AP_Mount_Backend::set_fixed_yaw_angle(float fixed_yaw)
     //_frontend.set_mode(_instance, MAV_MOUNT_MODE_GPS_POINT);
 }
 
-// ARRC set fixed yaw angle after antenna alignment
-void AP_Mount_Backend::set_RotM_offset(Matrix3d rotm_off)
+// ARRC set polarization offset (rotation about the probe boresight) in degrees. save writes it to storage
+void AP_Mount_Backend::set_ARRC_pol_offset(float offset_deg, bool save)
 {
-    // set Rotation matrix offset
-    _params.rotM_offset = rotm_off;
+    if (save) {
+        _params.ARRC_pol_offset.set_and_save(offset_deg);
+    } else {
+        _params.ARRC_pol_offset.set(offset_deg);
+    }
+}
+
+// ARRC get gimbal mode from MNT1_ARRC_GMODE
+AP_Mount_Backend::ARRCGimbalMode AP_Mount_Backend::get_ARRC_gimbal_mode() const
+{
+    const float mode = _params.pitch_stb_lead.get();
+    for (uint8_t i = 0; i <= uint8_t(ARRCGimbalMode::VPOL); i++) {
+        if (is_zero(mode - i)) {
+            return ARRCGimbalMode(i);
+        }
+    }
+    return ARRCGimbalMode::UNKNOWN;
 }
 
 // set_roi_target - sets target location that mount should attempt to point towards
@@ -495,6 +508,69 @@ void AP_Mount_Backend::write_log(uint64_t timestamp_us)
         rangefinder_dist : rangefinder_dist,
     };
     AP::logger().WriteCriticalBlock(&pkt, sizeof(pkt));
+
+    write_ARRC_log(pkt.time_us);
+}
+
+// ARRC write probe geometry and commanded vs measured attitude while pointing with get_angle_target_to_location()
+void AP_Mount_Backend::write_ARRC_log(uint64_t timestamp_us) const
+{
+    if ((_arrc.update_ms == 0) || (AP_HAL::millis() - _arrc.update_ms > 1000) || (mnt_target.target_type != MountTargetType::ANGLE)) {
+        return;
+    }
+
+    // commanded attitude as an earth-frame quaternion, Euler angles in the gimbal's yaw-roll-pitch order
+    Quaternion q_cmd;
+    q_cmd.from_vector312(mnt_target.angle_rad.roll, mnt_target.angle_rad.pitch, mnt_target.angle_rad.get_ef_yaw());
+
+    // pointing error and polarization error (about the commanded boresight) of the measured attitude
+    const float nanf = AP::logger().quiet_nanf();
+    float pointing_err = nanf;
+    float pol_err = nanf;
+    Quaternion q_meas;
+    if (get_measured_attitude_ef(q_meas)) {
+        Matrix3f r_cmd, r_meas;
+        q_cmd.rotation_matrix(r_cmd);
+        q_meas.rotation_matrix(r_meas);
+        const Vector3f fwd_cmd = r_cmd.colx();
+        const Vector3f right_cmd = r_cmd.coly();
+        const Vector3f right_meas = r_meas.coly() - fwd_cmd * (r_meas.coly() * fwd_cmd);
+        pointing_err = degrees(acosf(constrain_float(fwd_cmd * r_meas.colx(), -1.0f, 1.0f)));
+        pol_err = degrees(atan2f((right_cmd % right_meas) * fwd_cmd, right_cmd * right_meas));
+    }
+
+// @LoggerMessage: ARGM
+// @Description: ARRC gimbal pointing
+// @Field: TimeUS: Time since system startup
+// @Field: I: Mount instance
+// @Field: GM: Gimbal mode in use: 0 ArduPilot, 1 parallel planes, 2 Hpol, 3 Vpol
+// @Field: Flg: 1 roll limited (polarization not aligned), 2 pitch limited (not pointing at the AUT), 4 too close (holding)
+// @Field: X: Probe position in the AUT frame, along MNT1_ARRC_AZTH
+// @Field: Y: Probe position in the AUT frame, to the left
+// @Field: Z: Probe position in the AUT frame, up
+// @Field: POff: Polarization offset (MNT1_ARRC_POFF)
+// @Field: Q1: Commanded attitude quaternion (earth frame), W
+// @Field: Q2: Commanded attitude quaternion (earth frame), X
+// @Field: Q3: Commanded attitude quaternion (earth frame), Y
+// @Field: Q4: Commanded attitude quaternion (earth frame), Z
+// @Field: PErr: Pointing error of the gimbal's measured attitude (gimbals that report it)
+// @Field: LErr: Polarization error of the gimbal's measured attitude about the commanded boresight
+    AP::logger().Write("ARGM", "TimeUS,I,GM,Flg,X,Y,Z,POff,Q1,Q2,Q3,Q4,PErr,LErr",
+                       "s#--mmmd????dd", "F---0000????00", "QBBBffffffffff",
+                       timestamp_us,
+                       _instance,
+                       uint8_t(_arrc.mode),
+                       _arrc.flags,
+                       _arrc.pos.x,
+                       _arrc.pos.y,
+                       _arrc.pos.z,
+                       _params.ARRC_pol_offset.get(),
+                       q_cmd.q1,
+                       q_cmd.q2,
+                       q_cmd.q3,
+                       q_cmd.q4,
+                       pointing_err,
+                       pol_err);
 }
 #endif
 
@@ -731,35 +807,29 @@ void AP_Mount_Backend::get_rc_target(MountTargetType& target_type, MountTarget& 
 }
 
 // get angle targets (in radians) to a Location
+// ARRC mod: MNT1_ARRC_GMODE selects how the probe is oriented (see ARRCGimbalMode)
 // returns true on success, false on failure
 bool AP_Mount_Backend::get_angle_target_to_location(const Location &target, MountTarget& angle_rad) const
 {
-    // Named constants for clarity and maintainability
-    constexpr double LAT_LON_TO_RAD = 1.0e-7 * DEG_TO_RAD;  // Convert 1e7 scaled degrees to radians
-    constexpr float LOCATION_SCALING_FACTOR = 0.01113195f;   // meters per 1e-7 degree at equator
-    constexpr float MIN_DISTANCE_M = 10.0f;                  // Minimum distance threshold in meters
-    constexpr float SLOPE_THRESHOLD = 0.35f;                 // Slope threshold for mode selection
-    constexpr float ELEVATION_THRESHOLD_RAD = 70.0f * DEG_TO_RAD;  // 70 degrees in radians (~1.22 rad)
-    constexpr float PITCH_LIMIT_RAD = 1.31f;                 // ~75 degrees pitch limit
-    constexpr float ROLL_LIMIT_RAD = 0.6f;                   // ~34 degrees roll limit
-    constexpr float CM_TO_M = 0.01f;                         // Centimeters to meters
+    constexpr double MIN_DISTANCE_M = 10.0;                         // hold the last target closer than this to the AUT
+    constexpr float SLOPE_THRESHOLD = 0.35f;                        // slope below which high elevation AUTs use ArduPilot pointing
+    constexpr float ELEVATION_THRESHOLD_RAD = 70.0f * DEG_TO_RAD;
+    constexpr float PITCH_LIMIT_RAD = 1.31f;                        // ~75 degrees
+    constexpr float ROLL_LIMIT_RAD = 0.6f;                          // ~34 degrees
 
-    // ============================================================
-    // EARLY EXIT CHECKS - Perform before any expensive calculations
-    // ============================================================
+    const AP_AHRS &ahrs = AP::ahrs();
 
-    // Exit immediately if vehicle's location is unavailable
+    // exit immediately if vehicle's location is unavailable
     Location current_loc;
-    if (!AP::ahrs().get_location(current_loc)) {
+    if (!ahrs.get_location(current_loc)) {
         return false;
     }
 
-    // Exit immediately if target location is invalid
+    // exit immediately if location is invalid
     if (!target.initialised()) {
         return false;
     }
 
-    // Get altitudes early - exit if unavailable (before expensive trig calculations)
     int32_t target_alt_cm = 0;
     if (!target.get_alt_cm(Location::AltFrame::ABOVE_HOME, target_alt_cm)) {
         return false;
@@ -769,208 +839,142 @@ bool AP_Mount_Backend::get_angle_target_to_location(const Location &target, Moun
         return false;
     }
 
-    // ============================================================
-    // COORDINATE CONVERSION - Cache trigonometric values
-    // ============================================================
+    // probe position relative to the AUT in NED (m). Uses the same flat-earth projection as the EKF
+    const Vector2d ne = target.get_distance_NE_double(current_loc);
+    Vector3d probe_ned{ne.x, ne.y, (target_alt_cm - current_alt_cm) * 0.01};
 
-    // Convert lat/lon to radians (compute once)
-    const double curr_lat_rad = current_loc.lat * LAT_LON_TO_RAD;
-    const double tar_lat_rad = target.lat * LAT_LON_TO_RAD;
-    const double delta_lat = tar_lat_rad - curr_lat_rad;
-    const double delta_lng = Location::diff_longitude(target.lng, current_loc.lng) * LAT_LON_TO_RAD;
+    // add the gimbal offset from the vehicle origin, rotated from body (FRD) to NED
+    const Vector3f gimbal_offset_bf{_params.ARRC_x_offset.get(), _params.ARRC_y_offset.get(), -_params.ARRC_z_offset.get()};
+    probe_ned += (ahrs.get_rotation_body_to_ned() * gimbal_offset_bf).todouble();
 
-    // Cache trigonometric values (expensive operations - compute once, use multiple times)
-    const double sin_curr_lat = sin(curr_lat_rad);
-    const double cos_curr_lat = cos(curr_lat_rad);
-    const double sin_tar_lat = sin(tar_lat_rad);
-    const double cos_tar_lat = cos(tar_lat_rad);
-    const double sin_delta_lng = sin(delta_lng);
-    const double cos_delta_lng = cos(delta_lng);
-    const double sin_half_delta_lat = sin(delta_lat * 0.5);
-    const double sin_half_delta_lng = sin(delta_lng * 0.5);
-
-    // ============================================================
-    // HAVERSINE FORMULA - Compute horizontal distance to target
-    // ============================================================
-
-    const double haversine_a = sin_half_delta_lat * sin_half_delta_lat +
-                               cos_curr_lat * cos_tar_lat * sin_half_delta_lng * sin_half_delta_lng;
-    const double target_distance = 2.0 * RADIUS_OF_EARTH * atan2(sqrt(haversine_a), sqrt(1.0 - haversine_a));
-
-    // ============================================================
-    // BEARING CALCULATION - Using cached trig values
-    // ============================================================
-
-    const double bearing_y = sin_delta_lng * cos_tar_lat;
-    const double bearing_x = cos_curr_lat * sin_tar_lat - sin_curr_lat * cos_tar_lat * cos_delta_lng;
-    const double bearing = atan2(bearing_y, bearing_x);
-
-    // Cache bearing trig values (used in target vector calculation)
-    const double sin_bearing = sin(bearing);
-    const double cos_bearing = cos(bearing);
-
-    // Fixed yaw from parameters (cache trig values)
-    const double fixed_yaw = _params.roll_stb_lead * DEG_TO_RAD;
-    const double sin_fixed_yaw = sin(fixed_yaw);
-    const double cos_fixed_yaw = cos(fixed_yaw);
-
-    // ============================================================
-    // TARGET VECTOR - Components in target's reference frame (NWU)
-    // ============================================================
-
-    // Using cached sin/cos values instead of recomputing
-    const double y = target_distance * (sin_bearing * cos_fixed_yaw - cos_bearing * sin_fixed_yaw);
-    const double x = -target_distance * (sin_bearing * sin_fixed_yaw + cos_bearing * cos_fixed_yaw);
-
-    // Compute height difference in meters (NWU convention)
-    const double z = (current_alt_cm - target_alt_cm) * CM_TO_M + _params.ARRC_z_offset;
-
-    // Compute slope (avoid division by zero)
-    // Note: Using target_distance instead of redundant get_distance() call
-    const float slope = (target_distance > 0.001) ? fabsf(static_cast<float>(z / target_distance)) : 0.0f;
-
-    // Get AUT elevation in radians
-    const double el = _params.ARRC_elev * DEG_TO_RAD;
-
-    // Cache elevation trig values (used in Vpol mode)
-    const double sin_el = sin(el);
-    const double cos_el = cos(el);
-
-    // ============================================================
-    // GIMBAL ANGLE CALCULATION - Based on mode selection
-    // ============================================================
-
-    // Alexmos gimbal convention: Pitch down (+), Roll right (+), Yaw right (+)
-    // Gremsy gimbal convention: Pitch down (?), Roll right (?), Yaw right (?)
-    // This technique's convention: Pitch down (-), Roll right (-), Yaw right (+)
-    // Position (x,y,z) is NWU convention with the AUT as the origin
-
-    // Compute 3D distance for mode 2 and 3 (precompute before branches if needed)
-    const double x_sq = x * x;
-    const double y_sq = y * y;
-    const double z_sq = z * z;
-    const double D_sq = x_sq + y_sq + z_sq;
-    const double D = sqrt(D_sq);
-
-    if (D > MIN_DISTANCE_M) {
-        // Mode 0: Original ArduPilot mode
-        // Condition: pitch_stb_lead == 0 OR (low slope AND high elevation)
-        if (is_zero(_params.pitch_stb_lead) || (slope < SLOPE_THRESHOLD && el > ELEVATION_THRESHOLD_RAD)) {
-
-            // Calculate GPS vectors for ArduPilot standard method
-            const float avg_lat_rad = (current_loc.lat + target.lat) * 0.5e-7f * DEG_TO_RAD;
-            const float GPS_vector_x = Location::diff_longitude(target.lng, current_loc.lng) * cosf(avg_lat_rad) * LOCATION_SCALING_FACTOR;
-            const float GPS_vector_y = (target.lat - current_loc.lat) * LOCATION_SCALING_FACTOR;
-            const float GPS_vector_z = (target_alt_cm - current_alt_cm) * CM_TO_M;
-
-            // Calculate roll, pitch, yaw angles
-            angle_rad.roll = 0.0f;
-            angle_rad.pitch = atan2f(GPS_vector_z, static_cast<float>(target_distance));
-            angle_rad.yaw = atan2f(GPS_vector_x, GPS_vector_y);
-            angle_rad.yaw_is_ef = true;
-        }
-        // Mode 1: Probe plane parallel to AUT plane
-        else if (is_zero(_params.pitch_stb_lead - 1.0f)) {
-
-            angle_rad.pitch = static_cast<float>(-el);
-            angle_rad.roll = 0.0f;
-            // Use wrap_PI directly on radians instead of deg->wrap->rad conversion
-            angle_rad.yaw = wrap_PI(static_cast<float>(fixed_yaw));
-            angle_rad.yaw_is_ef = true;
-        }
-        // Mode 2: Hpol aligned mode
-        else if (is_zero(_params.pitch_stb_lead - 2.0f)) {
-
-            const double A = sqrt(x_sq + z_sq);
-
-            // Avoid division by zero
-            if (A < 0.001 || D < 0.001) {
-                return false;
-            }
-
-            const double inv_D = 1.0 / D;
-            const double inv_A = 1.0 / A;
-            const double inv_AD = inv_A * inv_D;
-
-            Matrix3d RotM(-x * inv_D,          -y * inv_D,       -z * inv_D,
-                          -x * y * inv_AD,      A * inv_D,       -y * z * inv_AD,
-                           z * inv_A,           0.0,             -x * inv_A);
-
-            RotM = _params.rotM_offset * RotM;
-
-            // tilt calcs = atan2(Reb(1,3), Reb(3,3))
-            angle_rad.pitch = static_cast<float>(atan2(RotM.a.z, RotM.c.z));
-
-            // roll calcs = atan2(-Reb(2,3), sqrt(1-Reb(2,3)^2))
-            const double bz_sq = RotM.b.z * RotM.b.z;
-            angle_rad.roll = static_cast<float>(-atan2(-RotM.b.z, sqrt(1.0 - bz_sq)));
-
-            // pan calcs = atan2(Reb(2,1), Reb(2,2))
-            angle_rad.yaw = static_cast<float>(atan2(RotM.b.x, RotM.b.y) + fixed_yaw);
-            angle_rad.yaw_is_ef = true;
-        }
-        // Mode 3: Vpol aligned mode
-        else if (is_zero(_params.pitch_stb_lead - 3.0f)) {
-
-            // Using cached sin_el, cos_el values
-            const double cos_el_sq = cos_el * cos_el;
-            const double sin_2el = 2.0 * sin_el * cos_el;  // sin(2*el) = 2*sin(el)*cos(el)
-            const double cos_2el = cos_el_sq - sin_el * sin_el;  // cos(2*el) = cos^2(el) - sin^2(el)
-
-            const double A_sq = (x_sq - z_sq) * cos_el_sq + y_sq + z_sq - x * z * sin_2el;
-            const double A = sqrt(A_sq);
-            const double B = sqrt((x_sq - z_sq) * cos_2el + x_sq + 2.0 * y_sq + z_sq - 2.0 * x * z * sin_2el);
-
-            // Avoid division by zero
-            if (A < 0.001 || B < 0.001 || D < 0.001) {
-                return false;
-            }
-
-            const double inv_D = 1.0 / D;
-            const double inv_A = 1.0 / A;
-            const double inv_DB = inv_D / B;
-
-            Matrix3d RotM(-x * inv_D,
-                          -y * inv_D,
-                          -z * inv_D,
-                           y * cos_el * inv_A,
-                          -(x * cos_el - z * sin_el) * inv_A,
-                          -y * sin_el * inv_A,
-                           (M_SQRT2 * ((y_sq + z_sq) * sin_el - x * z * cos_el)) * inv_DB,
-                          -(M_SQRT2 * y * (z * cos_el + x * sin_el)) * inv_DB,
-                           M_SQRT2 * ((x_sq + y_sq) * cos_el - x * z * sin_el) * B / (2.0 * D * A_sq));
-
-            RotM = _params.rotM_offset * RotM;
-
-            // tilt calcs = atan2(Reb(1,3), Reb(3,3))
-            angle_rad.pitch = static_cast<float>(atan2(RotM.a.z, RotM.c.z));
-
-            // roll calcs = atan2(-Reb(2,3), sqrt(1-Reb(2,3)^2))
-            const double bz_sq = RotM.b.z * RotM.b.z;
-            angle_rad.roll = static_cast<float>(-atan2(-RotM.b.z, sqrt(1.0 - bz_sq)));
-
-            // pan calcs = atan2(Reb(2,1), Reb(2,2))
-            angle_rad.yaw = static_cast<float>(atan2(RotM.b.x, RotM.b.y) + fixed_yaw);
-            angle_rad.yaw_is_ef = true;
-        }
+    // predict the position ahead by the gimbal command latency
+    Vector3f vel_ned;
+    if (is_positive(_params.ARRC_lead.get()) && ahrs.get_velocity_NED(vel_ned)) {
+        probe_ned += (vel_ned * _params.ARRC_lead.get()).todouble();
     }
 
-    // Apply angle constraints
-    angle_rad.pitch = constrain_float(angle_rad.pitch, -PITCH_LIMIT_RAD, PITCH_LIMIT_RAD);
-    angle_rad.roll = constrain_float(angle_rad.roll, -ROLL_LIMIT_RAD, ROLL_LIMIT_RAD);
+    // probe position in the AUT frame: x along MNT1_ARRC_AZTH, y to its left, z up
+    const double fixed_yaw = _params.roll_stb_lead.get() * DEG_TO_RAD;
+    const double sin_az = sin(fixed_yaw);
+    const double cos_az = cos(fixed_yaw);
+    const double x = probe_ned.x * cos_az + probe_ned.y * sin_az;
+    const double y = probe_ned.x * sin_az - probe_ned.y * cos_az;
+    const double z = -probe_ned.z;
+    const double horiz = sqrt(x * x + y * y);
+    const double D = sqrt(horiz * horiz + z * z);
 
-    // For debugging: Uncomment to verify math during development
-    // if (AP_HAL::millis() - _now > 3000) {
-    //     gcs().send_text(MAV_SEVERITY_INFO, "Target Dist: %5.2f", static_cast<float>(target_distance));
-    //     gcs().send_text(MAV_SEVERITY_INFO, "Bearing: %5.2f", static_cast<float>(bearing * RAD_TO_DEG));
-    //     gcs().send_text(MAV_SEVERITY_INFO, "Target X: %5.2f", static_cast<float>(x));
-    //     gcs().send_text(MAV_SEVERITY_INFO, "Target Y: %5.2f", static_cast<float>(y));
-    //     gcs().send_text(MAV_SEVERITY_INFO, "Target Z: %5.2f", static_cast<float>(z));
-    //     gcs().send_text(MAV_SEVERITY_INFO, "Pitch: %5.2f", angle_rad.pitch * RAD_TO_DEG);
-    //     gcs().send_text(MAV_SEVERITY_INFO, "Roll: %5.2f", angle_rad.roll * RAD_TO_DEG);
-    //     gcs().send_text(MAV_SEVERITY_INFO, "Yaw: %5.2f", angle_rad.yaw * RAD_TO_DEG);
-    //     _now = AP_HAL::millis();  // Don't forget to uncomment declaration at the very top
-    // }
+    _arrc.update_ms = AP_HAL::millis();
+    _arrc.pos = Vector3f(x, y, z);
+    _arrc.mode = get_ARRC_gimbal_mode();
+    _arrc.flags = 0;
+
+    // hold the last target when too close to the AUT
+    if (D <= MIN_DISTANCE_M) {
+        _arrc.flags = ARRC_TOO_CLOSE;
+        return true;
+    }
+
+    // AUT elevation
+    const double el = _params.ARRC_elev.get() * DEG_TO_RAD;
+
+    // high elevation AUTs seen at a low slope use ArduPilot pointing
+    const float slope = (horiz > 0.001) ? fabsf(float(z / horiz)) : 0.0f;
+    if (slope < SLOPE_THRESHOLD && el > ELEVATION_THRESHOLD_RAD) {
+        _arrc.mode = ARRCGimbalMode::ARDUPILOT;
+    }
+
+    // ArduPilot convention: pitch up (+), roll right (+), yaw right (+)
+    // Position (x,y,z) is NWU convention with the AUT as the origin
+    float roll = 0.0f;
+    float pitch;
+    float yaw;
+    switch (_arrc.mode) {
+    case ARRCGimbalMode::ARDUPILOT:
+        // point at the AUT with zero roll
+        pitch = atan2f(-z, horiz);
+        yaw = atan2f(-probe_ned.y, -probe_ned.x);
+        break;
+
+    case ARRCGimbalMode::PARALLEL:
+        // probe plane parallel to AUT plane
+        pitch = -el;
+        yaw = fixed_yaw;
+        break;
+
+    case ARRCGimbalMode::HPOL:
+    case ARRCGimbalMode::VPOL: {
+        // rows of the rotation from the AUT frame to the probe frame (forward, left, up), i.e. the probe axes in
+        // the AUT frame. a points from the probe to the AUT, b is the polarization reference and c = a x b
+        const Vector3d a{-x / D, -y / D, -z / D};
+        Vector3d b;
+        if (_arrc.mode == ARRCGimbalMode::HPOL) {
+            // Hpol aligned: AUT y axis projected on the plane normal to the line of sight
+            const double A = sqrt(x * x + z * z);
+            if (A < 0.001) {
+                return false;
+            }
+            b = Vector3d{-x * y, A * A, -y * z} / (A * D);
+        } else {
+            // Vpol aligned: normal to the line of sight and to the AUT's vertical axis (sin(el), 0, cos(el))
+            const double sin_el = sin(el);
+            const double cos_el = cos(el);
+            b = Vector3d{y * cos_el, z * sin_el - x * cos_el, -y * sin_el};
+            const double A = b.length();
+            if (A < 0.001) {
+                return false;
+            }
+            b /= A;
+        }
+        Vector3d c = a % b;
+
+        // rotate the probe about its boresight by the polarization offset from the gimbal alignment
+        const double pol_offset = _params.ARRC_pol_offset.get() * DEG_TO_RAD;
+        if (!is_zero(pol_offset)) {
+            const double cos_po = cos(pol_offset);
+            const double sin_po = sin(pol_offset);
+            const Vector3d b0 = b;
+            b = b0 * cos_po + c * sin_po;
+            c = c * cos_po - b0 * sin_po;
+        }
+
+        // Euler angles in the gimbal's yaw-roll-pitch (312) axis order
+        roll = atan2(b.z, sqrt(b.x * b.x + b.y * b.y));
+        pitch = atan2(a.z, c.z);
+        yaw = atan2(b.x, b.y) + fixed_yaw;
+
+        if (fabsf(roll) > ROLL_LIMIT_RAD) {
+            // keep pointing at the AUT with the roll at its limit; polarization is no longer aligned
+            roll = constrain_float(roll, -ROLL_LIMIT_RAD, ROLL_LIMIT_RAD);
+            const Vector3d los = -probe_ned / D;  // unit vector from the probe to the AUT in NED
+            const float sin_pitch = constrain_float(-los.z / cosf(roll), -1.0f, 1.0f);
+            pitch = asinf(sin_pitch);
+            yaw = atan2f(los.y, los.x) - atan2f(sinf(roll) * sin_pitch, cosf(pitch));
+            _arrc.flags |= ARRC_ROLL_LIMIT;
+        }
+        break;
+    }
+
+    default:
+        // unknown mode: hold the last target
+        return true;
+    }
+
+    if (fabsf(pitch) > PITCH_LIMIT_RAD) {
+        pitch = constrain_float(pitch, -PITCH_LIMIT_RAD, PITCH_LIMIT_RAD);
+        _arrc.flags |= ARRC_PITCH_LIMIT;
+    }
+
+    angle_rad.roll = roll;
+    angle_rad.pitch = pitch;
+    angle_rad.yaw = wrap_PI(yaw);
+    angle_rad.yaw_is_ef = true;
+
+    // warn when a gimbal limit prevents the alignment, at most every 10 seconds
+    if ((_arrc.flags & (ARRC_ROLL_LIMIT | ARRC_PITCH_LIMIT)) && (_arrc.update_ms - _arrc.warn_ms > 10000)) {
+        GCS_SEND_TEXT(MAV_SEVERITY_WARNING, "Mount: %s limit, %s", (_arrc.flags & ARRC_PITCH_LIMIT) ? "pitch" : "roll",
+                      (_arrc.flags & ARRC_PITCH_LIMIT) ? "not pointing at AUT" : "polarization not aligned");
+        _arrc.warn_ms = _arrc.update_ms;
+    }
 
     return true;
 }
