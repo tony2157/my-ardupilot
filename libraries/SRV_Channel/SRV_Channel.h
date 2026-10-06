@@ -500,8 +500,9 @@ public:
     static bool function_assigned(SRV_Channel::Function function);
 
     // set a servo_out value, and angle range, then calc_pwm
+    // ARRC mod: float value and range, output rounded to the nearest PWM
     static void move_servo(SRV_Channel::Function function,
-                           int16_t value, int16_t angle_min, int16_t angle_max);
+                           float value, float angle_min, float angle_max);
 
     // assign and enable auxiliary channels
     void enable_aux_servos(void);
