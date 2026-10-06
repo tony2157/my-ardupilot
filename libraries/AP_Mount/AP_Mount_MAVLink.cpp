@@ -6,6 +6,7 @@
 
 #include <AP_HAL/AP_HAL.h>
 #include <GCS_MAVLink/GCS.h>
+#include <AP_AHRS/AP_AHRS.h>
 
 extern const AP_HAL::HAL& hal;
 
@@ -61,6 +62,28 @@ bool AP_Mount_MAVLink::healthy() const
 bool AP_Mount_MAVLink::get_attitude_quaternion(Quaternion& att_quat)
 {
     att_quat = _gimbal_device_attitude_status.q;
+    return true;
+}
+
+// ARRC gimbal's measured attitude as an earth-frame (NED) quaternion. Returns false without a recent attitude status
+bool AP_Mount_MAVLink::get_measured_attitude_ef(Quaternion &q_ef) const
+{
+    if ((_last_attitude_status_ms == 0) || (AP_HAL::millis() - _last_attitude_status_ms > 1000)) {
+        return false;
+    }
+    const float *q = _gimbal_device_attitude_status.q;
+    q_ef = Quaternion(q[0], q[1], q[2], q[3]);
+
+    // MAVLink: yaw is relative to the vehicle heading if YAW_IN_VEHICLE_FRAME is set, or if neither frame flag
+    // is set and YAW_LOCK is not set
+    const uint16_t flags = _gimbal_device_attitude_status.flags;
+    const bool yaw_in_vehicle_frame = (flags & GIMBAL_DEVICE_FLAGS_YAW_IN_VEHICLE_FRAME) ||
+                                      (!(flags & GIMBAL_DEVICE_FLAGS_YAW_IN_EARTH_FRAME) && !(flags & GIMBAL_DEVICE_FLAGS_YAW_LOCK));
+    if (yaw_in_vehicle_frame) {
+        Quaternion q_vehicle_yaw;
+        q_vehicle_yaw.from_euler(0, 0, AP::ahrs().get_yaw());
+        q_ef = q_vehicle_yaw * q_ef;
+    }
     return true;
 }
 

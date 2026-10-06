@@ -58,6 +58,9 @@ protected:
     // get attitude as a quaternion.  returns true on success
     bool get_attitude_quaternion(Quaternion& att_quat) override;
 
+    // ARRC gimbal's measured attitude as an earth-frame (NED) quaternion
+    bool get_measured_attitude_ef(Quaternion &q_ef) const override;
+
 private:
 
     // search for gimbal in GCS_MAVLink routing table
