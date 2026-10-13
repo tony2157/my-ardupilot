@@ -133,7 +133,7 @@ python3 tools/gnss_flight_test.py --profile standard --hover 300 --box 30
 python3 tools/gnss_eval.py --latest                          # evaluate the newest log in ~/Github/my-ardupilot/logs
 ```
 
-`gnss_eval.py` compares the raw GPS (delayed by `SIM_GPS_LAG_MS`) and the EKF3 estimate with the true position. It reports, for the whole flight, hovering and moving:
+`gnss_eval.py` compares the raw GPS (delayed by `SIM_GPS1_LAG_MS`) and the EKF3 estimate with the true position. It reports, for the whole flight, hovering and moving:
 
 - error per axis, RMS, CEP50/95 and vertical RMS;
 - the fast-noise RMS;
