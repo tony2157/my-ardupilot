@@ -94,10 +94,10 @@ gz topic -e -t /world/norman_radars/model/rfsonde_iris/model/gimbal/joint_state
 
 SITL simulates the GPS receiver; Gazebo only supplies the true position. The RFSonde GNSS error model (`libraries/SITL/SIM_GPS.h`, `GNSSErrorModel`) adds two terms to each axis:
 
-- a slowly varying error, a first-order Gauss-Markov process with exact discretisation, so the statistics don't depend on `SIM_GPS_HZ`;
+- a slowly varying error, a first-order Gauss-Markov process with exact discretisation, so the statistics don't depend on `SIM_GPS1_HZ`;
 - white noise.
 
-It also adds white noise to the velocity. The simulated u-blox reports the configured 1-sigma accuracy (`hAcc`, `vAcc`, `sAcc`), and reports RTK Fixed when `hAcc` is below 0.1 m. With all model parameters at 0, the stock SITL GPS applies (`SIM_GPS_ACC`, `SIM_GPS_NOISE`).
+It also adds white noise to the velocity. The simulated u-blox reports the configured 1-sigma accuracy (`hAcc`, `vAcc`, `sAcc`), and reports RTK Fixed when `hAcc` is below 0.1 m. With all model parameters at 0, the stock SITL GPS applies (`SIM_GPS1_ACC`, `SIM_GPS1_NOISE`).
 
 | Parameter | Meaning |
 |---|---|

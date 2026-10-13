@@ -6,7 +6,7 @@ SIM_GPS_VBIAS    0.012
 SIM_GPS_VWN      0.008
 SIM_GPS_BTAU     30
 SIM_GPS_VELNSE   0.02
-SIM_GPS_ACC      0.3
+SIM_GPS1_ACC     0.3
 SIM_GPS2_ACC     0.3
 
 # EKF3: GPS height; lower GPS noise floors so the filter uses the RTK accuracy
