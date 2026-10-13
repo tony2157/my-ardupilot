@@ -1049,9 +1049,9 @@ bool AP_Mount_Backend::get_angle_target_to_location(const Location &target, Moun
 {
     constexpr double MIN_DISTANCE_M = 10.0;                         // hold the last target closer than this to the AUT
     constexpr float SLOPE_THRESHOLD = 0.35f;                        // slope below which high elevation AUTs use ArduPilot pointing
-    constexpr float ELEVATION_THRESHOLD_RAD = 70.0f * DEG_TO_RAD;
-    constexpr float PITCH_LIMIT_RAD = 1.31f;                        // ~75 degrees
-    constexpr float ROLL_LIMIT_RAD = 0.6f;                          // ~34 degrees
+    constexpr float ELEVATION_THRESHOLD_RAD = 80.0f * DEG_TO_RAD;
+    constexpr float PITCH_LIMIT_RAD = 75.0f * DEG_TO_RAD;
+    constexpr float ROLL_LIMIT_RAD = 35.0f * DEG_TO_RAD;
 
     const AP_AHRS &ahrs = AP::ahrs();
 
