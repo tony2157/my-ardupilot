@@ -13,7 +13,7 @@ SIM_GPS_VWN      0.4
 SIM_GPS_BTAU     60
 SIM_GPS_VELNSE   0.05
 # stock SITL values for the parameters the old RFSonde model reused
-SIM_GPS_ACC      0.3
+SIM_GPS1_ACC     0.3
 SIM_GPS2_ACC     0.3
 
 # EKF3: GPS height instead of barometer; default GPS noise floors (the reported accuracy is larger)

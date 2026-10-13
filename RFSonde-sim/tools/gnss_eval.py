@@ -25,7 +25,7 @@ from pymavlink import mavutil
 M_PER_DEG = 0.011131884502145034 * 1e7      # ArduPilot spherical-earth metres per degree of latitude
 GPS_FIX = {0: "no GPS", 1: "no fix", 2: "2D", 3: "3D", 4: "DGPS", 5: "RTK float", 6: "RTK fixed"}
 PROFILE_PARAMS = ("SIM_GPS_HBIAS", "SIM_GPS_HWN", "SIM_GPS_VBIAS", "SIM_GPS_VWN", "SIM_GPS_BTAU",
-                  "SIM_GPS_VELNSE", "SIM_GPS_LAG_MS", "SIM_GPS_HZ", "EK3_SRC1_POSZ", "EK3_POSNE_M_NSE",
+                  "SIM_GPS_VELNSE", "SIM_GPS1_LAG_MS", "SIM_GPS1_HZ", "EK3_SRC1_POSZ", "EK3_POSNE_M_NSE",
                   "EK3_VELNE_M_NSE")
 
 
@@ -198,16 +198,20 @@ def main():
     a = parse_args()
     d = read_log(a.log)
     p = d["PARM"]
+    # ArduPilot 4.7 moved the per-receiver SITL GPS parameters to SIM_GPS1_*; also accept 4.6 logs
+    for name in ("LAG_MS", "HZ"):
+        if "SIM_GPS_" + name in p:
+            p.setdefault("SIM_GPS1_" + name, p["SIM_GPS_" + name])
     if not d["SIM"] or not d["GPS"] or not d["POS"]:
         sys.exit("log lacks SIM, GPS or POS messages (is it a SITL log of a flight?)")
     truth = Truth(d["SIM"], d["SIM2"])
-    # GPS samples are delayed: use the delay measured while moving, else SIM_GPS_LAG_MS
-    lag_cfg = p.get("SIM_GPS_LAG_MS", 100) * 1e-3
+    # GPS samples are delayed: use the delay measured while moving, else SIM_GPS1_LAG_MS
+    lag_cfg = p.get("SIM_GPS1_LAG_MS", 100) * 1e-3
     gps_fit = best_shift(d["GPS"], truth, [i * 0.01 for i in range(0, 31)], lambda g: g.Status >= 3)
     lag = gps_fit[0] if gps_fit else lag_cfg
     ekf_fit = best_shift(d["POS"], truth, [i * 0.01 for i in range(-10, 11)])
 
-    # EKF output (POS) is time-aligned with the truth; GPS samples are delayed by SIM_GPS_LAG_MS
+    # EKF output (POS) is time-aligned with the truth; GPS samples are delayed by SIM_GPS1_LAG_MS
     pos_t = [m.TimeUS * 1e-6 for m in d["POS"]]
     gpa_t = [m.TimeUS * 1e-6 for m in d["GPA"]]
     rows, fixes, takeoff = [], {}, None
@@ -247,7 +251,7 @@ def main():
         out.append(f"configured 1-sigma: horizontal {math.hypot(hb, hw):.3f} m per axis, vertical {math.hypot(vb, vw):.3f} m")
     out.append("GPS fix: " + ", ".join(f"{GPS_FIX.get(k, k)} {100 * v / len(rows):.0f}%" for k, v in sorted(fixes.items())))
     out.append(f"GPS compared with the truth {lag * 1000:.0f} ms earlier ("
-               + ("measured while moving" if gps_fit else "SIM_GPS_LAG_MS") + f"); first {a.skip:.0f} s "
+               + ("measured while moving" if gps_fit else "SIM_GPS1_LAG_MS") + f"); first {a.skip:.0f} s "
                + ("of GPS fix" if a.all else "after takeoff") + " skipped")
 
     summarise("Whole flight", rows, out)
@@ -269,7 +273,7 @@ def main():
 
     if ekf_fit:
         out.append(f"\nTiming (from the moving part of the flight)")
-        out.append(f"  GPS delay: {lag * 1000:.0f} ms (SIM_GPS_LAG_MS {lag_cfg * 1000:.0f} ms)")
+        out.append(f"  GPS delay: {lag * 1000:.0f} ms (SIM_GPS1_LAG_MS {lag_cfg * 1000:.0f} ms)")
         out.append(f"  EKF3 output lag behind the truth: {ekf_fit[0] * 1000:.0f} ms; moving error would be "
                    f"{ekf_fit[1]:.3f} m RMS without it (latency adds about speed x lag)")
     if rows and statistics.mean(r["hacc"] for r in rows) < 0.01:
