@@ -117,5 +117,6 @@ enum ap_message : uint8_t {
 #endif
     MSG_ARRC_LB680A                    = 101,
     MSG_ARRC_SDR                       = 102,
+    MSG_ARRC_SENSOR                    = 103,
     MSG_LAST // MSG_LAST must be the last entry in this enum
 };
