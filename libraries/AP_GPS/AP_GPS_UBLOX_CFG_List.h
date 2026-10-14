@@ -22,6 +22,7 @@ struct PACKED ubx_config_list {
 #define RATE_HW 5
 #define RATE_HW2 5
 #define RATE_TIM_TM2 1
+#define RATE_HPPOSECEF 1
 
 // epochs per RTCM output for moving baseline
 #define RTK_MB_RTCM_RATE 1
