@@ -52,6 +52,9 @@ public:
     static void handle_aux_msg_trampoline(AP_DroneCAN *ap_dronecan, const CanardRxTransfer& transfer, const uavcan_equipment_gnss_Auxiliary& msg);
     static void handle_heading_msg_trampoline(AP_DroneCAN *ap_dronecan, const CanardRxTransfer& transfer, const ardupilot_gnss_Heading& msg);
     static void handle_status_msg_trampoline(AP_DroneCAN *ap_dronecan, const CanardRxTransfer& transfer, const ardupilot_gnss_Status& msg);
+#if HAL_LOGGING_ENABLED
+    static void handle_hpposecef_msg_trampoline(AP_DroneCAN *ap_dronecan, const CanardRxTransfer& transfer, const ardupilot_gnss_HpposEcef& msg);
+#endif
 #if GPS_MOVING_BASELINE
     static void handle_moving_baseline_msg_trampoline(AP_DroneCAN *ap_dronecan, const CanardRxTransfer& transfer, const ardupilot_gnss_MovingBaselineData& msg);
     static void handle_relposheading_msg_trampoline(AP_DroneCAN *ap_dronecan, const CanardRxTransfer& transfer, const ardupilot_gnss_RelPosHeading& msg);
@@ -89,6 +92,9 @@ private:
     void handle_aux_msg(const uavcan_equipment_gnss_Auxiliary& msg);
     void handle_heading_msg(const ardupilot_gnss_Heading& msg);
     void handle_status_msg(const ardupilot_gnss_Status& msg);
+#if HAL_LOGGING_ENABLED
+    void handle_hpposecef_msg(const ardupilot_gnss_HpposEcef& msg, uint8_t node_id);
+#endif
     void handle_velocity(const float vx, const float vy, const float vz);
 
 #if GPS_MOVING_BASELINE
