@@ -1971,6 +1971,9 @@ AP_GPS_UBLOX::_parse_gps(void)
         _check_new_itow(_buffer.timegps.itow);
         if (_buffer.timegps.valid & UBX_TIMEGPS_VALID_WEEK_MASK) {
             state.time_week = _buffer.timegps.week;
+#if AP_GPS_UBLOX_HPPOSECEF_ENABLED
+            _timegps_itow = _buffer.timegps.itow;
+#endif
         }
         break;
     case MSG_VELNED:
@@ -2007,6 +2010,11 @@ AP_GPS_UBLOX::_parse_gps(void)
         // navigation state (no _new_position/_new_speed) and does not adjust the
         // time base via _check_new_itow(), so the EKF/nav solution is untouched.
         _hpposecef.gps_week  = state.time_week;
+        if (_buffer.hpposecef.iTOW < _timegps_itow) {
+            // time_week comes from TIMEGPS, which is sent every RATE_TIMEGPS
+            // epochs and after HPPOSECEF, so it lags at a week rollover
+            _hpposecef.gps_week++;
+        }
         _hpposecef.itow      = _buffer.hpposecef.iTOW;
         _hpposecef.ecef_x    = _buffer.hpposecef.ecefX;
         _hpposecef.ecef_y    = _buffer.hpposecef.ecefY;

@@ -856,6 +856,7 @@ private:
     // latest raw UBX-NAV-HPPOSECEF, stored for logging and DroneCAN publishing
     AP_GPS::GPS_HPPOSECEF _hpposecef;
     bool            _hpposecef_new;  // true when _hpposecef holds unread data
+    uint32_t        _timegps_itow;   // iTOW of the TIMEGPS that last set time_week
 #endif
 
     // the role set from GPS_TYPE
