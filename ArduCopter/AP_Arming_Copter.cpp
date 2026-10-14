@@ -55,6 +55,12 @@ bool AP_Arming_Copter::run_pre_arm_checks(bool display_failure)
         passed = false;
     }
 
+    // ARRC onboard SDR (USR_SDR_OPT)
+    if (!copter.arrc_sdr_arming_checks(ARRAY_SIZE(failure_msg), failure_msg)) {
+        check_failed(display_failure, "SDR: %s", failure_msg);
+        passed = false;
+    }
+
 #if FRAME_CONFIG == HELI_FRAME && MODE_AUTOROTATE_ENABLED
     // check on autorotation config
     if (!copter.g2.arot.arming_checks(ARRAY_SIZE(failure_msg), failure_msg)) {

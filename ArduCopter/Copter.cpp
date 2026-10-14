@@ -244,7 +244,7 @@ const AP_Scheduler::Task Copter::scheduler_tasks[] = {
     SCHED_TASK(user_ARRC_gimbal,    10,     100, 153),
 #endif
 #ifdef USER_ARRC_SDR_LOOP
-//    SCHED_TASK(user_ARRC_SDR_logger,         50,     75, 156),
+    SCHED_TASK(user_ARRC_SDR_logger, 10,     75, 156),
 #endif
 #ifdef USER_ARRCLB5900_LOOP
     SCHED_TASK(user_LB5900_logger,   50,    175, 159),

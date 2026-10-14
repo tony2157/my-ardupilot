@@ -75,6 +75,7 @@
 
 // ARRC libraries declaration
 #include <AP_ARRC_LB5900/AP_ARRC_LB5900.h>
+#include <AP_ARRC_SDR/AP_ARRC_SDR.h>
 
 // Configuration
 #include "defines.h"
@@ -264,6 +265,24 @@ private:
 
     // ARRC_LB5900 sensor class declaration
     AP_ARRC_LB5900 ARRC_LB5900;
+
+    // ARRC onboard SDR (companion computer) interface
+    AP_ARRC_SDR ARRC_SDR;
+
+    // ARRC RF power source selection (USR_RF_SRC)
+    enum class ARRCRFSource : uint8_t {
+        AUTO = 0,       // LB5900 until the companion and SDR are detected, then SDR only
+        LB5900 = 1,     // LB5900 only
+        SDR = 2,        // SDR only
+        BOTH = 3,       // LB5900 and SDR together (e.g. behind a power splitter)
+    };
+    ARRCRFSource arrc_rf_source() const;
+    bool arrc_lb5900_streaming() const;
+    bool arrc_sdr_streaming() const;
+    bool arrc_sdr_arming_checks(size_t buflen, char *buffer) const;
+    bool arrc_lb5900_latched_off;   // LB5900 disabled in AUTO after the SDR was detected
+    bool arrc_was_armed;            // armed state at the last SDR update
+    bool arrc_was_failsafe;         // failsafe state at the last SDR update
 
     AP_SurfaceDistance rangefinder_state {ROTATION_PITCH_270, 0U};
     AP_SurfaceDistance rangefinder_up_state {ROTATION_PITCH_90, 1U};
@@ -1020,6 +1039,7 @@ private:
     void userhook_init();
     void user_ARRC_gimbal();
     void user_LB5900_logger();
+    void user_ARRC_SDR_logger();
     void userhook_SlowLoop();
     void userhook_SuperSlowLoop();
     void userhook_auxSwitch1(const RC_Channel::AuxSwitchPos ch_flag);

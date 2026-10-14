@@ -367,8 +367,17 @@ bool GCS_MAVLINK_Copter::try_send_message(enum ap_message id)
     }
 
     case MSG_ARRC_SDR:
-        CHECK_PAYLOAD_SIZE(CASS_SENSOR_RAW);
-        copter.send_arrc_gcs_message(chan);
+        if (copter.arrc_lb5900_streaming()) {
+            CHECK_PAYLOAD_SIZE(CASS_SENSOR_RAW);
+            copter.send_arrc_gcs_message(chan);
+        }
+        break;
+
+    case MSG_ARRC_SENSOR:
+        if (copter.arrc_sdr_streaming()) {
+            CHECK_PAYLOAD_SIZE(ARRC_SENSOR_RAW);
+            copter.ARRC_SDR.send_sensor_raw(chan);
+        }
         break;
 
     default:
@@ -1253,6 +1262,21 @@ void GCS_MAVLINK_Copter::handle_message(const mavlink_message_t &msg)
         copter.g2.toy_mode.handle_message(msg);
         break;
 #endif
+
+    // ARRC onboard SDR (companion computer)
+    case MAVLINK_MSG_ID_ARRC_SDR_MEAS:
+    case MAVLINK_MSG_ID_ARRC_CC_STATUS:
+    case MAVLINK_MSG_ID_ARRC_SDR_STATUS:
+    case MAVLINK_MSG_ID_ARRC_SDR_CONFIG:
+    case MAVLINK_MSG_ID_ARRC_SDR_MEAS_CONFIG:
+        copter.ARRC_SDR.handle_message(msg);
+        break;
+
+    case MAVLINK_MSG_ID_HEARTBEAT:
+        copter.ARRC_SDR.handle_message(msg);
+        GCS_MAVLINK::handle_message(msg);
+        break;
+
     default:
         GCS_MAVLINK::handle_message(msg);
         break;
