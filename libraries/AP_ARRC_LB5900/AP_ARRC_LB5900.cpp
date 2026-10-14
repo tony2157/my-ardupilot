@@ -13,6 +13,7 @@ AP_ARRC_LB5900::AP_ARRC_LB5900() :
     _sample_count(0),
     _healthy(false),
     _initialized(false),
+    _enabled(true),
     _avg_cnt(1),
     _rate(0),
     _consecutive_failures(0)
@@ -254,6 +255,9 @@ bool AP_ARRC_LB5900::_fetch_and_read(void)
 
 void AP_ARRC_LB5900::_timer(void)
 {
+    if (!_enabled) {
+        return;
+    }
     WITH_SEMAPHORE(_sem);
     // Phase 1 fix: Correct order - FETCh? is now sent first within _fetch_and_read()
     // In free-run mode (INIT:CONT ON), the sensor continuously averages measurements.

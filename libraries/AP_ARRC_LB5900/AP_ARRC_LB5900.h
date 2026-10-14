@@ -132,6 +132,10 @@ public:
     // Change the I2C address at runtime
     void set_i2c_addr(uint8_t addr);
 
+    // Enable or disable polling. A disabled sensor makes no I2C transfers
+    void set_enabled(bool enabled) { _enabled = enabled; }
+    bool enabled(void) const { return _enabled; }
+
 private:
     AP_HAL::OwnPtr<AP_HAL::I2CDevice> _dev;
     HAL_Semaphore _sem;                     // Semaphore for thread-safe access
@@ -139,6 +143,7 @@ private:
     uint32_t _sample_count;                 // Number of measurements read
     bool _healthy;                          // Sensor communication status
     bool _initialized;                      // Initialization complete flag
+    bool _enabled;                          // Polling enabled
     uint32_t Sensor_TimeOut;                // I2C timeout counter
     uint8_t commandNumber;                  // Command sequence tracker for configuration
 
