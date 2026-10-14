@@ -20,6 +20,11 @@ public:
     AP_Int8 get_lb5900_avg_cnt() const{return lb5900_avg_cnt; }
     AP_Int8 get_lb5900_mrate() const{return lb5900_mrate; }
     AP_Int8 get_lb6900_busId() const{return lb5900_busId; }
+
+    // ARRC onboard SDR
+    int8_t get_rf_src() const { return rf_src; }
+    int16_t get_sdr_options() const { return sdr_options; }
+    float get_sdr_timeout() const { return sdr_timeout; }
     
 private:
     // Put your parameter variable definitions here
@@ -33,4 +38,9 @@ private:
     AP_Int8 lb5900_avg_cnt;
     AP_Int8 lb5900_mrate;
     AP_Int8 lb5900_busId;
+
+    // ARRC onboard SDR
+    AP_Int8 rf_src;
+    AP_Int16 sdr_options;
+    AP_Float sdr_timeout;
 };

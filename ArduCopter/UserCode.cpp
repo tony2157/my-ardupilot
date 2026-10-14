@@ -158,15 +158,97 @@ void Copter::user_ARRC_gimbal()
 }
 #endif
 
+// USR_SDR_OPT bits
+static constexpr int16_t SDR_OPT_TX_STOP_DISARM = (1U << 0);
+static constexpr int16_t SDR_OPT_TX_STOP_FAILSAFE = (1U << 1);
+static constexpr int16_t SDR_OPT_REQUIRE_MEAS = (1U << 2);
+static constexpr uint32_t SDR_ARMING_MEAS_MAX_AGE_MS = 2000;
+
+Copter::ARRCRFSource Copter::arrc_rf_source() const
+{
+    const int8_t src = g2.user_parameters.get_rf_src();
+    if (src < 0 || src > int8_t(ARRCRFSource::BOTH)) {
+        return ARRCRFSource::AUTO;
+    }
+    return ARRCRFSource(src);
+}
+
+// true if the LB5900 power is logged and streamed (CASS_SENSOR_RAW)
+bool Copter::arrc_lb5900_streaming() const
+{
+    return ARRC_LB5900.enabled() && arrc_rf_source() != ARRCRFSource::SDR;
+}
+
+// true if the SDR measurement is streamed (ARRC_SENSOR_RAW)
+bool Copter::arrc_sdr_streaming() const
+{
+    return arrc_rf_source() != ARRCRFSource::LB5900;
+}
+
+bool Copter::arrc_sdr_arming_checks(size_t buflen, char *buffer) const
+{
+    if ((g2.user_parameters.get_sdr_options() & SDR_OPT_REQUIRE_MEAS) == 0) {
+        return true;
+    }
+    if (!ARRC_SDR.detected()) {
+        hal.util->snprintf(buffer, buflen, "companion or SDR not detected");
+        return false;
+    }
+    if (!ARRC_SDR.meas_fresh(SDR_ARMING_MEAS_MAX_AGE_MS)) {
+        hal.util->snprintf(buffer, buflen, "no measurements");
+        return false;
+    }
+    return true;
+}
+
 #ifdef USER_ARRC_SDR_LOOP
 void Copter::user_ARRC_SDR_logger()
 {
+    const uint32_t timeout_ms = constrain_float(g2.user_parameters.get_sdr_timeout(), 1.0f, 10.0f) * 1000;
+    ARRC_SDR.update(timeout_ms);
+
+    // AUTO: once the companion computer and its SDR are detected, the LB5900 is disabled until reboot
+    if (arrc_rf_source() == ARRCRFSource::AUTO && !arrc_lb5900_latched_off && ARRC_SDR.detected()) {
+        ARRC_LB5900.set_enabled(false);
+        arrc_lb5900_latched_off = true;
+        GCS_SEND_TEXT(MAV_SEVERITY_INFO, "RF source: SDR (LB5900 disabled)");
+#if HAL_LOGGING_ENABLED
+// @LoggerMessage: RFSR
+// @Description: ARRC RF power source change
+// @Field: TimeUS: Time since system startup
+// @Field: Src: RF source parameter (USR_RF_SRC)
+// @Field: LB: LB5900 enabled
+// @Field: SDR: Companion and SDR detected
+        logger.Write("RFSR", "TimeUS,Src,LB,SDR", "s---", "F---", "QBBB",
+                     AP_HAL::micros64(),
+                     uint8_t(arrc_rf_source()),
+                     uint8_t(ARRC_LB5900.enabled()),
+                     uint8_t(ARRC_SDR.detected()));
+#endif
+    }
+
+    // stop SDR transmission on disarm or failsafe (the companion also stops on its own interlocks)
+    const int16_t options = g2.user_parameters.get_sdr_options();
+    const bool armed = motors->armed();
+    const bool in_failsafe = any_failsafe_triggered();
+    const bool disarmed_now = (options & SDR_OPT_TX_STOP_DISARM) && arrc_was_armed && !armed;
+    const bool failsafe_now = (options & SDR_OPT_TX_STOP_FAILSAFE) && in_failsafe && !arrc_was_failsafe;
+    if ((disarmed_now || failsafe_now) && ARRC_SDR.detected()) {
+        if (ARRC_SDR.send_tx_stop()) {
+            GCS_SEND_TEXT(MAV_SEVERITY_INFO, "SDR: TX stop sent (%s)", failsafe_now ? "failsafe" : "disarm");
+        }
+    }
+    arrc_was_armed = armed;
+    arrc_was_failsafe = in_failsafe;
 }
 #endif
 
 #ifdef USER_ARRCLB5900_LOOP
 void Copter::user_LB5900_logger()
 {
+    if (!arrc_lb5900_streaming()) {
+        return;
+    }
     // Read Power in dBm. Write sensors packet into the SD card
     // LB5900 Power Data Logger ///////////////////////////////////////////////////////////////////////////////////////////
     struct log_LB5900 pkt_temp = {

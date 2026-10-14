@@ -1,6 +1,11 @@
 #include "Copter.h"
 
 void Copter::init_ARRC_lb5900(){
+    if (arrc_rf_source() == ARRCRFSource::SDR) {
+        // SDR only: never poll the LB5900
+        ARRC_LB5900.set_enabled(false);
+        return;
+    }
     // Initialize and set I2C addresses
     uint8_t i2cAddr = g2.user_parameters.get_lb5900_address();
     uint16_t freq = g2.user_parameters.get_lb5900_freq();
