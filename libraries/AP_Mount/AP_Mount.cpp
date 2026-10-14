@@ -478,8 +478,8 @@ void AP_Mount::handle_gimbal_manager_set_attitude(const mavlink_message_t &msg)
 
     if (!att_quat.is_nan()) {
         // convert quaternion to euler angles
-        Vector3f attitude;
-        att_quat.to_euler(attitude);  // attitude is in radians here
+        // ARRC mod: yaw-roll-pitch (312) order, the order the mount angles are applied in
+        Vector3f attitude = att_quat.to_vector312();  // attitude is in radians here
         attitude *= RAD_TO_DEG;  // convert to degrees
 
         backend->set_angle_target(attitude.x, attitude.y, attitude.z, flags & GIMBAL_MANAGER_FLAGS_YAW_LOCK);

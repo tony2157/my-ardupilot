@@ -84,7 +84,9 @@ bool AP_Mount_Servo::get_attitude_quaternion(Quaternion& att_quat)
     }
 
     // convert to quaternion
-    att_quat.from_euler(roll_rad, pitch_rad, yaw_rad);
+    // ARRC mod: yaw-roll-pitch (312) order, the joint order of the ARRC gimbal and of the ARRC angles.
+    // Same as the default yaw-pitch-roll order when roll is zero
+    att_quat.from_vector312(roll_rad, pitch_rad, yaw_rad);
     return true;
 }
 
