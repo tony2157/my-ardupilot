@@ -28,7 +28,7 @@ const AP_Param::GroupInfo UserParameters::var_info[] = {
 
     // @Param: _SDR_OPT
     // @DisplayName: Onboard SDR options
-    // @Description: Onboard SDR safety and arming options
+    // @Description: Onboard SDR safety and arming options. Bit 2 refuses arming unless the companion computer (a heartbeat of type ONBOARD_CONTROLLER from component 191 with the vehicle's MAV_SYSID) reports an SDR with the device present and a measurement younger than 2 s; it is skipped when the Camera bit of ARMING_CHECK is cleared.
     // @Bitmask: 0:Stop SDR TX on disarm,1:Stop SDR TX on failsafe,2:Require SDR measurements to arm
     // @User: Standard
     AP_GROUPINFO("_SDR_OPT", 6, UserParameters, sdr_options, 3),

@@ -55,9 +55,10 @@ bool AP_Arming_Copter::run_pre_arm_checks(bool display_failure)
         passed = false;
     }
 
-    // ARRC onboard SDR (USR_SDR_OPT)
-    if (!copter.arrc_sdr_arming_checks(ARRAY_SIZE(failure_msg), failure_msg)) {
-        check_failed(display_failure, "SDR: %s", failure_msg);
+    // ARRC onboard SDR (USR_SDR_OPT bit 2), a payload check: skipped with the Camera bit of ARMING_CHECK
+    // cleared, so the vehicle can still arm with the SDR lost on the ground (ARMING_SKIPCHK alike)
+    if (check_enabled(Check::CAMERA) && !copter.arrc_sdr_arming_checks(ARRAY_SIZE(failure_msg), failure_msg)) {
+        check_failed(Check::CAMERA, display_failure, "SDR: %s", failure_msg);
         passed = false;
     }
 
