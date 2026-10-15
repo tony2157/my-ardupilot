@@ -7,6 +7,7 @@
  *   - ARRC_CC_STATUS and ARRC_SDR_STATUS broadcast at 1 Hz: logged as SDRS
  *   - ARRC_SDR_CONFIG and ARRC_SDR_MEAS_CONFIG echoes (op=APPLIED): logged as SDRC and SDRQ
  * GCS to companion traffic is routed by GCS_MAVLink; this class only consumes what the autopilot needs.
+ * It also sends the companion the sensor samples it records with its data (ARRC_NAV_*, AP_ARRC_SDR_Nav.cpp).
  */
 #pragma once
 
@@ -43,6 +44,19 @@ public:
     // ask the companion to stop transmitting. Returns false if no route to the companion is known
     bool send_tx_stop(void);
 
+    // sample streams to the companion computer, at the rate the autopilot logs the same data
+    enum class NavStream : uint8_t { IMU, MAG, BARO, GPS, ECEF, GIMBAL, COUNT };
+
+    // the stream's message is due on chan (the companion requested it with MAV_CMD_SET_MESSAGE_INTERVAL):
+    // chan gets the stream. GPS and ECEF are sent from here, once per new fix, as they are logged
+    void nav_due(NavStream stream, mavlink_channel_t chan);
+
+    // a sample, called where the vehicle logs IMU, MAG, BARO and ARGM: sent to the channels with the stream
+    void nav_imu_sample(void);
+    void nav_mag_sample(void);
+    void nav_baro_sample(void);
+    void nav_gimbal_sample(void);
+
     // companion data session id (0 if unknown)
     uint32_t session_id(void) const { return _session_id; }
 
@@ -55,6 +69,15 @@ private:
     void handle_meas_config(const mavlink_message_t &msg);
 
     bool from_companion(const mavlink_message_t &msg) const;
+
+    // true if chan gets the stream (its message was due there in the last 2 s)
+    bool nav_subscribed(NavStream stream, uint8_t chan) const;
+    void send_nav_gps(mavlink_channel_t chan);
+    void send_nav_ecef(mavlink_channel_t chan);
+
+    uint32_t _nav_due_ms[uint8_t(NavStream::COUNT)][MAVLINK_COMM_NUM_BUFFERS];
+    uint64_t _gps_sent_us[MAVLINK_COMM_NUM_BUFFERS];    // fix last sent on each channel
+    uint64_t _ecef_sent_us[MAVLINK_COMM_NUM_BUFFERS];
 
     // companion link
     uint32_t _last_hb_ms;
