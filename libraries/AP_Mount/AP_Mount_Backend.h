@@ -69,6 +69,10 @@ public:
     // yaw is in body-frame.
     virtual bool get_attitude_quaternion(Quaternion& att_quat) = 0;
 
+    // get attitude as euler angles in degrees, yaw in body-frame. The default decodes the quaternion in
+    // the yaw-pitch-roll (321) order; a backend whose joints turn in another order overrides it
+    virtual bool get_attitude_euler(float& roll_deg, float& pitch_deg, float& yaw_bf_deg);
+
     // get angular velocity of mount. Only available on some backends
     virtual bool get_angular_velocity(Vector3f& rates) { return false; }
 

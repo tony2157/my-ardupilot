@@ -239,6 +239,21 @@ void AP_Mount_Backend::set_fixed_yaw_angle(float fixed_yaw)
 }
 
 // ARRC set polarization offset (rotation about the probe boresight) in degrees. save writes it to storage
+// get attitude as euler angles in degrees, yaw in body-frame: the quaternion decoded in the 321 order
+bool AP_Mount_Backend::get_attitude_euler(float& roll_deg, float& pitch_deg, float& yaw_bf_deg)
+{
+    Quaternion att_quat;
+    if (!get_attitude_quaternion(att_quat)) {
+        return false;
+    }
+    float roll_rad, pitch_rad, yaw_rad;
+    att_quat.to_euler(roll_rad, pitch_rad, yaw_rad);
+    roll_deg = degrees(roll_rad);
+    pitch_deg = degrees(pitch_rad);
+    yaw_bf_deg = degrees(yaw_rad);
+    return true;
+}
+
 void AP_Mount_Backend::set_ARRC_pol_offset(float offset_deg, bool save)
 {
     if (save) {
@@ -947,10 +962,15 @@ bool AP_Mount_Backend::calculate_poi_at_home_alt(Location &target_location)
     }
 
     // Extract mount euler from quat (AP convention: quat yaw is body-frame; add vehicle yaw for earth-frame yaw)
-    float m_roll_rad;
-    float m_pitch_rad;
-    float m_yaw_body_rad;
-    quat.to_euler(m_roll_rad, m_pitch_rad, m_yaw_body_rad);
+    // in the backend's own axis order (the servo backend builds its quaternion in the 312 order)
+    float m_roll_deg;
+    float m_pitch_deg;
+    float m_yaw_body_deg;
+    if (!get_attitude_euler(m_roll_deg, m_pitch_deg, m_yaw_body_deg)) {
+        return false;
+    }
+    const float m_pitch_rad = radians(m_pitch_deg);
+    const float m_yaw_body_rad = radians(m_yaw_body_deg);
 
     const float body_yaw_earth_rad = ahrs.get_yaw_rad();
     const float m_yaw_earth_rad = wrap_PI(m_yaw_body_rad + body_yaw_earth_rad);

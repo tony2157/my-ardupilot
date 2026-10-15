@@ -45,6 +45,10 @@ protected:
     // get attitude as a quaternion.  returns true on success
     bool get_attitude_quaternion(Quaternion& att_quat) override;
 
+    // get attitude as euler angles in the gimbal's yaw-roll-pitch (312) order, the order the quaternion
+    // above is built in (ARRC mod): decoding it as 321 is wrong whenever the roll is not zero
+    bool get_attitude_euler(float& roll_deg, float& pitch_deg, float& yaw_bf_deg) override;
+
     // servo only natively supports angles:
     uint8_t natively_supported_mount_target_types() const override {
         return NATIVE_ANGLES_ONLY;
