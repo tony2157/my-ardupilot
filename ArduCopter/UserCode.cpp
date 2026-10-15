@@ -38,9 +38,6 @@ static struct {
 static bool alignment_done;             // true if the next switch change clears the offset instead of aligning
 static uint32_t switch_pause_ms;        // system time of the last switch change
 
-//LB5900 global params
-uint32_t LB_now;
-
 #ifdef USERHOOK_INIT
 void Copter::userhook_init()
 {
@@ -50,10 +47,9 @@ void Copter::userhook_init()
     //ARRC Gimbal params init
     switch_pause_ms = AP_HAL::millis();
     gimbal_align.state = AlignState::IDLE;
-    alignment_done = true;
-
-    //LB5900 initialize
-    LB_now = AP_HAL::millis();
+    // the first switch change after boot starts an alignment; the one after it clears the offset. Starting
+    // with the clear wiped the MNT1_ARRC_POFF saved by an earlier alignment at the first flip
+    alignment_done = false;
 }
 #endif
 
@@ -264,44 +260,6 @@ void Copter::user_LB5900_logger()
         power                   : copter.ARRC_LB5900.power_measure(),   //Store power in dBm
     };
     logger.WriteBlock(&pkt_temp, sizeof(pkt_temp));   //Send package to SD card
-
-    // Print desired params for Debugging
-    // if (AP_HAL::millis() - LB_now > 3000){
-
-    //     const char* (mrate[1])[4] = 
-    //     {
-    //         "NORMAL",   // 20 readings per sec
-    //         "DOUBLE",   // 40 readings per sec
-    //         "FAST",     // 110 readings per sec (disallows average count)
-    //         "SUPER"     // 110 readings per sec (allows average count)
-    //     };
-
-    //     gcs().send_text(MAV_SEVERITY_INFO,"LB init: %d",(uint8_t)copter.ARRC_LB5900.has_init());
-    //     gcs().send_text(MAV_SEVERITY_INFO,"LB health: %d",(uint8_t)copter.ARRC_LB5900.healthy());
-    //     gcs().send_text(MAV_SEVERITY_INFO,"LB power: %d",(uint8_t)copter.ARRC_LB5900.power_measure());
-
-    //     uint16_t freq = g2.user_parameters.get_lb5900_freq();
-    //     uint16_t avg_cnt = g2.user_parameters.get_lb5900_avg_cnt();
-    //     uint8_t rate = g2.user_parameters.get_lb5900_mrate();
-
-    //     char FREQ[10 + sizeof(char)] = "FREQ ";
-    //     char AVG_CNT[17 + sizeof(char)] = "SENS:AVER:COUN ";
-    //     char MRATE[16 + sizeof(char)] = "SENS:MRAT ";
-    //     char temp[5 + sizeof(char)];
-
-    //     snprintf(temp,6,"%d",freq);
-    //     strcat(FREQ, temp);
-    //     strcat(FREQ, " MHZ");
-    //     snprintf(temp,6,"%d",avg_cnt);
-    //     strcat(AVG_CNT, temp);
-    //     strcat(MRATE, mrate[0][rate]);
-
-    //     gcs().send_text(MAV_SEVERITY_INFO,"%s",FREQ);
-    //     gcs().send_text(MAV_SEVERITY_INFO,"%s",AVG_CNT);
-    //     gcs().send_text(MAV_SEVERITY_INFO,"%s",MRATE);
-
-    //     LB_now = AP_HAL::millis();
-    // }
 }
 #endif
 

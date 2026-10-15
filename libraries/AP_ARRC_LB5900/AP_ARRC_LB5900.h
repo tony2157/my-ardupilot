@@ -133,7 +133,8 @@ public:
     void set_i2c_addr(uint8_t addr);
 
     // Enable or disable polling. A disabled sensor makes no I2C transfers
-    void set_enabled(bool enabled) { _enabled = enabled; }
+    // stop or resume polling the sensor. A disabled sensor is not healthy: nothing reads it
+    void set_enabled(bool enabled) { _enabled = enabled; if (!enabled) { _healthy = false; } }
     bool enabled(void) const { return _enabled; }
 
 private:
