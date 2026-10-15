@@ -628,6 +628,10 @@ void Copter::update_batt_compass(void)
         compass.set_throttle(motors->get_throttle());
         compass.set_voltage(battery.voltage());
         compass.read();
+#if AP_ARRC_SDR_ENABLED
+        // the companion's compass samples, at the MAG log rate
+        ARRC_SDR.nav_mag_sample();
+#endif
     }
 }
 
@@ -651,6 +655,12 @@ void Copter::loop_rate_logging()
     if (should_log(MASK_LOG_IMU_FAST)) {
         AP::ins().Write_IMU();
     }
+#if AP_ARRC_SDR_ENABLED
+    // the companion's IMU samples follow the IMU log rate, whether or not the log is being written
+    if (g.log_bitmask & MASK_LOG_IMU_FAST) {
+        ARRC_SDR.nav_imu_sample();
+    }
+#endif
 
     motors->Log_Write_SPOL();
 }
@@ -717,6 +727,10 @@ void Copter::ten_hz_logging_loop()
         camera_mount.write_log();
     }
 #endif
+#if AP_ARRC_SDR_ENABLED
+    // the companion's gimbal pointing samples, at the ARGM log rate
+    ARRC_SDR.nav_gimbal_sample();
+#endif
 }
 
 // twentyfive_hz_logging - should be run at 25hz
@@ -729,6 +743,11 @@ void Copter::twentyfive_hz_logging()
     if (should_log(MASK_LOG_IMU) && !(should_log(MASK_LOG_IMU_FAST))) {
         AP::ins().Write_IMU();
     }
+#if AP_ARRC_SDR_ENABLED
+    if (!(g.log_bitmask & MASK_LOG_IMU_FAST)) {
+        ARRC_SDR.nav_imu_sample();
+    }
+#endif
 
 #if HAL_GYROFFT_ENABLED
     if (should_log(MASK_LOG_FTN_FAST)) {

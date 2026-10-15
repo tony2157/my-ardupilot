@@ -380,6 +380,34 @@ bool GCS_MAVLINK_Copter::try_send_message(enum ap_message id)
         }
         break;
 
+    // sensor samples for the companion computer's records, at the rate they are logged: the
+    // interval the companion sets on its link only subscribes it (AP_ARRC_SDR_Nav.cpp)
+    case MSG_ARRC_NAV_IMU:
+        copter.ARRC_SDR.nav_due(AP_ARRC_SDR::NavStream::IMU, chan);
+        break;
+
+    case MSG_ARRC_NAV_MAG:
+        copter.ARRC_SDR.nav_due(AP_ARRC_SDR::NavStream::MAG, chan);
+        break;
+
+    case MSG_ARRC_NAV_BARO:
+        copter.ARRC_SDR.nav_due(AP_ARRC_SDR::NavStream::BARO, chan);
+        break;
+
+    case MSG_ARRC_NAV_GPS:
+        CHECK_PAYLOAD_SIZE(ARRC_NAV_GPS);
+        copter.ARRC_SDR.nav_due(AP_ARRC_SDR::NavStream::GPS, chan);
+        break;
+
+    case MSG_ARRC_NAV_ECEF:
+        CHECK_PAYLOAD_SIZE(ARRC_NAV_ECEF);
+        copter.ARRC_SDR.nav_due(AP_ARRC_SDR::NavStream::ECEF, chan);
+        break;
+
+    case MSG_ARRC_GIMBAL_POINTING:
+        copter.ARRC_SDR.nav_due(AP_ARRC_SDR::NavStream::GIMBAL, chan);
+        break;
+
     default:
         return GCS_MAVLINK::try_send_message(id);
     }

@@ -19,6 +19,10 @@ void Copter::init_ARRC_lb5900(){
 void Copter::read_barometer(void)
 {
     barometer.update();
+#if AP_ARRC_SDR_ENABLED
+    // the companion's barometer samples, at the BARO log rate
+    ARRC_SDR.nav_baro_sample();
+#endif
 
     baro_alt_m = barometer.get_altitude();
 }
