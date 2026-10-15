@@ -25,6 +25,9 @@ AP_ARRC_SDR::AP_ARRC_SDR(void) :
     memset(&_meas, 0, sizeof(_meas));
     memset(_last_sent_seq, 0, sizeof(_last_sent_seq));
     memset(_sent_any, 0, sizeof(_sent_any));
+    memset(_nav_due_ms, 0, sizeof(_nav_due_ms));
+    memset(_gps_sent_us, 0, sizeof(_gps_sent_us));
+    memset(_ecef_sent_us, 0, sizeof(_ecef_sent_us));
 }
 
 bool AP_ARRC_SDR::from_companion(const mavlink_message_t &msg) const
