@@ -182,11 +182,16 @@ bool Copter::arrc_lb5900_streaming() const
 // true if the SDR measurement is streamed (ARRC_SENSOR_RAW)
 bool Copter::arrc_sdr_streaming() const
 {
+#if AP_ARRC_SDR_ENABLED
     return arrc_rf_source() != ARRCRFSource::LB5900;
+#else
+    return false;
+#endif
 }
 
 bool Copter::arrc_sdr_arming_checks(size_t buflen, char *buffer) const
 {
+#if AP_ARRC_SDR_ENABLED
     if ((g2.user_parameters.get_sdr_options() & SDR_OPT_REQUIRE_MEAS) == 0) {
         return true;
     }
@@ -198,10 +203,11 @@ bool Copter::arrc_sdr_arming_checks(size_t buflen, char *buffer) const
         hal.util->snprintf(buffer, buflen, "no measurements");
         return false;
     }
+#endif
     return true;
 }
 
-#ifdef USER_ARRC_SDR_LOOP
+#if defined(USER_ARRC_SDR_LOOP) && AP_ARRC_SDR_ENABLED
 void Copter::user_ARRC_SDR_logger()
 {
     const uint32_t timeout_ms = constrain_float(g2.user_parameters.get_sdr_timeout(), 1.0f, 10.0f) * 1000;
