@@ -1071,6 +1071,15 @@ bool AP_GPS::get_hpposecef(GPS_HPPOSECEF &data)
     return false;
 }
 
+// latest raw UBX-NAV-HPPOSECEF data of an instance, without consuming it
+bool AP_GPS::get_hpposecef_latest(uint8_t instance, GPS_HPPOSECEF &data)
+{
+    if (instance >= GPS_MAX_RECEIVERS || drivers[instance] == nullptr) {
+        return false;
+    }
+    return drivers[instance]->get_hpposecef_latest(data);
+}
+
 /*
   update all GPS instances
  */

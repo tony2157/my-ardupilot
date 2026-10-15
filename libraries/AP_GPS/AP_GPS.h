@@ -261,6 +261,7 @@ public:
         int8_t   ecef_z_hp;                 ///< ECEF Z high precision correction (0.1 mm)
         uint8_t  flags;                     ///< UBX flags bitfield (bit0 = invalidEcef)
         uint32_t p_acc;                     ///< 3D position accuracy estimate (0.1 mm)
+        uint64_t time_us;                   ///< system time it was received (us), 0 if none yet
     };
 
     /// Startup initialisation.
@@ -619,6 +620,10 @@ public:
     // fetch the latest raw UBX-NAV-HPPOSECEF data (logging only). Returns true and
     // fills data once per new message; used by AP_Periph to publish it on DroneCAN.
     bool get_hpposecef(GPS_HPPOSECEF &data) WARN_IF_UNUSED;
+
+    // latest raw UBX-NAV-HPPOSECEF data of an instance, without consuming it (ARRC
+    // companion stream). Returns false if none has been received
+    bool get_hpposecef_latest(uint8_t instance, GPS_HPPOSECEF &data) WARN_IF_UNUSED;
 
 #if !AP_GPS_BLENDED_ENABLED
     uint8_t get_auto_switch_type() const { return _auto_switch; }

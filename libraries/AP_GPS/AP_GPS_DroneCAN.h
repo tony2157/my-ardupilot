@@ -64,6 +64,10 @@ public:
 
     bool get_error_codes(uint32_t &error_codes) const override { error_codes = error_code; return seen_status; };
 
+#if HAL_LOGGING_ENABLED
+    bool get_hpposecef_latest(AP_GPS::GPS_HPPOSECEF &data) override;
+#endif
+
 #if GPS_MOVING_BASELINE
     bool get_RTCMV3(const uint8_t *&data, uint16_t &len) override;
     void clear_RTCMV3() override;
@@ -110,6 +114,10 @@ private:
     AP_GPS::GPS_State interim_state;
 
     HAL_Semaphore sem;
+
+#if HAL_LOGGING_ENABLED
+    AP_GPS::GPS_HPPOSECEF _hpposecef;   // latest HPPOSECEF, for the ARRC companion stream
+#endif
 
     uint8_t _detected_module;
     bool seen_message;

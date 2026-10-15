@@ -113,6 +113,9 @@ public:
     // (logging only). Returns true and fills data once per new message.
     virtual bool get_hpposecef(AP_GPS::GPS_HPPOSECEF &data) { return false; }
 
+    // optional support for the latest UBX-NAV-HPPOSECEF data without consuming it
+    virtual bool get_hpposecef_latest(AP_GPS::GPS_HPPOSECEF &data) { return false; }
+
     // return iTOW of last message, or zero if not supported
     uint32_t get_last_itow_ms(void) const;
 

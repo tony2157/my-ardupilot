@@ -896,6 +896,16 @@ bool AP_GPS_UBLOX::get_hpposecef(AP_GPS::GPS_HPPOSECEF &data)
     _hpposecef_new = false;
     return true;
 }
+
+// the latest raw UBX-NAV-HPPOSECEF data, without consuming it
+bool AP_GPS_UBLOX::get_hpposecef_latest(AP_GPS::GPS_HPPOSECEF &data)
+{
+    if (_hpposecef.time_us == 0) {
+        return false;
+    }
+    data = _hpposecef;
+    return true;
+}
 #endif // AP_GPS_UBLOX_HPPOSECEF_ENABLED
 
 #if UBLOX_TIM_TM2_LOGGING
@@ -1892,6 +1902,7 @@ AP_GPS_UBLOX::_parse_gps(void)
         _hpposecef.ecef_z_hp = _buffer.hpposecef.ecefZHp;
         _hpposecef.flags     = _buffer.hpposecef.flags;
         _hpposecef.p_acc     = _buffer.hpposecef.pAcc;
+        _hpposecef.time_us   = AP_HAL::micros64();
         _hpposecef_new = true;
         // log locally too; on a Here4/AP_Periph node should_log() is false (no SD)
         // so this is a no-op there and the vehicle does the logging on receipt.

@@ -192,6 +192,7 @@ public:
     // fetch the latest raw UBX-NAV-HPPOSECEF data (logging only). Returns true and
     // fills data once per new message, then clears the new-data flag.
     bool get_hpposecef(AP_GPS::GPS_HPPOSECEF &data) override;
+    bool get_hpposecef_latest(AP_GPS::GPS_HPPOSECEF &data) override;
 #endif
 
     // ublox specific healthy checks
