@@ -21,14 +21,6 @@
 
 #include "AP_Mount_config.h"
 
-#ifndef ALLOW_DOUBLE_MATH_FUNCTIONS
-#define ALLOW_DOUBLE_MATH_FUNCTIONS
-#endif
-
-#ifndef ALLOW_DOUBLE_TRIG_FUNCTIONS
-#define ALLOW_DOUBLE_TRIG_FUNCTIONS
-#endif
-
 #if HAL_MOUNT_ENABLED
 
 #include <GCS_MAVLink/GCS_config.h>
