@@ -151,6 +151,10 @@ const AP_Param::GroupInfo AP_Mount_Params::var_info[] = {
     // @User: Standard
     AP_GROUPINFO("_ARRC_GMODE", 13, AP_Mount_Params, pitch_stb_lead, 0.0f),
 
+    // ARRC parameters at indices 14-16 and 19+: upstream ArduPilot keeps _SYSID_DFLT (int8) at 14, _DEVID at 15
+    // and _OPTIONS (int8) at 16. A board flashed from upstream firmware loads its MNT1_OPTIONS value into
+    // MNT1_SYSID_DFLT here (same index and type); the float parameters at 14 and 15 are not loaded. Check
+    // MNT1_SYSID_DFLT and MNT1_OPTIONS after such a change. Renumbering would break every ARRC board's config
     // @Param: _ARRC_ELEV
     // @DisplayName: AUT elevation
     // @Description: Elevation angle of the AUT in degrees

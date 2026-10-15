@@ -90,6 +90,8 @@ gz topic -e -t /world/norman_radars/model/rfsonde_iris/model/gimbal/joint_state
 
 **Firmware requirement.** The gimbal only holds its angles in flight with the `AP_Mount_Servo` fix (October 2026). `MNT1_ARRC_AZTH` and `MNT1_ARRC_GMODE` reuse the storage of the stock servo lead-filter gains. Without the fix, roll and pitch saturate whenever the vehicle rotates.
 
+**Parameter storage.** The ARRC mount parameters sit at `AP_Mount_Params` indices 12-16 and 19-21, where upstream ArduPilot has `_LEAD_RLL`, `_LEAD_PTCH`, `_SYSID_DFLT`, `_DEVID` and `_OPTIONS`. A board that comes from upstream firmware keeps those values in storage: `MNT1_SYSID_DFLT` then shows the old `MNT1_OPTIONS` value (same index 16 and type), while `MNT1_ARRC_ELEV` and `_ZOFF` (floats at 14 and 15) start at their defaults. After flashing this firmware over an upstream build, check `MNT1_SYSID_DFLT` and set `MNT1_OPTIONS` again. The indices are stable within this branch; renumbering them would reset every ARRC vehicle's gimbal parameters.
+
 ### GPS accuracy and RTK
 
 SITL simulates the GPS receiver; Gazebo only supplies the true position. The RFSonde GNSS error model (`libraries/SITL/SIM_GPS.h`, `GNSSErrorModel`) adds two terms to each axis:
