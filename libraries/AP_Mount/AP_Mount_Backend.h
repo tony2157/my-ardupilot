@@ -137,6 +137,11 @@ public:
     // ARRC gimbal's measured attitude as an earth-frame (NED) quaternion, for gimbals that report it
     virtual bool get_measured_attitude_ef(Quaternion &q_ef) const { return false; }
 
+#if HAL_GCS_ENABLED
+    // ARRC send the latest pointing solution as ARRC_GIMBAL_POINTING (what ARGM logs)
+    void send_ARRC_pointing(mavlink_channel_t chan) const;
+#endif
+
     // ARRC get elevation
     float get_AUT_elevation() {return _params.ARRC_elev;};
 
@@ -196,6 +201,10 @@ public:
 
     // ARRC write probe geometry and commanded vs measured attitude
     void write_ARRC_log(uint64_t timestamp_us) const;
+
+    // ARRC commanded earth-frame attitude of the latest pointing solution, and the pointing and polarization
+    // errors of the measured attitude (NaN if the gimbal does not report it). False if there is no recent solution
+    bool get_ARRC_pointing(Quaternion &q_cmd, float &pointing_err, float &pol_err) const;
 
     //
     // camera controls for gimbals that include a camera
@@ -417,8 +426,10 @@ protected:
     };
     mutable struct {
         uint32_t update_ms;     // system time of the last update
+        uint64_t update_us;     // system time of the last update (us)
         uint32_t warn_ms;       // system time of the last limit warning
         Vector3f pos;           // probe position in the AUT frame (x along MNT1_ARRC_AZTH, y left, z up) in meters
+        Location target;        // AUT location the solution points at
         ARRCGimbalMode mode;
         uint8_t flags;          // ARRCFlags
     } _arrc {};

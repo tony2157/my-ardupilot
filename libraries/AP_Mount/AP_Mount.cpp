@@ -599,6 +599,16 @@ void AP_Mount::send_gimbal_device_attitude_status(mavlink_channel_t chan)
     }
 }
 
+// ARRC send ARRC_GIMBAL_POINTING to the companion computer for each instance with a recent pointing solution
+void AP_Mount::send_ARRC_pointing(mavlink_channel_t chan)
+{
+    for (uint8_t instance=0; instance<AP_MOUNT_MAX_INSTANCES; instance++) {
+        if (_backends[instance] != nullptr) {
+            _backends[instance]->send_ARRC_pointing(chan);
+        }
+    }
+}
+
 // send a GIMBAL_MANAGER_INFORMATION message to GCS
 void AP_Mount::send_gimbal_manager_information(mavlink_channel_t chan)
 {
