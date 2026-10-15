@@ -373,6 +373,7 @@ bool GCS_MAVLINK_Copter::try_send_message(enum ap_message id)
         }
         break;
 
+#if AP_ARRC_SDR_ENABLED
     case MSG_ARRC_SENSOR:
         if (copter.arrc_sdr_streaming()) {
             CHECK_PAYLOAD_SIZE(ARRC_SENSOR_RAW);
@@ -407,6 +408,7 @@ bool GCS_MAVLINK_Copter::try_send_message(enum ap_message id)
     case MSG_ARRC_GIMBAL_POINTING:
         copter.ARRC_SDR.nav_due(AP_ARRC_SDR::NavStream::GIMBAL, chan);
         break;
+#endif  // AP_ARRC_SDR_ENABLED
 
     default:
         return GCS_MAVLINK::try_send_message(id);
@@ -1291,6 +1293,7 @@ void GCS_MAVLINK_Copter::handle_message(const mavlink_message_t &msg)
         break;
 #endif
 
+#if AP_ARRC_SDR_ENABLED
     // ARRC onboard SDR (companion computer)
     case MAVLINK_MSG_ID_ARRC_SDR_MEAS:
     case MAVLINK_MSG_ID_ARRC_CC_STATUS:
@@ -1304,6 +1307,7 @@ void GCS_MAVLINK_Copter::handle_message(const mavlink_message_t &msg)
         copter.ARRC_SDR.handle_message(msg);
         GCS_MAVLINK::handle_message(msg);
         break;
+#endif  // AP_ARRC_SDR_ENABLED
 
     default:
         GCS_MAVLINK::handle_message(msg);

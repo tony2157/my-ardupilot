@@ -11,14 +11,12 @@
  */
 #pragma once
 
-#include <AP_HAL/AP_HAL.h>
-#include <GCS_MAVLink/GCS_MAVLink.h>
-
-#ifndef AP_ARRC_SDR_ENABLED
-#define AP_ARRC_SDR_ENABLED 1
-#endif
+#include "AP_ARRC_SDR_config.h"
 
 #if AP_ARRC_SDR_ENABLED
+
+#include <AP_HAL/AP_HAL.h>
+#include <GCS_MAVLink/GCS_MAVLink.h>
 
 class AP_ARRC_SDR {
 public:

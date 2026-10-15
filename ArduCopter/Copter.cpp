@@ -243,7 +243,7 @@ const AP_Scheduler::Task Copter::scheduler_tasks[] = {
 #ifdef USER_GIMBAL_LOOP
     SCHED_TASK(user_ARRC_gimbal,    10,     100, 153),
 #endif
-#ifdef USER_ARRC_SDR_LOOP
+#if defined(USER_ARRC_SDR_LOOP) && AP_ARRC_SDR_ENABLED
     SCHED_TASK(user_ARRC_SDR_logger, 10,     75, 156),
 #endif
 #ifdef USER_ARRCLB5900_LOOP

@@ -266,8 +266,10 @@ private:
     // ARRC_LB5900 sensor class declaration
     AP_ARRC_LB5900 ARRC_LB5900;
 
+#if AP_ARRC_SDR_ENABLED
     // ARRC onboard SDR (companion computer) interface
     AP_ARRC_SDR ARRC_SDR;
+#endif
 
     // ARRC RF power source selection (USR_RF_SRC)
     enum class ARRCRFSource : uint8_t {
