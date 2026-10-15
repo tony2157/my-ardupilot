@@ -541,12 +541,28 @@ void AP_GPS_DroneCAN::handle_status_msg(const ardupilot_gnss_Status& msg)
 */
 void AP_GPS_DroneCAN::handle_hpposecef_msg(const ardupilot_gnss_HpposEcef& msg, uint8_t node_id)
 {
+    const uint64_t now_us = AP_HAL::micros64();
+    {
+        // keep the latest for the ARRC companion stream
+        WITH_SEMAPHORE(sem);
+        _hpposecef.gps_week  = msg.gps_week;
+        _hpposecef.itow      = msg.itow;
+        _hpposecef.ecef_x    = msg.ecef_x;
+        _hpposecef.ecef_y    = msg.ecef_y;
+        _hpposecef.ecef_z    = msg.ecef_z;
+        _hpposecef.ecef_x_hp = msg.ecef_x_hp;
+        _hpposecef.ecef_y_hp = msg.ecef_y_hp;
+        _hpposecef.ecef_z_hp = msg.ecef_z_hp;
+        _hpposecef.flags     = msg.flags;
+        _hpposecef.p_acc     = msg.p_acc;
+        _hpposecef.time_us   = now_us;
+    }
     if (!should_log()) {
         return;
     }
     const struct log_ECEF pkt {
         LOG_PACKET_HEADER_INIT(LOG_ECEF_MSG),
-        time_us   : AP_HAL::micros64(),
+        time_us   : now_us,
         instance  : state.instance,
         gps_week  : msg.gps_week,
         itow      : msg.itow,
@@ -560,6 +576,16 @@ void AP_GPS_DroneCAN::handle_hpposecef_msg(const ardupilot_gnss_HpposEcef& msg, 
         flags     : msg.flags,
     };
     AP::logger().WriteBlock(&pkt, sizeof(pkt));
+}
+
+bool AP_GPS_DroneCAN::get_hpposecef_latest(AP_GPS::GPS_HPPOSECEF &data)
+{
+    WITH_SEMAPHORE(sem);
+    if (_hpposecef.time_us == 0) {
+        return false;
+    }
+    data = _hpposecef;
+    return true;
 }
 #endif // HAL_LOGGING_ENABLED
 
