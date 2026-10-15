@@ -1,3 +1,7 @@
+// the ARRC pointing solution (get_angle_target_to_location) works in double precision: allow the double
+// maths functions in this translation unit, before any header pulls in AP_HAL_Macros.h
+#define AP_MATH_ALLOW_DOUBLE_FUNCTIONS 1
+
 #include "AP_Mount_config.h"
 
 #if HAL_MOUNT_ENABLED
