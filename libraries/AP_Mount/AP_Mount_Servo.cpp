@@ -90,6 +90,20 @@ bool AP_Mount_Servo::get_attitude_quaternion(Quaternion& att_quat)
     return true;
 }
 
+// get attitude as euler angles in degrees, decoded in the same 312 order the quaternion is built in
+bool AP_Mount_Servo::get_attitude_euler(float& roll_deg, float& pitch_deg, float& yaw_bf_deg)
+{
+    Quaternion att_quat;
+    if (!get_attitude_quaternion(att_quat)) {
+        return false;
+    }
+    const Vector3f euler312 = att_quat.to_vector312();
+    roll_deg = degrees(euler312.x);
+    pitch_deg = degrees(euler312.y);
+    yaw_bf_deg = degrees(euler312.z);
+    return true;
+}
+
 // private methods
 
 // update body-frame angle outputs from earth-frame angle targets

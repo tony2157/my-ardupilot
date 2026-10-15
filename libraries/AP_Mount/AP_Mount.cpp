@@ -696,18 +696,12 @@ bool AP_Mount::get_attitude_quaternion(uint8_t instance, Quaternion& att_quat)
 // returns true on success
 bool AP_Mount::get_attitude_euler(uint8_t instance, float& roll_deg, float& pitch_deg, float& yaw_bf_deg)
 {
-    // re-use get_attitude_quaternion and convert to Euler angles
-    Quaternion att_quat;
-    if (!get_attitude_quaternion(instance, att_quat)) {
+    auto *backend = get_instance(instance);
+    if (backend == nullptr) {
         return false;
     }
-
-    float roll_rad, pitch_rad, yaw_rad;
-    att_quat.to_euler(roll_rad, pitch_rad, yaw_rad);
-    roll_deg = degrees(roll_rad);
-    pitch_deg = degrees(pitch_rad);
-    yaw_bf_deg = degrees(yaw_rad);
-    return true;
+    // the backend decodes its quaternion in its own axis order (the servo backend uses 312)
+    return backend->get_attitude_euler(roll_deg, pitch_deg, yaw_bf_deg);
 }
 
 // run pre-arm check.  returns false on failure and fills in failure_msg
