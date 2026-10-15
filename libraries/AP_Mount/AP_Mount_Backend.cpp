@@ -691,30 +691,11 @@ void AP_Mount_Backend::write_log(uint64_t timestamp_us)
 // ARRC write probe geometry and commanded vs measured attitude while pointing with get_angle_target_to_location()
 void AP_Mount_Backend::write_ARRC_log(uint64_t timestamp_us) const
 {
-    // in 4.7 GPS_POINT mode targets LOCATION, which is converted to angles by get_angle_target_to_roi()
-    if ((_arrc.update_ms == 0) || (AP_HAL::millis() - _arrc.update_ms > 1000) ||
-        ((mnt_target.target_type != MountTargetType::ANGLE) && (mnt_target.target_type != MountTargetType::LOCATION))) {
-        return;
-    }
-
-    // commanded attitude as an earth-frame quaternion, Euler angles in the gimbal's yaw-roll-pitch order
     Quaternion q_cmd;
-    q_cmd.from_vector312(mnt_target.angle_rad.roll, mnt_target.angle_rad.pitch, mnt_target.angle_rad.get_ef_yaw());
-
-    // pointing error and polarization error (about the commanded boresight) of the measured attitude
-    const float nanf = AP::logger().quiet_nanf();
-    float pointing_err = nanf;
-    float pol_err = nanf;
-    Quaternion q_meas;
-    if (get_measured_attitude_ef(q_meas)) {
-        Matrix3f r_cmd, r_meas;
-        q_cmd.rotation_matrix(r_cmd);
-        q_meas.rotation_matrix(r_meas);
-        const Vector3f fwd_cmd = r_cmd.colx();
-        const Vector3f right_cmd = r_cmd.coly();
-        const Vector3f right_meas = r_meas.coly() - fwd_cmd * (r_meas.coly() * fwd_cmd);
-        pointing_err = degrees(acosf(constrain_float(fwd_cmd * r_meas.colx(), -1.0f, 1.0f)));
-        pol_err = degrees(atan2f((right_cmd % right_meas) * fwd_cmd, right_cmd * right_meas));
+    float pointing_err;
+    float pol_err;
+    if (!get_ARRC_pointing(q_cmd, pointing_err, pol_err)) {
+        return;
     }
 
 // @LoggerMessage: ARGM
@@ -751,6 +732,68 @@ void AP_Mount_Backend::write_ARRC_log(uint64_t timestamp_us) const
                        pol_err);
 }
 #endif
+
+// ARRC commanded earth-frame attitude of the latest pointing solution, and the errors of the measured attitude
+bool AP_Mount_Backend::get_ARRC_pointing(Quaternion &q_cmd, float &pointing_err, float &pol_err) const
+{
+    // in 4.7 GPS_POINT mode targets LOCATION, which is converted to angles by get_angle_target_to_roi()
+    if ((_arrc.update_ms == 0) || (AP_HAL::millis() - _arrc.update_ms > 1000) ||
+        ((mnt_target.target_type != MountTargetType::ANGLE) && (mnt_target.target_type != MountTargetType::LOCATION))) {
+        return false;
+    }
+
+    // commanded attitude as an earth-frame quaternion, Euler angles in the gimbal's yaw-roll-pitch order
+    q_cmd.from_vector312(mnt_target.angle_rad.roll, mnt_target.angle_rad.pitch, mnt_target.angle_rad.get_ef_yaw());
+
+    // pointing error and polarization error (about the commanded boresight) of the measured attitude
+    pointing_err = NaNf;
+    pol_err = NaNf;
+    Quaternion q_meas;
+    if (get_measured_attitude_ef(q_meas)) {
+        Matrix3f r_cmd, r_meas;
+        q_cmd.rotation_matrix(r_cmd);
+        q_meas.rotation_matrix(r_meas);
+        const Vector3f fwd_cmd = r_cmd.colx();
+        const Vector3f right_cmd = r_cmd.coly();
+        const Vector3f right_meas = r_meas.coly() - fwd_cmd * (r_meas.coly() * fwd_cmd);
+        pointing_err = degrees(acosf(constrain_float(fwd_cmd * r_meas.colx(), -1.0f, 1.0f)));
+        pol_err = degrees(atan2f((right_cmd % right_meas) * fwd_cmd, right_cmd * right_meas));
+    }
+    return true;
+}
+
+#if HAL_GCS_ENABLED
+// ARRC send the latest pointing solution to the companion computer (what ARGM logs)
+void AP_Mount_Backend::send_ARRC_pointing(mavlink_channel_t chan) const
+{
+    Quaternion q_cmd;
+    float pointing_err;
+    float pol_err;
+    if (!HAVE_PAYLOAD_SPACE(chan, ARRC_GIMBAL_POINTING) || !get_ARRC_pointing(q_cmd, pointing_err, pol_err)) {
+        return;
+    }
+    int32_t target_alt_cm = 0;
+    if (!_arrc.target.get_alt_cm(Location::AltFrame::ABSOLUTE, target_alt_cm)) {
+        return;
+    }
+    const float q[4] {q_cmd.q1, q_cmd.q2, q_cmd.q3, q_cmd.q4};
+    const float probe_pos[3] {_arrc.pos.x, _arrc.pos.y, _arrc.pos.z};
+    mavlink_msg_arrc_gimbal_pointing_send(chan,
+                                          _arrc.update_us,
+                                          q,
+                                          probe_pos,
+                                          _arrc.target.lat,
+                                          _arrc.target.lng,
+                                          target_alt_cm * 10,
+                                          pointing_err,
+                                          pol_err,
+                                          _params.ARRC_pol_offset.get(),
+                                          uint8_t(get_mode()),
+                                          uint8_t(_arrc.mode),
+                                          _arrc.flags,
+                                          _instance);
+}
+#endif  // HAL_GCS_ENABLED
 
 #if AP_MOUNT_POI_TO_LATLONALT_ENABLED
 // get poi information.  Returns true on success and fills in gimbal attitude, location and poi location
@@ -1100,6 +1143,8 @@ bool AP_Mount_Backend::get_angle_target_to_location(const Location &target, Moun
     const double D = sqrt(horiz * horiz + z * z);
 
     _arrc.update_ms = AP_HAL::millis();
+    _arrc.update_us = AP_HAL::micros64();
+    _arrc.target = target;
     _arrc.pos = Vector3f(x, y, z);
     _arrc.mode = get_ARRC_gimbal_mode();
     _arrc.flags = 0;

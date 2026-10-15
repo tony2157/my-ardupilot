@@ -252,6 +252,9 @@ public:
     // send a GIMBAL_MANAGER_STATUS message to GCS
     void send_gimbal_manager_status(mavlink_channel_t chan);
 
+    // ARRC send ARRC_GIMBAL_POINTING to the companion computer for each instance with a recent pointing solution
+    void send_ARRC_pointing(mavlink_channel_t chan);
+
 #if AP_MOUNT_POI_TO_LATLONALT_ENABLED
     // get poi information.  Returns true on success and fills in gimbal attitude, location and poi location
     bool get_poi(uint8_t instance, Quaternion &quat, Location &loc, Location &poi_loc) const;
