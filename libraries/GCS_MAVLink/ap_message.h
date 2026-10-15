@@ -118,5 +118,11 @@ enum ap_message : uint8_t {
     MSG_ARRC_LB680A                    = 101,
     MSG_ARRC_SDR                       = 102,
     MSG_ARRC_SENSOR                    = 103,
+    MSG_ARRC_NAV_IMU                   = 104,
+    MSG_ARRC_NAV_MAG                   = 105,
+    MSG_ARRC_NAV_BARO                  = 106,
+    MSG_ARRC_NAV_GPS                   = 107,
+    MSG_ARRC_NAV_ECEF                  = 108,
+    MSG_ARRC_GIMBAL_POINTING           = 109,
     MSG_LAST // MSG_LAST must be the last entry in this enum
 };

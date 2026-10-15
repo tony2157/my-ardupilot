@@ -1206,6 +1206,12 @@ ap_message GCS_MAVLINK::mavlink_id_to_ap_message_id(const uint32_t mavlink_id) c
 #if APM_BUILD_COPTER_OR_HELI
         { MAVLINK_MSG_ID_CASS_SENSOR_RAW,       MSG_ARRC_SDR},
         { MAVLINK_MSG_ID_ARRC_SENSOR_RAW,       MSG_ARRC_SENSOR},
+        { MAVLINK_MSG_ID_ARRC_NAV_IMU,          MSG_ARRC_NAV_IMU},
+        { MAVLINK_MSG_ID_ARRC_NAV_MAG,          MSG_ARRC_NAV_MAG},
+        { MAVLINK_MSG_ID_ARRC_NAV_BARO,         MSG_ARRC_NAV_BARO},
+        { MAVLINK_MSG_ID_ARRC_NAV_GPS,          MSG_ARRC_NAV_GPS},
+        { MAVLINK_MSG_ID_ARRC_NAV_ECEF,         MSG_ARRC_NAV_ECEF},
+        { MAVLINK_MSG_ID_ARRC_GIMBAL_POINTING,  MSG_ARRC_GIMBAL_POINTING},
 #endif
     };
 
