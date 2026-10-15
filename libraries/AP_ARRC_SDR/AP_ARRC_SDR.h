@@ -46,7 +46,8 @@ public:
     enum class NavStream : uint8_t { IMU, MAG, BARO, GPS, ECEF, GIMBAL, COUNT };
 
     // the stream's message is due on chan (the companion requested it with MAV_CMD_SET_MESSAGE_INTERVAL):
-    // chan gets the stream. GPS and ECEF are sent from here, once per new fix, as they are logged
+    // chan gets the stream at the lower of the log rate and the requested rate. GPS and ECEF are sent
+    // from here, once per new fix, as they are logged
     void nav_due(NavStream stream, mavlink_channel_t chan);
 
     // a sample, called where the vehicle logs IMU, MAG, BARO and ARGM: sent to the channels with the stream
@@ -70,10 +71,15 @@ private:
 
     // true if chan gets the stream (its message was due there in the last 2 s)
     bool nav_subscribed(NavStream stream, uint8_t chan) const;
+    // true if a sample of the stream goes to chan now: subscribed, the requested interval has passed since
+    // the last one and the channel keeps tx room for the heartbeat, ACKs and the GCS downlink
+    bool nav_ready(NavStream stream, uint8_t chan, uint16_t payload_bytes);
     void send_nav_gps(mavlink_channel_t chan);
     void send_nav_ecef(mavlink_channel_t chan);
 
     uint32_t _nav_due_ms[uint8_t(NavStream::COUNT)][MAVLINK_COMM_NUM_BUFFERS];
+    uint32_t _nav_period_ms[uint8_t(NavStream::COUNT)][MAVLINK_COMM_NUM_BUFFERS];   // requested interval
+    uint32_t _nav_sent_ms[uint8_t(NavStream::COUNT)][MAVLINK_COMM_NUM_BUFFERS];
     uint64_t _gps_sent_us[MAVLINK_COMM_NUM_BUFFERS];    // fix last sent on each channel
     uint64_t _ecef_sent_us[MAVLINK_COMM_NUM_BUFFERS];
 
