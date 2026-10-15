@@ -1218,6 +1218,14 @@ bool AP_Mount_Backend::get_angle_target_to_location(const Location &target, Moun
             c = c * cos_po - b0 * sin_po;
         }
 
+        // a linear polarization is the same half a turn about the boresight away: of the two probe
+        // orientations that align it, use the one with the probe's up axis pointing up (c.z >= 0).
+        // Behind the AUT the other one needs a pitch beyond 90 degrees, which the gimbal cannot reach
+        if (c.z < 0) {
+            b = -b;
+            c = -c;
+        }
+
         // Euler angles in the gimbal's yaw-roll-pitch (312) axis order
         roll = atan2(b.z, sqrt(b.x * b.x + b.y * b.y));
         pitch = atan2(a.z, c.z);
