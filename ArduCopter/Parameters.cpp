@@ -738,6 +738,8 @@ const AP_Param::GroupInfo ParametersG2::var_info[] = {
 #endif
 
 #if USER_PARAMS_ENABLED
+    // @Group: USR
+    // @Path: UserParameters.cpp
     AP_SUBGROUPINFO(user_parameters, "USR", 28, ParametersG2, UserParameters),
 #endif
 

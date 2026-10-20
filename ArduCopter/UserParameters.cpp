@@ -41,7 +41,7 @@ const AP_Param::GroupInfo UserParameters::var_info[] = {
     // @Param: _LB_RATE
     // @DisplayName: LB5900 measurement rate
     // @Description: LB5900 measurement rate mode (SENS:MRAT). The driver polls the sensor at the resulting period: time per reading times the averaging count
-    // @Values: 0:Normal (38.4 ms per reading),1:Double (19.6 ms),2:Fast (3.2 ms, no averaging),3:Super (1.6 ms)
+    // @Values: 0:Normal (38.4 ms per reading),1:Double (19.6 ms),2:Fast (3.2 ms without averaging),3:Super (1.6 ms)
     // @User: Advanced
     // @RebootRequired: True
     AP_GROUPINFO("_LB_RATE", 3, UserParameters, lb5900_mrate, 1),
