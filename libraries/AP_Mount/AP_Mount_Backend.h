@@ -427,15 +427,25 @@ protected:
         ARRC_ROLL_LIMIT = (1U << 0),    // roll limited: still pointing at the AUT but polarization not aligned
         ARRC_PITCH_LIMIT = (1U << 1),   // pitch limited: not pointing at the AUT
         ARRC_TOO_CLOSE = (1U << 2),     // closer than the minimum distance: holding the last target
+        ARRC_SLEW_LIMIT = (1U << 3),    // rate limited by MNT1_ARRC_SLEW: moving to the solution (ARGM log only)
     };
+    // flags in ARRC_GIMBAL_POINTING (ARRC_GIMBAL_FLAGS of the dialect)
+    static constexpr uint8_t ARRC_FLAGS_MAVLINK = ARRC_ROLL_LIMIT | ARRC_PITCH_LIMIT | ARRC_TOO_CLOSE;
     mutable struct {
         uint32_t update_ms;     // system time of the last update
         uint64_t update_us;     // system time of the last update (us)
         uint32_t warn_ms;       // system time of the last limit warning
+        uint32_t gmode_warn_ms; // system time of the last invalid MNT1_ARRC_GMODE warning
         Vector3f pos;           // probe position in the AUT frame (x along MNT1_ARRC_AZTH, y left, z up) in meters
         Location target;        // AUT location the solution points at
-        ARRCGimbalMode mode;
+        ARRCGimbalMode mode;    // mode of the solution (ArduPilot pointing when the ARRC mode could not be used)
         uint8_t flags;          // ARRCFlags
+        bool slope_override;    // high elevation AUT seen at a low slope: ArduPilot pointing
+        // last command, continued (closest orientation, slew limit) and held when too close
+        bool have_cmd;
+        uint32_t cmd_ms;
+        ARRCGimbalMode cmd_mode;    // MNT1_ARRC_GMODE it was computed for
+        float cmd_roll, cmd_pitch, cmd_yaw;     // earth-frame 312 Euler angles in radians
     } _arrc {};
 
     AP_Mount    &_frontend; // reference to the front end which holds parameters

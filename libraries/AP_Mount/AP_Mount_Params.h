@@ -40,4 +40,5 @@ public:
     AP_Float    ARRC_y_offset;      // Gimbal offset from the vehicle origin along the body right axis in meters
     AP_Float    ARRC_pol_offset;    // Polarization offset about the probe boresight found by the gimbal alignment, in degrees
     AP_Float    ARRC_lead;          // Position lead time compensating the gimbal command latency, in seconds
+    AP_Float    ARRC_slew;          // Rate limit of the ARRC modes' angle commands, in degrees per second
 };

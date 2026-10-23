@@ -73,6 +73,12 @@ bool AP_Mount_MAVLink::get_measured_attitude_ef(Quaternion &q_ef) const
     }
     const float *q = _gimbal_device_attitude_status.q;
     q_ef = Quaternion(q[0], q[1], q[2], q[3]);
+    // a gimbal may report NaN (attitude unknown) or a quaternion that is not a rotation
+    const float len = q_ef.length();
+    if (!isfinite(len) || fabsf(len - 1.0f) > 0.1f) {
+        return false;
+    }
+    q_ef.normalize();
 
     // MAVLink: yaw is relative to the vehicle heading if YAW_IN_VEHICLE_FRAME is set, or if neither frame flag
     // is set and YAW_LOCK is not set

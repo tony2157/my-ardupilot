@@ -729,6 +729,15 @@ bool AP_Mount::pre_arm_checks(char *failure_msg, uint8_t failure_msg_len)
         }
     }
 
+    // ARRC: an invalid MNT1_ARRC_GMODE would point like mode 0 instead of the mode intended
+    for (uint8_t i=0; i<AP_MOUNT_MAX_INSTANCES; i++) {
+        if ((_backends[i] != nullptr) &&
+            (_backends[i]->get_ARRC_gimbal_mode() == AP_Mount_Backend::ARRCGimbalMode::UNKNOWN)) {
+            snprintf(failure_msg, failure_msg_len, "MNT%u_ARRC_GMODE must be 0 to 3", unsigned(i + 1));
+            return false;
+        }
+    }
+
     return true;
 }
 

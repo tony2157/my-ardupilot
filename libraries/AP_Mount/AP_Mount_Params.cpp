@@ -146,7 +146,7 @@ const AP_Param::GroupInfo AP_Mount_Params::var_info[] = {
 
     // @Param: _ARRC_GMODE
     // @DisplayName: ARRC gimbal mode
-    // @Description: How the probe is oriented while pointing at a location (ROI, home or sysid target)
+    // @Description: How the probe is oriented while pointing at a location (ROI, home or sysid target). 0 points like ArduPilot. 1 to 3 keep the probe within +-35 deg roll, +-75 deg pitch and the MNT1 angle limits, move at most MNT1_ARRC_SLEW and hold the last solution within 10 m of the AUT. Any other value points like 0 and fails the pre-arm check
     // @Values: 0:ArduPilot pointing, 1:Probe plane parallel to AUT plane, 2:Hpol aligned, 3:Vpol aligned
     // @User: Standard
     AP_GROUPINFO("_ARRC_GMODE", 13, AP_Mount_Params, pitch_stb_lead, 0.0f),
@@ -228,6 +228,15 @@ const AP_Param::GroupInfo AP_Mount_Params::var_info[] = {
     // @Increment: .01
     // @User: Advanced
     AP_GROUPINFO("_ARRC_LEAD", 22, AP_Mount_Params, ARRC_lead, 0.0f),
+
+    // @Param: _ARRC_SLEW
+    // @DisplayName: ARRC gimbal slew rate limit
+    // @Description: In MNT1_ARRC_GMODE 1 to 3 each gimbal angle command moves at most this fast, so a swap between the two probe orientations that align the polarization, or a change of mode, is a slew instead of a step. 0 disables
+    // @Units: deg/s
+    // @Range: 0 360
+    // @Increment: 1
+    // @User: Advanced
+    AP_GROUPINFO("_ARRC_SLEW", 23, AP_Mount_Params, ARRC_slew, 60.0f),
 
     AP_GROUPEND
 };
