@@ -24,6 +24,7 @@
 #include <AC_Fence/AC_Fence.h>
 #include <AP_Compass/AP_Compass.h>
 #include <AP_ADSB/AP_ADSB.h>
+#include <AP_ARRC_LB5900/AP_ARRC_LB5900_config.h>
 #include <AP_ARRC_SDR/AP_ARRC_SDR_config.h>
 #include <AP_AdvancedFailsafe/AP_AdvancedFailsafe.h>
 #include <AP_AHRS/AP_AHRS.h>
@@ -1204,7 +1205,7 @@ ap_message GCS_MAVLINK::mavlink_id_to_ap_message_id(const uint32_t mavlink_id) c
 #if AP_MAVLINK_MSG_FLIGHT_INFORMATION_ENABLED
         { MAVLINK_MSG_ID_FLIGHT_INFORMATION, MSG_FLIGHT_INFORMATION},
 #endif
-#if APM_BUILD_COPTER_OR_HELI
+#if APM_BUILD_COPTER_OR_HELI && AP_ARRC_LB5900_ENABLED
         { MAVLINK_MSG_ID_CASS_SENSOR_RAW,       MSG_ARRC_SDR},
 #endif
 #if APM_BUILD_COPTER_OR_HELI && AP_ARRC_SDR_ENABLED

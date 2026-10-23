@@ -7,6 +7,7 @@
 #include "GCS.h"
 
 #include <AP_Airspeed/AP_Airspeed_config.h>
+#include <AP_ARRC_LB5900/AP_ARRC_LB5900_config.h>
 #include <AP_ARRC_SDR/AP_ARRC_SDR_config.h>
 #include <AP_AIS/AP_AIS_config.h>
 #include <AP_BattMonitor/AP_BattMonitor_config.h>
@@ -404,7 +405,9 @@ static const ap_message STREAM_ARRC_msgs[] = {
 #if AP_ARRC_SDR_ENABLED
     MSG_ARRC_SENSOR,
 #endif
+#if AP_ARRC_LB5900_ENABLED
     MSG_ARRC_SDR,
+#endif
 };
 #endif  // APM_BUILD_COPTER_OR_HELI
 
