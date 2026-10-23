@@ -153,7 +153,9 @@ public:
         if (!gps._auto_config) {
             return true;
         } else {
-            return !_unconfigured_messages
+            // ARRC mod: NAV-HPPOSECEF only feeds the ECEF log and the companion stream; a receiver that does
+            // not take its rate must not leave the GPS "not configured" (pre-arm)
+            return !(_unconfigured_messages & ~CONFIG_RATE_HPPOSECEF)
              #if AP_GPS_UBLOX_CFGV2_ENABLED
                     || (_cfg_v2.curr_state == CFGv2::CONFIGURED)
              #endif
