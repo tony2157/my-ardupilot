@@ -1,4 +1,7 @@
 #include "AP_ARRC_LB5900.h"
+
+#if AP_ARRC_LB5900_ENABLED
+
 #include <utility>
 #include <stdio.h>
 #include <string.h>
@@ -9,56 +12,32 @@ extern const AP_HAL::HAL &hal;
 
 AP_ARRC_LB5900::AP_ARRC_LB5900() :
     _dev(nullptr),
-    _power(0),
-    _sample_count(0),
-    _healthy(false),
-    _initialized(false),
+    _sample{NaNf, 0, 0},
+    _have_sample(false),
+    _state(State::STOPPED),
     _enabled(true),
+    _ever_configured(false),
+    _period_ms(0),
+    _last_ok_ms(0),
+    _config_attempt_ms(0),
+    _freq(0),
     _avg_cnt(1),
-    _rate(0),
-    _consecutive_failures(0)
+    _rate(0)
 {
 }
 
 bool AP_ARRC_LB5900::init(uint8_t busId, uint8_t i2cAddr, uint16_t freq, uint8_t avg_cnt, uint8_t rate)
 {
-    commandNumber = 0;
-    Sensor_TimeOut = 200;
-
-    // Store configuration for timing calculations
+    // Store configuration
     _rate = (rate > 3) ? 3 : rate;
-    _avg_cnt = (_rate == 2) ? 1 : avg_cnt;  // FAST mode forces avg_cnt to 1
+    _avg_cnt = (_rate == 2) ? 1 : MAX(avg_cnt, 1U);  // FAST mode forces avg_cnt to 1
+    _freq = MIN(freq, 18000U);
 
-    // Bus 0 is for Pixhawk 2.1 I2C and Bus 1 is for Pixhawk 1 and PixRacer I2C
-    // Check if device exists
     _dev = std::move(hal.i2c_mgr->get_device(busId, i2cAddr));
     if (!_dev) {
-        _healthy = false;
         return false;
     }
-    _healthy = true;
-
-    hal.scheduler->delay(50);
-
-    _dev->get_semaphore()->take_blocking();
-
-    _dev->set_retries(5);
-
-    // Start the first measurement
-    uint16_t iter = 0;
-    while(!configSensor(freq, avg_cnt, rate)) {
-        hal.scheduler->delay(3);
-        if (iter == 100){
-            _healthy = false;
-            _dev->get_semaphore()->give();
-            return false;
-        }
-        iter++;
-    }
-
-    _initialized = true;
-
-    _dev->get_semaphore()->give();
+    _dev->set_retries(3);
 
     // Calculate callback period based on MRATe and averaging count
     // Add 25% margin to ensure measurement is ready (per SPII2CHW.pdf p.4 recommendation)
@@ -68,47 +47,97 @@ bool AP_ARRC_LB5900::init(uint8_t busId, uint8_t i2cAddr, uint16_t freq, uint8_t
     // Clamp to reasonable bounds (minimum 5ms, maximum 500ms)
     measurement_period_us = MAX(measurement_period_us, 5000U);
     measurement_period_us = MIN(measurement_period_us, 500000U);
+    _period_ms = measurement_period_us / 1000U;
 
+    // the first callback sends the configuration
+    _state = State::CONFIGURING;
     _dev->register_periodic_callback(measurement_period_us, FUNCTOR_BIND_MEMBER(&AP_ARRC_LB5900::_timer, void));
 
     return true;
 }
 
-void AP_ARRC_LB5900::set_i2c_addr(uint8_t addr)
+void AP_ARRC_LB5900::set_enabled(bool enabled)
 {
-    if (_dev) {
-        _dev->set_address(addr);
+    _enabled = enabled;
+    if (!enabled) {
+        _state = State::STOPPED;
+    } else if (_dev && _state == State::STOPPED) {
+        // configure again: the sensor may have been reset while it was not polled
+        _config_attempt_ms = 0;
+        _state = State::CONFIGURING;
     }
 }
 
+bool AP_ARRC_LB5900::get_sample(Sample &sample) const
+{
+    WITH_SEMAPHORE(_sem);
+    sample = _sample;
+    return _have_sample;
+}
 
-bool AP_ARRC_LB5900::configSensor(uint16_t freq, uint8_t avg_cnt, uint8_t rate)
+float AP_ARRC_LB5900::power_measure(void) const
+{
+    WITH_SEMAPHORE(_sem);
+    return _sample.power_dbm;
+}
+
+uint32_t AP_ARRC_LB5900::sample_count(void) const
+{
+    WITH_SEMAPHORE(_sem);
+    return _sample.count;
+}
+
+bool AP_ARRC_LB5900::healthy(void) const
+{
+    if (!_enabled || _state != State::RUNNING) {
+        return false;
+    }
+    Sample sample;
+    if (!get_sample(sample)) {
+        return false;
+    }
+    // a reading within the last three measurement periods (a few failed transfers in a row are tolerated)
+    return AP_HAL::millis() - sample.time_ms < MAX(3U * _period_ms, 500U);
+}
+
+// send one SCPI command with the "next read is status and length" header
+bool AP_ARRC_LB5900::_send_command(const char *cmd)
+{
+    const size_t len = strlen(cmd);
+    if (len + 5 > sizeof(write_sensor_buffer.byte)) {
+        return false;
+    }
+    memset(write_sensor_buffer.byte, 0x00, sizeof(write_sensor_buffer.byte));
+    // header: next read type and the length (command, terminator and the 4 header bytes) big-endian
+    const uint32_t total = len + 5;
+    write_sensor_buffer.field.commandAndLength[0] = (uint8_t)nextReadIsStatusAndLength;
+    write_sensor_buffer.field.commandAndLength[1] = (total >> 16) & 0xFF;
+    write_sensor_buffer.field.commandAndLength[2] = (total >> 8) & 0xFF;
+    write_sensor_buffer.field.commandAndLength[3] = total & 0xFF;
+    memcpy(write_sensor_buffer.field.buffer, cmd, len);
+    return _dev->transfer(write_sensor_buffer.byte, total, nullptr, 0);
+}
+
+bool AP_ARRC_LB5900::_configure(void)
 {
     // Available sensor reading rate
-    const char* (mrate[1])[4] = 
-    {
+    static const char *const mrate[4] {
         "NORMAL",   // 20 readings per sec
         "DOUBLE",   // 40 readings per sec
         "FAST",     // 110 readings per sec (disallows average count)
         "SUPER"     // 110 readings per sec (allows average count)
     };
-    if (rate > 3) rate = 3;
-    if (rate == 2) avg_cnt = 1;
-    if (freq > 18000) freq = 18000;
 
     // Sized for the longest values: "FREQ 18000 MHZ", "SENS:AVER:COUN 255", "SENS:MRAT NORMAL"
     char FREQ[16];
     char AVG_CNT[20];
     char MRATE[20];
+    snprintf(FREQ, sizeof(FREQ), "FREQ %u MHZ", (unsigned)_freq);
+    snprintf(AVG_CNT, sizeof(AVG_CNT), "SENS:AVER:COUN %u", (unsigned)_avg_cnt);
+    snprintf(MRATE, sizeof(MRATE), "SENS:MRAT %s", mrate[_rate]);
 
-    // Convert user params freq, avg_cnt and mrate to strings
-    snprintf(FREQ, sizeof(FREQ), "FREQ %u MHZ", (unsigned)freq);
-    snprintf(AVG_CNT, sizeof(AVG_CNT), "SENS:AVER:COUN %u", (unsigned)avg_cnt);
-    snprintf(MRATE, sizeof(MRATE), "SENS:MRAT %s", mrate[0][rate]);
-
-    // List of initial commands to configure the LB5900
-    const char* (cmd[1])[10] = 
-    {
+    // initial commands to configure the LB5900, the same the driver always sent
+    const char *const cmd[] {
         "SYST:PRES DEF",
         "AVER:COUN:AUTO OFF",
         "SENS:AVER:SDET OFF",
@@ -116,34 +145,13 @@ bool AP_ARRC_LB5900::configSensor(uint16_t freq, uint8_t avg_cnt, uint8_t rate)
         MRATE,
         AVG_CNT,
         FREQ,
-        "\0" // STOP LIST
     };
-
-    // Send initial commands through I2C
-    while(1){
-        if(strlen(cmd[0][commandNumber])  != 0 ){
-
-            // Build header
-            memset(config_sensor_buffer.byte, 0x00, 196);
-            config_sensor_buffer.field.commandAndLength[0] = (uint8_t)nextReadIsStatusAndLength;
-            header.ui = strlen(cmd[0][commandNumber]) + 5; // Add one for terminator and 4 for header
-            config_sensor_buffer.field.commandAndLength[3] = header.c[0];
-            config_sensor_buffer.field.commandAndLength[2] = header.c[1];
-            config_sensor_buffer.field.commandAndLength[1] = header.c[2];
-            // Add command to buffer
-            strcpy((char*)config_sensor_buffer.field.buffer, cmd[0][commandNumber]);
-            // Send Command with "nextReadIsStatusAndLength" header
-            if(!_dev->transfer(config_sensor_buffer.byte, header.ui, nullptr, 0)) {
-                return false;
-            }
-            commandNumber++;
-        }
-        else{
-            commandNumber = 0;
-            hal.scheduler->delay(1);
-            return true;
+    for (const char *c : cmd) {
+        if (!_send_command(c)) {
+            return false;
         }
     }
+    return true;
 }
 
 uint32_t AP_ARRC_LB5900::_calculate_measurement_period_us(uint8_t rate, uint8_t avg_cnt)
@@ -174,101 +182,91 @@ uint32_t AP_ARRC_LB5900::_calculate_measurement_period_us(uint8_t rate, uint8_t 
     return time_per_avg_us * avg_cnt;
 }
 
-bool AP_ARRC_LB5900::_fetch_and_read(void)
+bool AP_ARRC_LB5900::_fetch_and_read(float &power)
 {
-    // Phase 1 & 2: Combined and optimized FETCh? and read operation
-    // Correct sequence: Send FETCh? command first, then read the response
-
-    // Clear headers
-    bufLength.ui = 0;
-    header.ui = 0;
-
     // Step 1: Send FETCh? command with header 0x06 (nextReadIsStatusAndLength)
     // This requests the current measurement from the sensor's circular buffer
-    const char* fetch_cmd = "FETCh?";
-    memset(write_sensor_buffer.byte, 0x00, 68);
-    write_sensor_buffer.field.commandAndLength[0] = (uint8_t)nextReadIsStatusAndLength;
-    header.ui = strlen(fetch_cmd) + 5;  // Command length + terminator + 4 byte header
-    write_sensor_buffer.field.commandAndLength[3] = header.c[0];
-    write_sensor_buffer.field.commandAndLength[2] = header.c[1];
-    write_sensor_buffer.field.commandAndLength[1] = header.c[2];
-    strcpy((char*)write_sensor_buffer.field.buffer, fetch_cmd);
-
-    if(!_dev->transfer(write_sensor_buffer.byte, header.ui, nullptr, 0)) {
+    if (!_send_command("FETCh?")) {
         return false;
     }
 
     // Step 2: Read 4 bytes status and length
-    // Reduced delay - I2C bus at 400kHz should be ready quickly
-    header.ui = 0;
-    if(!_dev->transfer(nullptr, 0, header.c, 4)) {
+    uint8_t status[4] {};
+    if (!_dev->transfer(nullptr, 0, status, sizeof(status))) {
+        return false;
+    }
+    // status bit 4 (0x10): output available; then the length big-endian
+    const uint32_t len = (uint32_t(status[1]) << 16) | (uint32_t(status[2]) << 8) | status[3];
+    if (!(status[0] & 0x10) || len == 0) {
+        return false;
+    }
+    // The length comes from the sensor: reject anything that would not fit the read buffer and its terminator
+    if (len >= sizeof(read_sensor_buffer.byte)) {
         return false;
     }
 
-    // Parse status and length (big-endian to little-endian conversion)
-    bufLength.c[0] = header.c[3];
-    bufLength.c[1] = header.c[2];
-    bufLength.c[2] = header.c[1];
-    bufLength.c[3] = 0;
-
-    // Phase 1 fix: Corrected bitwise AND operator (was && which is logical AND)
-    // Check status bit 4 (0x10) indicates data ready
-    if((header.c[0] & 0x10) && (bufLength.ui != 0))
-    {
-        // The length comes from the sensor: reject anything that would not fit the read buffer and its terminator
-        if (bufLength.ui >= sizeof(read_sensor_buffer.byte)) {
-            return false;
-        }
-
-        // Step 3: Request the complete output buffer using header 0x0C
-        memset(write_sensor_buffer.byte, 0x00, 68);
-        write_sensor_buffer.field.commandAndLength[0] = (uint8_t)nextReadIsCompleteOutputBuffer;
-        write_sensor_buffer.field.commandAndLength[1] = bufLength.c[2];
-        write_sensor_buffer.field.commandAndLength[2] = bufLength.c[1];
-        write_sensor_buffer.field.commandAndLength[3] = bufLength.c[0];
-
-        if(!_dev->transfer(write_sensor_buffer.byte, 4, nullptr, 0)) {
-            return false;
-        }
-
-        // Step 4: Read the measurement data
-        memset(read_sensor_buffer.byte, 0x00, 100);
-        if(!_dev->transfer(nullptr, 0, read_sensor_buffer.byte, bufLength.ui)) {
-            return false;
-        }
-
-        // Convert ASCII response to float (e.g., "-6.38395844E+01" -> -63.8395844)
-        read_sensor_buffer.byte[bufLength.ui] = 0;
-        char *end = nullptr;
-        const float power = strtof(read_sensor_buffer.string, &end);
-        if (end == read_sensor_buffer.string || !isfinite(power)) {
-            return false;
-        }
-        _power = power;
-        _sample_count++;
-
-        return true;
+    // Step 3: Request the complete output buffer using header 0x0C
+    uint8_t request[4] {(uint8_t)nextReadIsCompleteOutputBuffer, uint8_t(len >> 16), uint8_t(len >> 8), uint8_t(len)};
+    if (!_dev->transfer(request, sizeof(request), nullptr, 0)) {
+        return false;
     }
 
-    return false;
+    // Step 4: Read the measurement data
+    memset(read_sensor_buffer.byte, 0x00, sizeof(read_sensor_buffer.byte));
+    if (!_dev->transfer(nullptr, 0, read_sensor_buffer.byte, len)) {
+        return false;
+    }
+
+    // Convert ASCII response to float (e.g., "-6.38395844E+01" -> -63.8395844)
+    read_sensor_buffer.byte[len] = 0;
+    char *end = nullptr;
+    const float value = strtof(read_sensor_buffer.string, &end);
+    if (end == read_sensor_buffer.string || !isfinite(value) || value < MIN_DBM || value > MAX_DBM) {
+        return false;
+    }
+    power = value;
+    return true;
 }
 
+// I2C bus thread
 void AP_ARRC_LB5900::_timer(void)
 {
     if (!_enabled) {
         return;
     }
-    WITH_SEMAPHORE(_sem);
-    // Phase 1 fix: Correct order - FETCh? is now sent first within _fetch_and_read()
+    const uint32_t now_ms = AP_HAL::millis();
+
+    if (_state == State::CONFIGURING) {
+        if (_config_attempt_ms != 0 && now_ms - _config_attempt_ms < CONFIG_RETRY_MS) {
+            return;
+        }
+        _config_attempt_ms = now_ms;
+        if (_configure()) {
+            _last_ok_ms = now_ms;
+            _ever_configured = true;
+            _state = State::RUNNING;
+        }
+        return;
+    }
+    if (_state != State::RUNNING) {
+        return;
+    }
+
     // In free-run mode (INIT:CONT ON), the sensor continuously averages measurements.
     // FETCh? returns the most recent trailing average from the circular buffer.
-    if (_fetch_and_read()) {
-        _consecutive_failures = 0;
-        _healthy = true;
-    } else {
-        _consecutive_failures++;
-        // Allow up to 2 consecutive failures before marking unhealthy
-        // This smooths out occasional timing jitter
-        _healthy = (_consecutive_failures < 3);
+    float power;
+    if (_fetch_and_read(power)) {
+        _last_ok_ms = now_ms;
+        WITH_SEMAPHORE(_sem);
+        _sample.power_dbm = power;
+        _sample.count++;
+        _sample.time_ms = now_ms;
+        _have_sample = true;
+    } else if (now_ms - _last_ok_ms > MAX(RECONFIGURE_MS, 8U * _period_ms)) {
+        // no reading for a while: the sensor may have reset or been unplugged and plugged in again
+        _config_attempt_ms = 0;
+        _state = State::CONFIGURING;
     }
 }
+
+#endif  // AP_ARRC_LB5900_ENABLED
