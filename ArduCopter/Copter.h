@@ -302,6 +302,8 @@ private:
     bool arrc_lb5900_latched_off;   // LB5900 disabled in AUTO after the SDR was detected
     bool arrc_was_armed;            // armed state at the last SDR update
     bool arrc_was_failsafe;         // failsafe state at the last SDR update
+    bool arrc_was_logging;          // log being written at the last SDR update
+    bool arrc_was_detected;         // SDR detected at the last SDR update
 
     AP_SurfaceDistance rangefinder_state {ROTATION_PITCH_270, 0U};
     AP_SurfaceDistance rangefinder_up_state {ROTATION_PITCH_90, 1U};

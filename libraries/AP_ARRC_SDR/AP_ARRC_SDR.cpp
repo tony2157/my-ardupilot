@@ -4,19 +4,49 @@
 
 #include <GCS_MAVLink/GCS.h>
 #include <AP_Logger/AP_Logger.h>
+#include <AP_Math/crc.h>
+#include <stdio.h>
 
 extern const AP_HAL::HAL &hal;
 
 // a measurement older than this is not sent to the GCS
 static constexpr uint32_t MEAS_DOWNLINK_MAX_AGE_MS = 1000;
+// TX stop: repeated at this interval until the companion acknowledges, at most this many times
+static constexpr uint32_t TX_STOP_RETRY_MS = 300;
+static constexpr uint8_t TX_STOP_TRIES = 10;
+// companion-driven logs at most at these intervals: a faulty companion must not flood the log
+static constexpr uint32_t SDRM_LOG_MIN_MS = 10;
+static constexpr uint32_t STATUS_LOG_MIN_MS = 500;
+static constexpr uint32_t CONFIG_LOG_MIN_MS = 200;
 
 AP_ARRC_SDR::AP_ARRC_SDR(void) :
     _last_hb_ms(0),
     _last_sdr_status_ms(0),
     _sdr_flags(0),
+    _timeout_ms(3000),
+    _chan(MAVLINK_COMM_0),
+    _have_chan(false),
+    _link_ok(false),
     _detected(false),
     _ever_detected(false),
     _link_lost_reported(false),
+    _sdr_lost_reported(false),
+    _dialect_hash(0),
+    _cc_dialect_hash(0),
+    _dialect_hash_valid(false),
+    _have_cc_dialect_hash(false),
+    _dialect_mismatch(false),
+    _tx_stop_reason(""),
+    _tx_stop_ms(0),
+    _tx_stop_tries(0),
+    _tx_stop_pending(false),
+    _have_sdr_config(false),
+    _have_meas_config(false),
+    _sdrm_log_ms(0),
+    _sdcc_log_ms(0),
+    _sdrs_log_ms(0),
+    _sdrc_log_ms(0),
+    _sdrq_log_ms(0),
     _session_id(0),
     _rec_mb(0),
     _meas_ms(0),
@@ -30,6 +60,68 @@ AP_ARRC_SDR::AP_ARRC_SDR(void) :
     _gps_fix_us = 0;
     _ecef_fix_us = 0;
     memset(_rf_cap, 0, sizeof(_rf_cap));
+    memset(&_sdr_config, 0, sizeof(_sdr_config));
+    memset(&_meas_config, 0, sizeof(_meas_config));
+    _dialect_hash_valid = compute_dialect_hash(_dialect_hash);
+}
+
+// the ARRC messages of the dialect, by id
+static const struct {
+    uint32_t id;
+    const char *name;
+} arrc_messages[] {
+    { MAVLINK_MSG_ID_ARRC_SENSOR_RAW, "ARRC_SENSOR_RAW" },
+    { MAVLINK_MSG_ID_ARRC_CC_STATUS, "ARRC_CC_STATUS" },
+    { MAVLINK_MSG_ID_ARRC_SDR_STATUS, "ARRC_SDR_STATUS" },
+    { MAVLINK_MSG_ID_ARRC_SDR_CONFIG, "ARRC_SDR_CONFIG" },
+    { MAVLINK_MSG_ID_ARRC_SDR_MEAS_CONFIG, "ARRC_SDR_MEAS_CONFIG" },
+    { MAVLINK_MSG_ID_ARRC_SDR_MEAS, "ARRC_SDR_MEAS" },
+    { MAVLINK_MSG_ID_ARRC_SDR_TRACE, "ARRC_SDR_TRACE" },
+    { MAVLINK_MSG_ID_ARRC_SCRIPT_INFO, "ARRC_SCRIPT_INFO" },
+    { MAVLINK_MSG_ID_ARRC_WAVEFORM_INFO, "ARRC_WAVEFORM_INFO" },
+    { MAVLINK_MSG_ID_ARRC_PORT_INFO, "ARRC_PORT_INFO" },
+    { MAVLINK_MSG_ID_ARRC_NAV_IMU, "ARRC_NAV_IMU" },
+    { MAVLINK_MSG_ID_ARRC_NAV_MAG, "ARRC_NAV_MAG" },
+    { MAVLINK_MSG_ID_ARRC_NAV_BARO, "ARRC_NAV_BARO" },
+    { MAVLINK_MSG_ID_ARRC_NAV_GPS, "ARRC_NAV_GPS" },
+    { MAVLINK_MSG_ID_ARRC_NAV_ECEF, "ARRC_NAV_ECEF" },
+    { MAVLINK_MSG_ID_ARRC_GIMBAL_POINTING, "ARRC_GIMBAL_POINTING" },
+};
+
+// CRC32 over "<id>:<NAME>:<crc_extra>;" of ARRC_SENSOR_RAW and messages 47000-47019, by id, as the companion
+// and Ludifly compute it. False if the dialect has an ARRC message this table does not name
+bool AP_ARRC_SDR::compute_dialect_hash(uint32_t &hash)
+{
+    uint32_t crc = 0xFFFFFFFF;
+    // 228 first, then 47000-47019
+    uint32_t ids[21];
+    ids[0] = MAVLINK_MSG_ID_ARRC_SENSOR_RAW;
+    for (uint8_t i = 0; i < 20; i++) {
+        ids[i + 1] = 47000 + i;
+    }
+    for (const uint32_t id : ids) {
+        const mavlink_msg_entry_t *entry = mavlink_get_msg_entry(id);
+        if (entry == nullptr) {
+            continue;
+        }
+        const char *name = nullptr;
+        for (const auto &m : arrc_messages) {
+            if (m.id == id) {
+                name = m.name;
+            }
+        }
+        if (name == nullptr) {
+            return false;
+        }
+        char part[48];
+        const int n = snprintf(part, sizeof(part), "%u:%s:%u;", unsigned(id), name, unsigned(entry->crc_extra));
+        if (n <= 0 || n >= int(sizeof(part))) {
+            return false;
+        }
+        crc = crc_crc32(crc, (const uint8_t *)part, n);
+    }
+    hash = crc ^ 0xFFFFFFFF;
+    return true;
 }
 
 // interval a channel requested for a message, false if it did not (no stream)
@@ -44,15 +136,20 @@ bool AP_ARRC_SDR::from_companion(const mavlink_message_t &msg) const
     return msg.sysid == mavlink_system.sysid && msg.compid == MAV_COMP_ID_ONBOARD_COMPUTER;
 }
 
-void AP_ARRC_SDR::handle_message(const mavlink_message_t &msg)
+void AP_ARRC_SDR::handle_message(mavlink_channel_t chan, const mavlink_message_t &msg)
 {
     if (!from_companion(msg)) {
         return;
     }
+    if (msg.msgid == MAVLINK_MSG_ID_HEARTBEAT) {
+        handle_heartbeat(chan, msg);
+        return;
+    }
+    // everything else only from the companion's channel
+    if (!_have_chan || chan != _chan) {
+        return;
+    }
     switch (msg.msgid) {
-    case MAVLINK_MSG_ID_HEARTBEAT:
-        handle_heartbeat(msg);
-        break;
     case MAVLINK_MSG_ID_ARRC_SDR_MEAS:
         handle_meas(msg);
         break;
@@ -68,17 +165,49 @@ void AP_ARRC_SDR::handle_message(const mavlink_message_t &msg)
     case MAVLINK_MSG_ID_ARRC_SDR_MEAS_CONFIG:
         handle_meas_config(msg);
         break;
+    case MAVLINK_MSG_ID_COMMAND_ACK:
+        handle_command_ack(msg);
+        break;
     default:
         break;
     }
 }
 
-void AP_ARRC_SDR::handle_heartbeat(const mavlink_message_t &msg)
+void AP_ARRC_SDR::handle_heartbeat(mavlink_channel_t chan, const mavlink_message_t &msg)
 {
     mavlink_heartbeat_t hb;
     mavlink_msg_heartbeat_decode(&msg, &hb);
-    if (hb.type == MAV_TYPE_ONBOARD_CONTROLLER) {
-        _last_hb_ms = AP_HAL::millis();
+    if (hb.type != MAV_TYPE_ONBOARD_CONTROLLER) {
+        return;
+    }
+    const uint32_t now_ms = AP_HAL::millis();
+    // a heartbeat on another channel while the companion's own is alive is not the companion (a relayed or
+    // impersonated one); the companion moves to another channel only after its heartbeat has been lost
+    if (_have_chan && chan != _chan && _last_hb_ms != 0 && now_ms - _last_hb_ms < _timeout_ms) {
+        return;
+    }
+    if (_have_chan && chan != _chan) {
+        GCS_SEND_TEXT(MAV_SEVERITY_INFO, "SDR: companion now on MAVLink channel %u", unsigned(chan));
+    }
+    _chan = chan;
+    _have_chan = true;
+    _last_hb_ms = now_ms;
+}
+
+void AP_ARRC_SDR::handle_command_ack(const mavlink_message_t &msg)
+{
+    mavlink_command_ack_t ack;
+    mavlink_msg_command_ack_decode(&msg, &ack);
+    if (!_tx_stop_pending || ack.command != MAV_CMD_ARRC_SDR_CONTROL ||
+        ack.target_system != mavlink_system.sysid || ack.target_component != mavlink_system.compid) {
+        return;
+    }
+    _tx_stop_pending = false;
+    if (ack.result == MAV_RESULT_ACCEPTED) {
+        GCS_SEND_TEXT(MAV_SEVERITY_INFO, "SDR: TX stop acknowledged (%s)", _tx_stop_reason);
+    } else {
+        GCS_SEND_TEXT(MAV_SEVERITY_WARNING, "SDR: TX stop refused (%s, result %u)", _tx_stop_reason,
+                      unsigned(ack.result));
     }
 }
 
@@ -99,6 +228,10 @@ void AP_ARRC_SDR::handle_meas(const mavlink_message_t &msg)
     }
 
 #if HAL_LOGGING_ENABLED
+    if (_meas_ms - _sdrm_log_ms < SDRM_LOG_MIN_MS) {
+        return;
+    }
+    _sdrm_log_ms = _meas_ms;
 // @LoggerMessage: SDRM
 // @Description: ARRC onboard SDR measurement (from the companion computer)
 // @Field: TimeUS: Time since system startup when the measurement was received
@@ -146,8 +279,15 @@ void AP_ARRC_SDR::handle_cc_status(const mavlink_message_t &msg)
     mavlink_arrc_cc_status_t p;
     mavlink_msg_arrc_cc_status_decode(&msg, &p);
     _session_id = p.session_id;
+    _cc_dialect_hash = p.dialect_hash;
+    _have_cc_dialect_hash = true;
 
 #if HAL_LOGGING_ENABLED
+    const uint32_t now_ms = AP_HAL::millis();
+    if (now_ms - _sdcc_log_ms < STATUS_LOG_MIN_MS) {
+        return;
+    }
+    _sdcc_log_ms = now_ms;
 // @LoggerMessage: SDCC
 // @Description: ARRC companion computer status
 // @Field: TimeUS: Time since system startup
@@ -160,11 +300,12 @@ void AP_ARRC_SDR::handle_cc_status(const mavlink_message_t &msg)
 // @Field: Disk: Free data disk in MiB
 // @Field: RTT: Time sync round trip
 // @Field: RecMB: Data recorded in this session in MiB
+// @Field: DH: Companion's ARRC dialect hash
     AP::logger().Write("SDCC",
-                       "TimeUS,Sess,Flg,St,CPU,Tmp,Mem,Disk,RTT,RecMB",
-                       "s---%O--s-",
-                       "F---00--F-",
-                       "QIHBBbHIII",
+                       "TimeUS,Sess,Flg,St,CPU,Tmp,Mem,Disk,RTT,RecMB,DH",
+                       "s---%O--s--",
+                       "F---00--F--",
+                       "QIHBBbHIIII",
                        AP_HAL::micros64(),
                        p.session_id,
                        p.flags,
@@ -174,7 +315,8 @@ void AP_ARRC_SDR::handle_cc_status(const mavlink_message_t &msg)
                        p.mem_used_mb,
                        p.disk_free_mb,
                        p.timesync_rtt_us,
-                       _rec_mb);
+                       _rec_mb,
+                       p.dialect_hash);
 #endif
 }
 
@@ -187,6 +329,10 @@ void AP_ARRC_SDR::handle_sdr_status(const mavlink_message_t &msg)
     _rec_mb = p.rec_mb;
 
 #if HAL_LOGGING_ENABLED
+    if (_last_sdr_status_ms - _sdrs_log_ms < STATUS_LOG_MIN_MS) {
+        return;
+    }
+    _sdrs_log_ms = _last_sdr_status_ms;
 // @LoggerMessage: SDRS
 // @Description: ARRC onboard SDR status
 // @Field: TimeUS: Time since system startup
@@ -236,7 +382,17 @@ void AP_ARRC_SDR::handle_sdr_config(const mavlink_message_t &msg)
     if (p.op != ARRC_CONFIG_OP_APPLIED) {
         return;
     }
+    _sdr_config = p;
+    _have_sdr_config = true;
+    const uint32_t now_ms = AP_HAL::millis();
+    if (now_ms - _sdrc_log_ms >= CONFIG_LOG_MIN_MS) {
+        _sdrc_log_ms = now_ms;
+        log_sdr_config(p);
+    }
+}
 
+void AP_ARRC_SDR::log_sdr_config(const mavlink_arrc_sdr_config_t &p)
+{
 #if HAL_LOGGING_ENABLED
     char waveform[17] {};
     memcpy(waveform, p.waveform, sizeof(p.waveform));
@@ -289,7 +445,17 @@ void AP_ARRC_SDR::handle_meas_config(const mavlink_message_t &msg)
     if (p.op != ARRC_CONFIG_OP_APPLIED) {
         return;
     }
+    _meas_config = p;
+    _have_meas_config = true;
+    const uint32_t now_ms = AP_HAL::millis();
+    if (now_ms - _sdrq_log_ms >= CONFIG_LOG_MIN_MS) {
+        _sdrq_log_ms = now_ms;
+        log_meas_config(p);
+    }
+}
 
+void AP_ARRC_SDR::log_meas_config(const mavlink_arrc_sdr_meas_config_t &p)
+{
 #if HAL_LOGGING_ENABLED
     char template_name[17] {};
     memcpy(template_name, p.template_name, sizeof(p.template_name));
@@ -337,15 +503,17 @@ void AP_ARRC_SDR::handle_meas_config(const mavlink_message_t &msg)
 
 void AP_ARRC_SDR::update(uint32_t timeout_ms)
 {
+    _timeout_ms = timeout_ms;
     const uint32_t now_ms = AP_HAL::millis();
     const bool link_ok = _last_hb_ms != 0 && now_ms - _last_hb_ms < timeout_ms;
-    const bool sdr_ok = _last_sdr_status_ms != 0 && now_ms - _last_sdr_status_ms < timeout_ms &&
-                        (_sdr_flags & ARRC_SDR_FLAGS_DEVICE_PRESENT) != 0;
+    const bool status_ok = _last_sdr_status_ms != 0 && now_ms - _last_sdr_status_ms < timeout_ms;
+    const bool sdr_ok = status_ok && (_sdr_flags & ARRC_SDR_FLAGS_DEVICE_PRESENT) != 0;
 
     const bool detected = link_ok && sdr_ok;
     if (detected && !_detected) {
         GCS_SEND_TEXT(MAV_SEVERITY_INFO, "SDR: companion and SDR detected");
     }
+    _link_ok = link_ok;
     _detected = detected;
     _ever_detected |= detected;
 
@@ -356,6 +524,33 @@ void AP_ARRC_SDR::update(uint32_t timeout_ms)
     } else if (link_ok && _link_lost_reported) {
         GCS_SEND_TEXT(MAV_SEVERITY_INFO, "SDR: companion link restored");
         _link_lost_reported = false;
+    }
+
+    // report a lost SDR while the companion is still up (no SDR status, or the device absent), and its return
+    if (_ever_detected && link_ok && !sdr_ok && !_sdr_lost_reported) {
+        GCS_SEND_TEXT(MAV_SEVERITY_WARNING, "SDR: SDR lost (%s)", status_ok ? "device absent" : "no status");
+        _sdr_lost_reported = true;
+    } else if (sdr_ok && _sdr_lost_reported) {
+        GCS_SEND_TEXT(MAV_SEVERITY_INFO, "SDR: SDR restored");
+        _sdr_lost_reported = false;
+    }
+
+    // the companion's dialect must be the autopilot's (an ARRC message that does not decode is dropped silently)
+    if (_dialect_hash_valid && _have_cc_dialect_hash && !_dialect_mismatch && _cc_dialect_hash != _dialect_hash) {
+        _dialect_mismatch = true;
+        GCS_SEND_TEXT(MAV_SEVERITY_WARNING, "SDR: dialect %08X, autopilot %08X", unsigned(_cc_dialect_hash),
+                      unsigned(_dialect_hash));
+    }
+
+    // TX stop until the companion acknowledges it
+    if (_tx_stop_pending && now_ms - _tx_stop_ms >= TX_STOP_RETRY_MS) {
+        if (_tx_stop_tries >= TX_STOP_TRIES) {
+            _tx_stop_pending = false;
+            GCS_SEND_TEXT(MAV_SEVERITY_WARNING, "SDR: TX stop NOT acknowledged (%s)", _tx_stop_reason);
+        } else if (send_tx_stop()) {
+            _tx_stop_ms = now_ms;
+            _tx_stop_tries++;
+        }
     }
 }
 
@@ -398,18 +593,15 @@ void AP_ARRC_SDR::send_sensor_raw(mavlink_channel_t chan)
     _sent_any[chan] = true;
 }
 
+// the TX stop on the companion's channel, addressed to its sysid (the autopilot's): a route learned while the
+// companion started up under another sysid is not used
 bool AP_ARRC_SDR::send_tx_stop(void)
 {
-    uint8_t sysid;
-    mavlink_channel_t chan;
-    if (!GCS_MAVLINK::find_by_mavtype_and_compid(MAV_TYPE_ONBOARD_CONTROLLER, MAV_COMP_ID_ONBOARD_COMPUTER, sysid, chan)) {
+    if (!_have_chan || !HAVE_PAYLOAD_SPACE(_chan, COMMAND_LONG)) {
         return false;
     }
-    if (!HAVE_PAYLOAD_SPACE(chan, COMMAND_LONG)) {
-        return false;
-    }
-    mavlink_msg_command_long_send(chan,
-                                  sysid,
+    mavlink_msg_command_long_send(_chan,
+                                  mavlink_system.sysid,
                                   MAV_COMP_ID_ONBOARD_COMPUTER,
                                   MAV_CMD_ARRC_SDR_CONTROL,
                                   0,
@@ -417,6 +609,28 @@ bool AP_ARRC_SDR::send_tx_stop(void)
                                   ARRC_SDR_SUBSYS_TX,
                                   0, 0, 0, 0, 0);
     return true;
+}
+
+void AP_ARRC_SDR::request_tx_stop(const char *reason)
+{
+    _tx_stop_reason = reason;
+    _tx_stop_tries = 0;
+    _tx_stop_ms = 0;
+    _tx_stop_pending = true;
+    if (send_tx_stop()) {
+        _tx_stop_ms = AP_HAL::millis();
+        _tx_stop_tries = 1;
+    }
+}
+
+void AP_ARRC_SDR::log_config(void)
+{
+    if (_have_sdr_config) {
+        log_sdr_config(_sdr_config);
+    }
+    if (_have_meas_config) {
+        log_meas_config(_meas_config);
+    }
 }
 
 #endif  // AP_ARRC_SDR_ENABLED

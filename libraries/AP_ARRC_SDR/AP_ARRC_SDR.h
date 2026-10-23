@@ -26,14 +26,28 @@ public:
 
     CLASS_NO_COPY(AP_ARRC_SDR);
 
-    // consume a message received on any channel
-    void handle_message(const mavlink_message_t &msg);
+    // consume a message received on chan. The companion is taken from the channel its heartbeat arrives on;
+    // its messages on any other channel are ignored until that heartbeat has been missing for the timeout
+    void handle_message(mavlink_channel_t chan, const mavlink_message_t &msg);
 
     // run at 10 Hz. timeout_ms is the companion link timeout
     void update(uint32_t timeout_ms);
 
     // true if the companion heartbeat and an SDR with the device present were seen within the timeout
     bool detected() const { return _detected; }
+
+    // true if the companion heartbeat was seen within the timeout
+    bool link_ok() const { return _link_ok; }
+
+    // false if the companion reports an ARRC dialect other than the one the autopilot was built with
+    bool dialect_ok() const { return !_dialect_mismatch; }
+
+    // ask the companion to stop transmitting: sent on the companion's channel and repeated until it
+    // acknowledges (or 10 times). reason is a string literal for the GCS text
+    void request_tx_stop(const char *reason);
+
+    // write the companion's SDR configuration in effect (SDRC, SDRQ) again, e.g. when a log starts
+    void log_config(void);
 
     // true if a measurement newer than max_age_ms is available
     bool meas_fresh(uint32_t max_age_ms) const;
@@ -45,8 +59,6 @@ public:
     // send the latest measurement as ARRC_SENSOR_RAW on a channel. Each measurement is sent once per channel
     void send_sensor_raw(mavlink_channel_t chan);
 
-    // ask the companion to stop transmitting. Returns false if no route to the companion is known
-    bool send_tx_stop(void);
 
     // sample streams to the companion computer, at the rate the autopilot logs the same data
     enum class NavStream : uint8_t { IMU, MAG, BARO, GPS, ECEF, GIMBAL, COUNT };
@@ -68,7 +80,13 @@ public:
     uint32_t session_id(void) const { return _session_id; }
 
 private:
-    void handle_heartbeat(const mavlink_message_t &msg);
+    void handle_heartbeat(mavlink_channel_t chan, const mavlink_message_t &msg);
+    void handle_command_ack(const mavlink_message_t &msg);
+    void log_sdr_config(const mavlink_arrc_sdr_config_t &p);
+    void log_meas_config(const mavlink_arrc_sdr_meas_config_t &p);
+    bool send_tx_stop(void);
+    // CRC32 the companion and Ludifly compute over the ARRC messages of their dialect (rfsonde_cc protocol.py)
+    static bool compute_dialect_hash(uint32_t &hash);
     void handle_meas(const mavlink_message_t &msg);
     void handle_cc_status(const mavlink_message_t &msg);
     void handle_sdr_status(const mavlink_message_t &msg);
@@ -100,9 +118,38 @@ private:
     uint32_t _last_hb_ms;
     uint32_t _last_sdr_status_ms;
     uint32_t _sdr_flags;
+    uint32_t _timeout_ms;
+    mavlink_channel_t _chan;            // channel of the companion's heartbeat
+    bool _have_chan;
+    bool _link_ok;
     bool _detected;
     bool _ever_detected;
     bool _link_lost_reported;
+    bool _sdr_lost_reported;
+
+    // dialect check
+    uint32_t _dialect_hash;             // the autopilot's
+    uint32_t _cc_dialect_hash;          // the companion's (ARRC_CC_STATUS)
+    bool _dialect_hash_valid;
+    bool _have_cc_dialect_hash;
+    bool _dialect_mismatch;
+
+    // TX stop until acknowledged
+    const char *_tx_stop_reason;
+    uint32_t _tx_stop_ms;
+    uint8_t _tx_stop_tries;
+    bool _tx_stop_pending;
+
+    // configuration in effect, rewritten when a log starts; companion logs at most at these rates
+    mavlink_arrc_sdr_config_t _sdr_config;
+    mavlink_arrc_sdr_meas_config_t _meas_config;
+    bool _have_sdr_config;
+    bool _have_meas_config;
+    uint32_t _sdrm_log_ms;
+    uint32_t _sdcc_log_ms;
+    uint32_t _sdrs_log_ms;
+    uint32_t _sdrc_log_ms;
+    uint32_t _sdrq_log_ms;
 
     // latest companion status, logged as SDCC
     uint32_t _session_id;

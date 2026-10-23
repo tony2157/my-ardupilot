@@ -227,14 +227,34 @@ void Copter::user_ARRC_SDR_logger()
     const uint32_t timeout_ms = constrain_float(g2.user_parameters.get_sdr_timeout(), 1.0f, 10.0f) * 1000;
     ARRC_SDR.update(timeout_ms);
 
-    // AUTO: once the companion computer and its SDR are detected, the LB5900 is disabled until reboot
-    if (arrc_rf_source() == ARRCRFSource::AUTO && !arrc_lb5900_latched_off && ARRC_SDR.detected()) {
+    // AUTO: once the companion computer and its SDR are detected, the LB5900 is disabled until reboot. Not with a
+    // companion on another ARRC dialect: its measurements may not decode
+    bool log_rf_source = false;
+    if (arrc_rf_source() == ARRCRFSource::AUTO && !arrc_lb5900_latched_off && ARRC_SDR.detected() &&
+        ARRC_SDR.dialect_ok()) {
         ARRC_LB5900.set_enabled(false);
         arrc_lb5900_latched_off = true;
         GCS_SEND_TEXT(MAV_SEVERITY_INFO, "RF source: SDR (LB5900 disabled)");
+        log_rf_source = true;
+    }
+
+    // the RF source and the SDR configuration at the start of each log and at arming (written before the log
+    // started, they would be missing from it), and whenever the SDR comes or goes
+    const bool armed = motors->armed();
+    const bool logging = logger.logging_started();
+    if ((logging && !arrc_was_logging) || (armed && !arrc_was_armed)) {
+        ARRC_SDR.log_config();
+        log_rf_source = true;
+    }
+    if (ARRC_SDR.detected() != arrc_was_detected) {
+        log_rf_source = true;
+    }
+    arrc_was_logging = logging;
+    arrc_was_detected = ARRC_SDR.detected();
 #if HAL_LOGGING_ENABLED
+    if (log_rf_source) {
 // @LoggerMessage: RFSR
-// @Description: ARRC RF power source change
+// @Description: ARRC RF power source: at a change, at the start of a log and at arming
 // @Field: TimeUS: Time since system startup
 // @Field: Src: RF source parameter (USR_RF_SRC)
 // @Field: LB: LB5900 enabled
@@ -244,19 +264,17 @@ void Copter::user_ARRC_SDR_logger()
                      uint8_t(arrc_rf_source()),
                      uint8_t(ARRC_LB5900.enabled()),
                      uint8_t(ARRC_SDR.detected()));
-#endif
     }
+#endif
 
-    // stop SDR transmission on disarm or failsafe (the companion also stops on its own interlocks)
+    // stop SDR transmission on disarm or failsafe, repeated until the companion acknowledges it (the companion
+    // also stops on its own interlocks)
     const int16_t options = g2.user_parameters.get_sdr_options();
-    const bool armed = motors->armed();
     const bool in_failsafe = any_failsafe_triggered();
     const bool disarmed_now = (options & SDR_OPT_TX_STOP_DISARM) && arrc_was_armed && !armed;
     const bool failsafe_now = (options & SDR_OPT_TX_STOP_FAILSAFE) && in_failsafe && !arrc_was_failsafe;
-    if ((disarmed_now || failsafe_now) && ARRC_SDR.detected()) {
-        if (ARRC_SDR.send_tx_stop()) {
-            GCS_SEND_TEXT(MAV_SEVERITY_INFO, "SDR: TX stop sent (%s)", failsafe_now ? "failsafe" : "disarm");
-        }
+    if ((disarmed_now || failsafe_now) && ARRC_SDR.link_ok()) {
+        ARRC_SDR.request_tx_stop(failsafe_now ? "failsafe" : "disarm");
     }
     arrc_was_armed = armed;
     arrc_was_failsafe = in_failsafe;

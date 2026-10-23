@@ -1303,11 +1303,12 @@ void GCS_MAVLINK_Copter::handle_message(const mavlink_message_t &msg)
     case MAVLINK_MSG_ID_ARRC_SDR_STATUS:
     case MAVLINK_MSG_ID_ARRC_SDR_CONFIG:
     case MAVLINK_MSG_ID_ARRC_SDR_MEAS_CONFIG:
-        copter.ARRC_SDR.handle_message(msg);
+        copter.ARRC_SDR.handle_message(chan, msg);
         break;
 
     case MAVLINK_MSG_ID_HEARTBEAT:
-        copter.ARRC_SDR.handle_message(msg);
+    case MAVLINK_MSG_ID_COMMAND_ACK:
+        copter.ARRC_SDR.handle_message(chan, msg);
         GCS_MAVLINK::handle_message(msg);
         break;
 #endif  // AP_ARRC_SDR_ENABLED
