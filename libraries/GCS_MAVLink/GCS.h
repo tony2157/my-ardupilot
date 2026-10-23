@@ -290,8 +290,12 @@ public:
         STREAM_EXTRA3,
         STREAM_PARAMS,
         STREAM_ADSB,
+        STREAM_ARRC,    // ARRC mod: RF power measurements (Copter), not set by MAV_DATA_STREAM_ALL
         NUM_STREAMS
     };
+
+    // ARRC mod: REQUEST_DATA_STREAM stream id of STREAM_ARRC (outside the MAV_DATA_STREAM values)
+    static constexpr uint8_t ARRC_DATA_STREAM_ID = 200;
 
     bool is_high_bandwidth() { return chan == MAVLINK_COMM_0; }
     // return true if this channel has hardware flow control

@@ -7,6 +7,7 @@
 #include "GCS.h"
 
 #include <AP_Airspeed/AP_Airspeed_config.h>
+#include <AP_ARRC_SDR/AP_ARRC_SDR_config.h>
 #include <AP_AIS/AP_AIS_config.h>
 #include <AP_BattMonitor/AP_BattMonitor_config.h>
 #include <AP_Compass/AP_Compass_config.h>
@@ -96,6 +97,7 @@ static const uint8_t default_rates[] {
     AP_MAV_DEFAULT_STREAM_RATE_EXTRA3,
     AP_MAV_DEFAULT_STREAM_RATE_PARAMS,
     AP_MAV_DEFAULT_STREAM_RATE_ADSB,
+    0,      // ARRC
 };
 static_assert(ARRAY_SIZE(default_rates) == GCS_MAVLINK::NUM_STREAMS, "enough default rates for all streams");
 
@@ -203,6 +205,18 @@ const AP_Param::GroupInfo GCS_MAVLINK::var_info[] = {
     // @RebootRequired: True
     // @User: Advanced
     AP_GROUPINFO("_ADSB",   10, GCS_MAVLINK, streamRates[GCS_MAVLINK::STREAM_ADSB], DRATE(GCS_MAVLINK::STREAM_ADSB)),
+
+#if APM_BUILD_COPTER_OR_HELI
+    // @Param: _ARRC
+    // @DisplayName: ARRC RF data stream rate
+    // @Description: MAVLink stream rate of the ARRC RF power measurements: ARRC_SENSOR_RAW (onboard SDR) and CASS_SENSOR_RAW (LB5900). Each measurement is sent once, as it arrives, so the measurement rate also caps the stream. Not changed by a REQUEST_DATA_STREAM for all streams: a ground station sets it with REQUEST_DATA_STREAM stream id 200, or per message with MAV_CMD_SET_MESSAGE_INTERVAL
+    // @Units: Hz
+    // @Range: 0 50
+    // @Increment: 1
+    // @RebootRequired: True
+    // @User: Advanced
+    AP_GROUPINFO("_ARRC",   19, GCS_MAVLINK, streamRates[GCS_MAVLINK::STREAM_ARRC], DRATE(GCS_MAVLINK::STREAM_ARRC)),
+#endif
 
     // ------------
     // IMPORTANT: Add new stream rates *before* the _OPTIONS parameter.
@@ -371,10 +385,6 @@ static const ap_message STREAM_EXTRA3_msgs[] = {
 #if !APM_BUILD_TYPE(APM_BUILD_AntennaTracker)
     MSG_VIBRATION,
 #endif
-#if APM_BUILD_COPTER_OR_HELI
-    MSG_ARRC_SDR,
-    MSG_ARRC_SENSOR,
-#endif
 };
 
 static const ap_message STREAM_PARAMS_msgs[] = {
@@ -388,6 +398,15 @@ static const ap_message STREAM_ADSB_msgs[] = {
     MSG_AIS_VESSEL,
 #endif
 };
+
+#if APM_BUILD_COPTER_OR_HELI
+static const ap_message STREAM_ARRC_msgs[] = {
+#if AP_ARRC_SDR_ENABLED
+    MSG_ARRC_SENSOR,
+#endif
+    MSG_ARRC_SDR,
+};
+#endif  // APM_BUILD_COPTER_OR_HELI
 
 // convenience macros for defining which ap_message ids are in which streams:
 #define MAV_STREAM_ENTRY(stream_name)           \
@@ -409,6 +428,9 @@ const struct GCS_MAVLINK::stream_entries GCS_MAVLINK::all_stream_entries[] = {
     MAV_STREAM_ENTRY(STREAM_EXTRA3),
     MAV_STREAM_ENTRY(STREAM_PARAMS),
     MAV_STREAM_ENTRY(STREAM_ADSB),
+#if APM_BUILD_COPTER_OR_HELI
+    MAV_STREAM_ENTRY(STREAM_ARRC),
+#endif
     MAV_STREAM_TERMINATOR // must have this at end of stream_entries
 };
 

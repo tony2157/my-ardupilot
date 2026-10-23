@@ -152,6 +152,10 @@ void GCS_MAVLINK::handle_request_data_stream(const mavlink_message_t &msg)
                 // considered "internal".
                 continue;
             }
+            if (i == STREAM_ARRC) {
+                // ARRC mod: the RF data has its own rate; a request for all streams leaves it alone
+                continue;
+            }
             if (persist_streamrates()) {
                 streamRates[i].set_and_save_ifchanged(freq);
             } else {
@@ -183,6 +187,9 @@ void GCS_MAVLINK::handle_request_data_stream(const mavlink_message_t &msg)
         break;
     case MAV_DATA_STREAM_EXTRA3:
         stream_id = STREAM_EXTRA3;
+        break;
+    case ARRC_DATA_STREAM_ID:
+        stream_id = STREAM_ARRC;
         break;
     }
 
