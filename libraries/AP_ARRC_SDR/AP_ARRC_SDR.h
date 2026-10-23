@@ -38,6 +38,10 @@ public:
     // true if a measurement newer than max_age_ms is available
     bool meas_fresh(uint32_t max_age_ms) const;
 
+    // latest co-polar power in dBm and the number of measurements received since boot (changes with each one).
+    // False if there is none or it is not a valid measurement (ARRC_MEAS_FLAGS_VALID)
+    bool get_copol(float &power_dbm, uint32_t &count) const;
+
     // send the latest measurement as ARRC_SENSOR_RAW on a channel. Each measurement is sent once per channel
     void send_sensor_raw(mavlink_channel_t chan);
 
@@ -107,6 +111,7 @@ private:
     // latest measurement
     mavlink_arrc_sdr_meas_t _meas;
     uint32_t _meas_ms;
+    uint32_t _meas_count;
     bool _have_meas;
     uint32_t _last_sent_seq[MAVLINK_COMM_NUM_BUFFERS];
     bool _sent_any[MAVLINK_COMM_NUM_BUFFERS];

@@ -202,6 +202,8 @@ public:
     // ARRC set polarization offset (rotation about the probe boresight) in degrees. save writes it to storage
     void set_ARRC_pol_offset(float offset_deg, bool save) { set_ARRC_pol_offset(_primary, offset_deg, save); }
     void set_ARRC_pol_offset(uint8_t instance, float offset_deg, bool save);
+    float get_ARRC_pol_offset() const { return get_ARRC_pol_offset(_primary); }
+    float get_ARRC_pol_offset(uint8_t instance) const;
 
     // ARRC get gimbal mode (MNT1_ARRC_GMODE)
     uint8_t get_ARRC_gimbal_mode() const { return get_ARRC_gimbal_mode(_primary); }

@@ -139,6 +139,7 @@ public:
 
     // ARRC set polarization offset (rotation about the probe boresight) in degrees. save writes it to storage
     void set_ARRC_pol_offset(float offset_deg, bool save);
+    float get_ARRC_pol_offset() const { return _params.ARRC_pol_offset.get(); }
 
     // ARRC gimbal's measured attitude as an earth-frame (NED) quaternion, for gimbals that report it
     virtual bool get_measured_attitude_ef(Quaternion &q_ef) const { return false; }

@@ -20,6 +20,7 @@ AP_ARRC_SDR::AP_ARRC_SDR(void) :
     _session_id(0),
     _rec_mb(0),
     _meas_ms(0),
+    _meas_count(0),
     _have_meas(false)
 {
     memset(&_meas, 0, sizeof(_meas));
@@ -85,6 +86,7 @@ void AP_ARRC_SDR::handle_meas(const mavlink_message_t &msg)
 {
     mavlink_msg_arrc_sdr_meas_decode(&msg, &_meas);
     _meas_ms = AP_HAL::millis();
+    _meas_count++;
     _have_meas = true;
 
     // offer it now to the channels streaming ARRC_SENSOR_RAW: polled at the stream interval, a measurement
@@ -360,6 +362,13 @@ void AP_ARRC_SDR::update(uint32_t timeout_ms)
 bool AP_ARRC_SDR::meas_fresh(uint32_t max_age_ms) const
 {
     return _have_meas && AP_HAL::millis() - _meas_ms < max_age_ms;
+}
+
+bool AP_ARRC_SDR::get_copol(float &power_dbm, uint32_t &count) const
+{
+    count = _meas_count;
+    power_dbm = _meas.pwr_c;
+    return _have_meas && (_meas.flags & ARRC_MEAS_FLAGS_VALID) && isfinite(_meas.pwr_c);
 }
 
 void AP_ARRC_SDR::send_sensor_raw(mavlink_channel_t chan)

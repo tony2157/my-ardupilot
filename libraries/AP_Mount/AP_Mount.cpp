@@ -846,6 +846,16 @@ void AP_Mount::set_ARRC_pol_offset(uint8_t instance, float offset_deg, bool save
     backend->set_ARRC_pol_offset(offset_deg, save);
 }
 
+// ARRC get polarization offset in degrees
+float AP_Mount::get_ARRC_pol_offset(uint8_t instance) const
+{
+    auto *backend = get_instance(instance);
+    if (backend == nullptr) {
+        return 0;
+    }
+    return backend->get_ARRC_pol_offset();
+}
+
 // ARRC get gimbal mode
 uint8_t AP_Mount::get_ARRC_gimbal_mode(uint8_t instance) const
 {

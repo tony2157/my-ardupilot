@@ -4,8 +4,10 @@
 // ARRC gimbal alignment
 // Rotates the probe about its boresight from -ALIGN_HALF_SPAN_DEG to +ALIGN_HALF_SPAN_DEG, averages the received
 // power at each angle step and fits the polarization loss (see arrc_polfit.h) to find the rotation that aligns the
-// probe polarization with the AUT. The result is saved in MNT1_ARRC_POFF. Runs from aux switch 1 (CHx_OPT = 47)
-// while MNT1_ARRC_GMODE is 2 (Hpol) or 3 (Vpol)
+// probe polarization with the AUT. The result is saved in MNT1_ARRC_POFF; a failed or stopped alignment puts back
+// the offset it started from. The power comes from the RF source in use when it starts: the SDR (co-polar power)
+// while it is detected and an RF source, otherwise the LB5900. Aux switch 1 (RCx_OPTION 47) high starts it while
+// MNT1_ARRC_GMODE is 2 (Hpol) or 3 (Vpol); low stops it and clears the offset
 static constexpr int8_t ALIGN_HALF_SPAN_DEG = 32;           // scan from -32 to +32 degrees
 static constexpr uint8_t ALIGN_STEP_DEG = 8;                // angle step
 static constexpr uint8_t ALIGN_NUM_STEPS = 2 * ALIGN_HALF_SPAN_DEG / ALIGN_STEP_DEG + 1;
@@ -14,7 +16,7 @@ static constexpr uint32_t ALIGN_STEP_WAIT_MS = 3000;        // waiting time for 
 static constexpr uint32_t ALIGN_SAMPLE_MS = 10000;          // power sampling time at each angle step
 static constexpr uint32_t ALIGN_SENSOR_TIMEOUT_MS = 1000;   // abort if the power sensor has no new sample for this long
 static constexpr uint16_t ALIGN_MIN_SAMPLES = 5;            // minimum number of power samples at each angle step
-static constexpr float ALIGN_MIN_R = 0.7f;                  // minimum correlation coefficient of the fit
+static constexpr float ALIGN_MAX_SIGMA_DEG = 2.0f;          // largest standard error of the fitted offset accepted
 static_assert((2 * ALIGN_HALF_SPAN_DEG) % ALIGN_STEP_DEG == 0, "the angle span must be a multiple of the step");
 
 enum class AlignState : uint8_t {
@@ -25,18 +27,17 @@ enum class AlignState : uint8_t {
 
 static struct {
     AlignState state;
+    bool sdr;                           // power from the SDR, else from the LB5900
     uint8_t step;                       // angle step index
     uint32_t state_start_ms;            // system time the state started
     uint32_t last_sample_ms;            // system time of the last new power sample
     uint32_t last_sample_count;         // power sensor sample count at the last power sample
     uint32_t num_samples;               // number of power samples at this angle step
     double power_sum_mw;                // sum of the power samples at this angle step in mW
+    float start_offset_deg;             // MNT1_ARRC_POFF when the alignment started
     float angle_deg[ALIGN_NUM_STEPS];   // probe rotation at each angle step
     float power_mw[ALIGN_NUM_STEPS];    // average power at each angle step in mW
 } gimbal_align;
-
-static bool alignment_done;             // true if the next switch change clears the offset instead of aligning
-static uint32_t switch_pause_ms;        // system time of the last switch change
 
 #ifdef USERHOOK_INIT
 void Copter::userhook_init()
@@ -45,13 +46,23 @@ void Copter::userhook_init()
     // this will be called once at start-up
 
     //ARRC Gimbal params init
-    switch_pause_ms = AP_HAL::millis();
     gimbal_align.state = AlignState::IDLE;
-    // the first switch change after boot starts an alignment; the one after it clears the offset. Starting
-    // with the clear wiped the MNT1_ARRC_POFF saved by an earlier alignment at the first flip
-    alignment_done = false;
 }
 #endif
+
+bool Copter::arrc_align_sample(bool sdr, uint32_t &count, float &power_dbm) const
+{
+#if AP_ARRC_SDR_ENABLED
+    if (sdr) {
+        return ARRC_SDR.get_copol(power_dbm, count);
+    }
+#endif
+    AP_ARRC_LB5900::Sample sample;
+    const bool ok = ARRC_LB5900.get_sample(sample) && ARRC_LB5900.healthy();
+    count = sample.count;
+    power_dbm = sample.power_dbm;
+    return ok;
+}
 
 #ifdef USER_GIMBAL_LOOP
 void Copter::user_ARRC_gimbal()
@@ -60,9 +71,9 @@ void Copter::user_ARRC_gimbal()
         return;
     }
 
-    // stop the alignment and remove the offset
+    // stop the alignment and put back the offset it started from (the scan does not save its angles)
     auto abort_alignment = [this](const char *reason) {
-        camera_mount.set_ARRC_pol_offset(0.0f, true);
+        camera_mount.set_ARRC_pol_offset(gimbal_align.start_offset_deg, false);
         gimbal_align.state = AlignState::IDLE;
         gcs().send_text(MAV_SEVERITY_WARNING, "Gimbal alignment failed: %s", reason);
     };
@@ -70,10 +81,6 @@ void Copter::user_ARRC_gimbal()
     const uint8_t gimbal_mode = camera_mount.get_ARRC_gimbal_mode();
     if (gimbal_mode != 2 && gimbal_mode != 3) {
         abort_alignment("gimbal mode changed");
-        return;
-    }
-    if (!ARRC_LB5900.healthy()) {
-        abort_alignment("power sensor unhealthy");
         return;
     }
 
@@ -89,10 +96,11 @@ void Copter::user_ARRC_gimbal()
         if (now_ms - gimbal_align.state_start_ms < wait_ms) {
             return;
         }
+        float power_dbm;
+        IGNORE_RETURN(arrc_align_sample(gimbal_align.sdr, gimbal_align.last_sample_count, power_dbm));
         gimbal_align.state = AlignState::SAMPLING;
         gimbal_align.state_start_ms = now_ms;
         gimbal_align.last_sample_ms = now_ms;
-        gimbal_align.last_sample_count = ARRC_LB5900.sample_count();
         gimbal_align.num_samples = 0;
         gimbal_align.power_sum_mw = 0;
         break;
@@ -100,13 +108,18 @@ void Copter::user_ARRC_gimbal()
 
     case AlignState::SAMPLING: {
         // Collect new power measurements in linear units (mW) during the sampling time
-        const uint32_t sample_count = ARRC_LB5900.sample_count();
+        uint32_t sample_count;
+        float power_dbm;
+        const bool valid = arrc_align_sample(gimbal_align.sdr, sample_count, power_dbm);
         if (sample_count != gimbal_align.last_sample_count) {
             gimbal_align.last_sample_count = sample_count;
-            gimbal_align.last_sample_ms = now_ms;
-            gimbal_align.power_sum_mw += powf(10.0f, 0.1f * ARRC_LB5900.power_measure());
-            gimbal_align.num_samples++;
-        } else if (now_ms - gimbal_align.last_sample_ms > ALIGN_SENSOR_TIMEOUT_MS) {
+            if (valid) {
+                gimbal_align.last_sample_ms = now_ms;
+                gimbal_align.power_sum_mw += powf(10.0f, 0.1f * power_dbm);
+                gimbal_align.num_samples++;
+            }
+        }
+        if (now_ms - gimbal_align.last_sample_ms > ALIGN_SENSOR_TIMEOUT_MS) {
             abort_alignment("no power samples");
             return;
         }
@@ -130,24 +143,24 @@ void Copter::user_ARRC_gimbal()
             return;
         }
 
-        // All angle steps done: fit the polarization loss and apply the resultant offset
-        gimbal_align.state = AlignState::IDLE;
+        // All angle steps done: fit the polarization loss and apply the resultant offset if it is well determined
         float angle_offset = 0;
         float corr = 0;
-        if (!ARRC_fit_polarization(gimbal_align.angle_deg, gimbal_align.power_mw, ALIGN_NUM_STEPS, angle_offset, corr)) {
-            camera_mount.set_ARRC_pol_offset(0.0f, true);
-            gcs().send_text(MAV_SEVERITY_WARNING, "Gimbal alignment failed: no power variation");
+        float sigma = 0;
+        if (!ARRC_fit_polarization(gimbal_align.angle_deg, gimbal_align.power_mw, ALIGN_NUM_STEPS, angle_offset, corr,
+                                   sigma)) {
+            abort_alignment("no power variation");
             return;
         }
-        // Check the correlation coefficient. Alignment failed if corr is too low
-        if (corr < ALIGN_MIN_R) {
-            camera_mount.set_ARRC_pol_offset(0.0f, true);
-            gcs().send_text(MAV_SEVERITY_WARNING, "Gimbal alignment failed: R = %.3f", corr);
+        if (sigma > ALIGN_MAX_SIGMA_DEG) {
+            gcs().send_text(MAV_SEVERITY_WARNING, "Gimbal alignment: %.1f deg +-%.1f, R %.3f", angle_offset, sigma, corr);
+            abort_alignment("offset too uncertain");
             return;
         }
+        gimbal_align.state = AlignState::IDLE;
         camera_mount.set_ARRC_pol_offset(angle_offset, true);
         gcs().send_text(MAV_SEVERITY_INFO, "Gimbal alignment correction: %.2f deg", angle_offset);
-        gcs().send_text(MAV_SEVERITY_INFO, "Gimbal alignment success: R = %.3f", corr);
+        gcs().send_text(MAV_SEVERITY_INFO, "Gimbal alignment success: +-%.2f deg, R = %.3f", sigma, corr);
         break;
     }
     }
@@ -349,40 +362,53 @@ void Copter::userhook_SuperSlowLoop()
 void Copter::userhook_auxSwitch1(const RC_Channel::AuxSwitchPos ch_flag)
 {
     // put your aux switch #1 handler here (CHx_OPT = 47)
-    // Execution of the ARRC gimbal alignment: switch changes alternately clear the polarization offset and start the
-    // alignment. Changes within 5 seconds of the previous one, or while the alignment runs, are ignored
-
-    const uint32_t now_ms = AP_HAL::millis();
-    if (now_ms - switch_pause_ms > 5000) {
+    // ARRC gimbal alignment: high starts it, low stops it (if running) and clears the polarization offset
+    switch (ch_flag) {
+    case RC_Channel::AuxSwitchPos::HIGH: {
         if (gimbal_align.state != AlignState::IDLE) {
             return;
         }
-        if (!alignment_done) {
-            const uint8_t gimbal_mode = camera_mount.get_ARRC_gimbal_mode();
-            if (gimbal_mode != 2 && gimbal_mode != 3) {
-                gcs().send_text(MAV_SEVERITY_WARNING, "Gimbal alignment needs MNT1_ARRC_GMODE 2 or 3");
-            } else if (!ARRC_LB5900.healthy()) {
-                gcs().send_text(MAV_SEVERITY_WARNING, "Gimbal alignment needs a healthy power sensor");
-            } else {
-                gcs().send_text(MAV_SEVERITY_INFO, "Executing Gimbal alignment");
-                for (uint8_t i = 0; i < ALIGN_NUM_STEPS; i++) {
-                    gimbal_align.angle_deg[i] = -ALIGN_HALF_SPAN_DEG + i * ALIGN_STEP_DEG;
-                    gimbal_align.power_mw[i] = 0;
-                }
-                gimbal_align.step = 0;
-                gimbal_align.state_start_ms = now_ms;
-                gimbal_align.state = AlignState::MOVING;
-                camera_mount.set_ARRC_pol_offset(gimbal_align.angle_deg[0], false);
-                alignment_done = true;
-            }
-        } else {
-            camera_mount.set_ARRC_pol_offset(0.0f, true);
-            gcs().send_text(MAV_SEVERITY_INFO, "Gimbal polarization offset cleared");
-            alignment_done = false;
+        const uint8_t gimbal_mode = camera_mount.get_ARRC_gimbal_mode();
+        if (gimbal_mode != 2 && gimbal_mode != 3) {
+            gcs().send_text(MAV_SEVERITY_WARNING, "Gimbal alignment needs MNT1_ARRC_GMODE 2 or 3");
+            return;
         }
+        // the RF source in use: the SDR while detected, otherwise the LB5900
+        uint32_t count;
+        float power_dbm;
+        bool sdr = false;
+#if AP_ARRC_SDR_ENABLED
+        sdr = arrc_sdr_streaming() && ARRC_SDR.detected() && ARRC_SDR.meas_fresh(1000) &&
+              arrc_align_sample(true, count, power_dbm);
+#endif
+        if (!sdr && !(arrc_lb5900_streaming() && arrc_align_sample(false, count, power_dbm))) {
+            gcs().send_text(MAV_SEVERITY_WARNING, "Gimbal alignment needs an RF power reading");
+            return;
+        }
+        gcs().send_text(MAV_SEVERITY_INFO, "Executing Gimbal alignment (%s)", sdr ? "SDR" : "LB5900");
+        for (uint8_t i = 0; i < ALIGN_NUM_STEPS; i++) {
+            gimbal_align.angle_deg[i] = -ALIGN_HALF_SPAN_DEG + i * ALIGN_STEP_DEG;
+            gimbal_align.power_mw[i] = 0;
+        }
+        gimbal_align.sdr = sdr;
+        gimbal_align.start_offset_deg = camera_mount.get_ARRC_pol_offset();
+        gimbal_align.step = 0;
+        gimbal_align.state_start_ms = AP_HAL::millis();
+        gimbal_align.state = AlignState::MOVING;
+        camera_mount.set_ARRC_pol_offset(gimbal_align.angle_deg[0], false);
+        break;
     }
-
-    switch_pause_ms = now_ms;
+    case RC_Channel::AuxSwitchPos::LOW:
+        if (gimbal_align.state != AlignState::IDLE) {
+            gimbal_align.state = AlignState::IDLE;
+            gcs().send_text(MAV_SEVERITY_INFO, "Gimbal alignment stopped");
+        }
+        camera_mount.set_ARRC_pol_offset(0.0f, true);
+        gcs().send_text(MAV_SEVERITY_INFO, "Gimbal polarization offset cleared");
+        break;
+    case RC_Channel::AuxSwitchPos::MIDDLE:
+        break;
+    }
 }
 
 void Copter::userhook_auxSwitch2(const RC_Channel::AuxSwitchPos ch_flag)

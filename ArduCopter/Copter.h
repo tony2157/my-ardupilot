@@ -297,6 +297,8 @@ private:
     bool arrc_lb5900_streaming() const;
     bool arrc_sdr_streaming() const;
     bool arrc_arming_checks(size_t buflen, char *buffer) const;
+    // latest RF power of the SDR (co-polar) or the LB5900 for the gimbal alignment; count changes with each sample
+    bool arrc_align_sample(bool sdr, uint32_t &count, float &power_dbm) const;
     bool arrc_lb5900_latched_off;   // LB5900 disabled in AUTO after the SDR was detected
     bool arrc_was_armed;            // armed state at the last SDR update
     bool arrc_was_failsafe;         // failsafe state at the last SDR update
