@@ -199,8 +199,42 @@ bool Copter::arrc_sdr_streaming() const
 #endif
 }
 
-bool Copter::arrc_arming_checks(size_t buflen, char *buffer) const
+bool Copter::arrc_mavlink1_link(char *buffer, size_t buflen, uint8_t &chan)
 {
+    for (uint8_t c = 0; c < gcs().num_gcs(); c++) {
+        const GCS_MAVLINK *link = gcs().chan(c);
+        if (link == nullptr || !link->sending_mavlink1()) {
+            continue;
+        }
+        bool arrc = false;
+#if AP_ARRC_SDR_ENABLED
+        mavlink_channel_t cc_chan;
+        arrc |= ARRC_SDR.companion_chan(cc_chan) && cc_chan == mavlink_channel_t(c);
+#endif
+        uint8_t sysid;
+        mavlink_channel_t gimbal_chan;
+        arrc |= GCS_MAVLINK::find_by_mavtype_and_compid(MAV_TYPE_GIMBAL, MAV_COMP_ID_GIMBAL, sysid, gimbal_chan) &&
+                gimbal_chan == mavlink_channel_t(c);
+        uint16_t interval_ms;
+        arrc |= (link->get_ap_message_interval(MSG_ARRC_SENSOR, interval_ms) && interval_ms > 0) ||
+                (link->get_ap_message_interval(MSG_ARRC_SDR, interval_ms) && interval_ms > 0);
+        if (arrc) {
+            const int8_t port = AP::serialmanager().find_portnum(AP_SerialManager::SerialProtocol_MAVLink, c);
+            hal.util->snprintf(buffer, buflen, "SERIAL%d is MAVLink1: set SERIAL%d_PROTOCOL 2", port, port);
+            chan = c;
+            return true;
+        }
+    }
+    return false;
+}
+
+bool Copter::arrc_arming_checks(size_t buflen, char *buffer)
+{
+    // MAVLink1 drops the companion's, the gimbal's and the RF downlink's messages
+    uint8_t chan;
+    if (arrc_mavlink1_link(buffer, buflen, chan)) {
+        return false;
+    }
     const int16_t options = g2.user_parameters.get_sdr_options();
 #if AP_ARRC_SDR_ENABLED
     if (options & SDR_OPT_REQUIRE_MEAS) {
@@ -226,6 +260,14 @@ void Copter::user_ARRC_SDR_logger()
 {
     const uint32_t timeout_ms = constrain_float(g2.user_parameters.get_sdr_timeout(), 1.0f, 10.0f) * 1000;
     ARRC_SDR.update(timeout_ms);
+
+    // a MAVLink1 port that drops ARRC or gimbal messages, reported once per port (and by the pre-arm check)
+    char msg[50];
+    uint8_t chan;
+    if (arrc_mavlink1_link(msg, sizeof(msg), chan) && !(arrc_mavlink1_reported & (1U << chan))) {
+        arrc_mavlink1_reported |= (1U << chan);
+        GCS_SEND_TEXT(MAV_SEVERITY_WARNING, "%s", msg);
+    }
 
     // AUTO: once the companion computer and its SDR are detected, the LB5900 is disabled until reboot. Not with a
     // companion on another ARRC dialect: its measurements may not decode

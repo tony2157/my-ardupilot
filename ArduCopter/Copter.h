@@ -296,7 +296,11 @@ private:
     ARRCRFSource arrc_rf_source() const;
     bool arrc_lb5900_streaming() const;
     bool arrc_sdr_streaming() const;
-    bool arrc_arming_checks(size_t buflen, char *buffer) const;
+    bool arrc_arming_checks(size_t buflen, char *buffer);
+    // a MAVLink1 serial port that carries the companion, a MAVLink gimbal or the RF downlink: MAVLink1 drops
+    // messages with ids above 255 (every ARRC and gimbal v2 message). Fills buffer and returns true if there is one
+    bool arrc_mavlink1_link(char *buffer, size_t buflen, uint8_t &chan);
+    uint8_t arrc_mavlink1_reported;     // channels already reported
     // latest RF power of the SDR (co-polar) or the LB5900 for the gimbal alignment; count changes with each sample
     bool arrc_align_sample(bool sdr, uint32_t &count, float &power_dbm) const;
     bool arrc_lb5900_latched_off;   // LB5900 disabled in AUTO after the SDR was detected

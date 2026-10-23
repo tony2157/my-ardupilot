@@ -39,6 +39,9 @@ public:
     // true if the companion heartbeat was seen within the timeout
     bool link_ok() const { return _link_ok; }
 
+    // channel the companion's heartbeat arrives on, false before the first one
+    bool companion_chan(mavlink_channel_t &chan) const { chan = _chan; return _have_chan; }
+
     // false if the companion reports an ARRC dialect other than the one the autopilot was built with
     bool dialect_ok() const { return !_dialect_mismatch; }
 
