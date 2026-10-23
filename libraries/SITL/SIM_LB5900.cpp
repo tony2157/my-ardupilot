@@ -37,8 +37,7 @@ const AP_Param::GroupInfo LB5900::var_info[] = {
 
     // @Param: PWR
     // @DisplayName: LB5900 sim power
-    // @Description: Co-polarized power the simulated sensor reads
-    // @Units: dBm
+    // @Description: Co-polarized power the simulated sensor reads, in dBm
     // @User: Advanced
     AP_GROUPINFO("PWR", 2, LB5900, power_dbm, -40.0f),
 
