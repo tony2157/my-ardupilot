@@ -679,6 +679,7 @@ struct PACKED log_LB5900 {
     uint64_t time_stamp;
     uint8_t healthy;
     float power;
+    uint32_t count;
 };
 
 
@@ -1313,7 +1314,7 @@ LOG_STRUCTURE_FROM_AIS \
     { LOG_SPOL_MSG, sizeof(log_SPOL), \
       "SPOL", "QBB",  "TimeUS,Spl,SplDes", "s--", "F--" , true }, \
     { LOG_ARRC_LB59_MSG, sizeof(log_LB5900), \
-      "LB59", "QBf","TimeUS,Hth,Pwr","s--","F--"}
+      "LB59", "QBfI","TimeUS,Hth,Pwr,Cnt","s---","F---"}
 
 // message types 0 to 31 reserved for vehicle-specific use
 

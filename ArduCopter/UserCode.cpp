@@ -158,6 +158,7 @@ void Copter::user_ARRC_gimbal()
 static constexpr int16_t SDR_OPT_TX_STOP_DISARM = (1U << 0);
 static constexpr int16_t SDR_OPT_TX_STOP_FAILSAFE = (1U << 1);
 static constexpr int16_t SDR_OPT_REQUIRE_MEAS = (1U << 2);
+static constexpr int16_t SDR_OPT_REQUIRE_LB5900 = (1U << 3);
 static constexpr uint32_t SDR_ARMING_MEAS_MAX_AGE_MS = 2000;
 
 Copter::ARRCRFSource Copter::arrc_rf_source() const
@@ -185,21 +186,25 @@ bool Copter::arrc_sdr_streaming() const
 #endif
 }
 
-bool Copter::arrc_sdr_arming_checks(size_t buflen, char *buffer) const
+bool Copter::arrc_arming_checks(size_t buflen, char *buffer) const
 {
+    const int16_t options = g2.user_parameters.get_sdr_options();
 #if AP_ARRC_SDR_ENABLED
-    if ((g2.user_parameters.get_sdr_options() & SDR_OPT_REQUIRE_MEAS) == 0) {
-        return true;
-    }
-    if (!ARRC_SDR.detected()) {
-        hal.util->snprintf(buffer, buflen, "companion or SDR not detected");
-        return false;
-    }
-    if (!ARRC_SDR.meas_fresh(SDR_ARMING_MEAS_MAX_AGE_MS)) {
-        hal.util->snprintf(buffer, buflen, "no measurements");
-        return false;
+    if (options & SDR_OPT_REQUIRE_MEAS) {
+        if (!ARRC_SDR.detected()) {
+            hal.util->snprintf(buffer, buflen, "SDR: companion or SDR not detected");
+            return false;
+        }
+        if (!ARRC_SDR.meas_fresh(SDR_ARMING_MEAS_MAX_AGE_MS)) {
+            hal.util->snprintf(buffer, buflen, "SDR: no measurements");
+            return false;
+        }
     }
 #endif
+    if ((options & SDR_OPT_REQUIRE_LB5900) && arrc_lb5900_streaming() && !ARRC_LB5900.healthy()) {
+        hal.util->snprintf(buffer, buflen, "LB5900: no readings");
+        return false;
+    }
     return true;
 }
 
@@ -251,17 +256,80 @@ void Copter::user_LB5900_logger()
     if (!arrc_lb5900_streaming()) {
         return;
     }
-    // Read Power in dBm. Write sensors packet into the SD card
-    // LB5900 Power Data Logger ///////////////////////////////////////////////////////////////////////////////////////////
-    struct log_LB5900 pkt_temp = {
-        LOG_PACKET_HEADER_INIT(LOG_ARRC_LB59_MSG),
-        time_stamp              : AP_HAL::micros64(),                   //Store time in microseconds
-        healthy                 : copter.ARRC_LB5900.healthy(),         //Store sensor health
-        power                   : copter.ARRC_LB5900.power_measure(),   //Store power in dBm
-    };
-    logger.WriteBlock(&pkt_temp, sizeof(pkt_temp));   //Send package to SD card
+    arrc_lb5900_update();
 }
 #endif
+
+// LB5900 at 50 Hz: offer each new reading to the channels streaming CASS_SENSOR_RAW, log it as LB59, and
+// report the sensor state to the GCS
+void Copter::arrc_lb5900_update()
+{
+    AP_ARRC_LB5900::Sample sample;
+    const bool have_sample = ARRC_LB5900.get_sample(sample);
+    const uint32_t now_ms = AP_HAL::millis();
+
+    if (have_sample && sample.count != arrc_lb.pushed_count) {
+        arrc_lb.pushed_count = sample.count;
+        for (uint8_t c = 0; c < gcs().num_gcs(); c++) {
+            uint16_t interval_ms;
+            if (gcs().chan(c)->get_ap_message_interval(MSG_ARRC_SDR, interval_ms) && interval_ms > 0) {
+                gcs().chan(c)->send_message(MSG_ARRC_SDR);
+            }
+        }
+    }
+
+    // LB5900 Power Data Logger: each reading once, at the time it was read; while the sensor is not healthy a
+    // record with Hth 0 once a second
+// @LoggerMessage: LB59
+// @Description: ARRC LB5900 RF power sensor reading
+// @Field: TimeUS: Time the reading was taken
+// @Field: Hth: Sensor healthy
+// @Field: Pwr: Power (NaN while the sensor is not healthy)
+// @Field: Cnt: Readings taken since boot
+    if (have_sample && sample.count != arrc_lb.logged_count) {
+        arrc_lb.logged_count = sample.count;
+        const struct log_LB5900 pkt {
+            LOG_PACKET_HEADER_INIT(LOG_ARRC_LB59_MSG),
+            time_stamp  : uint64_t(sample.time_ms) * 1000U,
+            healthy     : 1,
+            power       : sample.power_dbm,
+            count       : sample.count,
+        };
+        logger.WriteBlock(&pkt, sizeof(pkt));
+    } else if (!ARRC_LB5900.healthy() && now_ms - arrc_lb.unhealthy_log_ms >= 1000) {
+        arrc_lb.unhealthy_log_ms = now_ms;
+        const struct log_LB5900 pkt {
+            LOG_PACKET_HEADER_INIT(LOG_ARRC_LB59_MSG),
+            time_stamp  : AP_HAL::micros64(),
+            healthy     : 0,
+            power       : NaNf,
+            count       : sample.count,
+        };
+        logger.WriteBlock(&pkt, sizeof(pkt));
+    }
+
+    // sensor state for the GCS
+    const AP_ARRC_LB5900::State state = ARRC_LB5900.state();
+    if (state != arrc_lb.reported_state) {
+        if (state == AP_ARRC_LB5900::State::RUNNING) {
+            GCS_SEND_TEXT(MAV_SEVERITY_INFO, "LB5900: %s",
+                          arrc_lb.lost ? "reconnected" : (arrc_lb.not_found_reported ? "found" : "OK"));
+            arrc_lb.lost = false;
+        } else if (state == AP_ARRC_LB5900::State::CONFIGURING &&
+                   arrc_lb.reported_state == AP_ARRC_LB5900::State::RUNNING) {
+            GCS_SEND_TEXT(MAV_SEVERITY_WARNING, "LB5900: no readings, reconnecting");
+            arrc_lb.lost = true;
+        }
+        arrc_lb.reported_state = state;
+    }
+    if (state == AP_ARRC_LB5900::State::CONFIGURING && !ARRC_LB5900.ever_configured() &&
+        !arrc_lb.not_found_reported && now_ms - arrc_lb.init_ms > 5000) {
+        GCS_SEND_TEXT(MAV_SEVERITY_WARNING, "LB5900: not found (I2C bus %u, address %u)",
+                      unsigned(g2.user_parameters.get_lb5900_busId()),
+                      unsigned(g2.user_parameters.get_lb5900_address()));
+        arrc_lb.not_found_reported = true;
+    }
+}
 
 #ifdef USERHOOK_SLOWLOOP
 void Copter::userhook_SlowLoop()

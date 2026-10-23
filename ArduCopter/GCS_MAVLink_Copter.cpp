@@ -251,25 +251,30 @@ int16_t GCS_MAVLINK_Copter::vfr_hud_throttle() const
     return (int16_t)(copter.motors->get_throttle() * 100);
 }
 
-void Copter::send_arrc_gcs_message(mavlink_channel_t chan) {
-    //mavlink_cass_sensor_raw_t packet;
-    float raw_sensor[5];
-    uint8_t size = 5;
-    memset(raw_sensor, 0, size * sizeof(float));
-
-    // Send LB5900 power and phase to GCS
-    raw_sensor[0] = copter.ARRC_LB5900.power_measure();
-    raw_sensor[1] = 0.0;
-    raw_sensor[2] = 0.0;
-    raw_sensor[3] = 0.0;
-
-    // Call Mavlink function and send CASS data
-    mavlink_msg_cass_sensor_raw_send(
-        chan,
-        AP_HAL::millis(),
-        4,
-        size,
-        raw_sensor);
+// LB5900 RF power as CASS_SENSOR_RAW (app_datatype 4): values[0] power in dBm (NaN while the sensor is not
+// healthy), values[1..3] NaN (no cross-polar power or phases from an LB5900), values[4] readings taken since boot;
+// time_boot_ms is when the reading was taken. Each reading is sent once per channel, at most at the channel's
+// interval; a sensor that is not healthy is reported once a second
+void Copter::send_arrc_gcs_message(mavlink_channel_t chan)
+{
+    AP_ARRC_LB5900::Sample sample;
+    const bool healthy = ARRC_LB5900.get_sample(sample) && ARRC_LB5900.healthy();
+    const uint32_t now_ms = AP_HAL::millis();
+    if (healthy ? (sample.count == arrc_lb.sent_count[chan]) : (now_ms - arrc_lb.nan_ms[chan] < 1000)) {
+        return;
+    }
+    uint16_t interval_ms;
+    if (gcs().chan(chan)->get_ap_message_interval(MSG_ARRC_SDR, interval_ms) && interval_ms > 0 &&
+        !arrc_lb.cap[chan].take(interval_ms)) {
+        return;
+    }
+    const float values[5] {healthy ? sample.power_dbm : NaNf, NaNf, NaNf, NaNf, float(sample.count)};
+    mavlink_msg_cass_sensor_raw_send(chan, healthy ? sample.time_ms : now_ms, 4, ARRAY_SIZE(values), values);
+    if (healthy) {
+        arrc_lb.sent_count[chan] = sample.count;
+    } else {
+        arrc_lb.nan_ms[chan] = now_ms;
+    }
 }
 
 /*

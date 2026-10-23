@@ -76,6 +76,7 @@
 // ARRC libraries declaration
 #include <AP_ARRC_LB5900/AP_ARRC_LB5900.h>
 #include <AP_ARRC_SDR/AP_ARRC_SDR.h>
+#include <AP_ARRC_SDR/AP_ARRC_RateCap.h>
 
 // Configuration
 #include "defines.h"
@@ -265,6 +266,20 @@ private:
 
     // ARRC_LB5900 sensor class declaration
     AP_ARRC_LB5900 ARRC_LB5900;
+    // LB5900 downlink (CASS_SENSOR_RAW) per channel, its log and the sensor state reported to the GCS
+    struct {
+        AP_ARRC_RateCap cap[MAVLINK_COMM_NUM_BUFFERS];
+        uint32_t sent_count[MAVLINK_COMM_NUM_BUFFERS];  // reading last sent on each channel
+        uint32_t nan_ms[MAVLINK_COMM_NUM_BUFFERS];      // system time of the last "not healthy" message
+        uint32_t pushed_count;                          // reading last offered to the channels
+        uint32_t logged_count;                          // reading last logged
+        uint32_t unhealthy_log_ms;
+        uint32_t init_ms;
+        AP_ARRC_LB5900::State reported_state;
+        bool not_found_reported;
+        bool lost;                                      // readings stopped after the sensor was running
+    } arrc_lb;
+    void arrc_lb5900_update();
 
 #if AP_ARRC_SDR_ENABLED
     // ARRC onboard SDR (companion computer) interface
@@ -281,7 +296,7 @@ private:
     ARRCRFSource arrc_rf_source() const;
     bool arrc_lb5900_streaming() const;
     bool arrc_sdr_streaming() const;
-    bool arrc_sdr_arming_checks(size_t buflen, char *buffer) const;
+    bool arrc_arming_checks(size_t buflen, char *buffer) const;
     bool arrc_lb5900_latched_off;   // LB5900 disabled in AUTO after the SDR was detected
     bool arrc_was_armed;            // armed state at the last SDR update
     bool arrc_was_failsafe;         // failsafe state at the last SDR update
