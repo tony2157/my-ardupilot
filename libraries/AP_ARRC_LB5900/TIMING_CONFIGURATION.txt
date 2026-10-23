@@ -25,8 +25,9 @@ CALCULATING ACTUAL SAMPLING RATE
 
 Formula:
   measurement_time = time_per_average * avg_cnt
-  callback_period  = measurement_time * 1.25   (25% margin for reliability)
-  max_sensor_rate  = 1000 / callback_period_ms
+  callback_period  = measurement_time * 1.25   (25% margin for reliability),
+                     clamped to 5 ms .. 500 ms
+  max_sensor_rate  = 1000 / callback_period_ms   (200 Hz at most)
 
 Example calculations:
 
@@ -51,31 +52,34 @@ QUICK REFERENCE TABLE
 
 Desired Rate | Recommended Config          | Averaging
 -------------|-----------------------------|-----------
+    ~4 Hz    | DOUBLE (rate=1), avg_cnt=10 | 10 samples (default)
    ~10 Hz    | DOUBLE (rate=1), avg_cnt=5  | 5 samples
    ~25 Hz    | DOUBLE (rate=1), avg_cnt=2  | 2 samples
    ~40 Hz    | DOUBLE (rate=1), avg_cnt=1  | None
    ~60 Hz    | SUPER (rate=3), avg_cnt=10  | 10 samples
   ~125 Hz    | SUPER (rate=3), avg_cnt=4   | 4 samples
-  ~300 Hz    | FAST (rate=2), avg_cnt=1    | None (forced)
-  ~500 Hz    | SUPER (rate=3), avg_cnt=1   | None
+  ~200 Hz    | FAST (rate=2), avg_cnt=1    | None (forced), 5 ms floor
+  ~200 Hz    | SUPER (rate=3), avg_cnt=1   | None, 5 ms floor
 
-Note: Actual logged rate is also limited by the scheduler task rate in
-ArduCopter/Copter.cpp (currently 50 Hz). Increase scheduler rate if the
-sensor rate exceeds 50 Hz.
+Logging and streaming: the LB59 log record carries a reading counter (Cnt) and
+is written once per new reading by the 50 Hz task user_LB5900_logger, so above
+50 Hz some readings are not logged (Cnt shows the gap). CASS_SENSOR_RAW sends
+each reading once, at most at the rate the ground station requested
+(MAVn_ARRC or MAV_CMD_SET_MESSAGE_INTERVAL).
 
 --------------------------------------------------------------------------------
 PARAMETER LOCATIONS
 --------------------------------------------------------------------------------
 
-User-configurable parameters (runtime via GCS):
-  - USR_LB_AVG_CNT : Averaging count (1-1024, ignored in FAST mode)
+User-configurable parameters (read at boot):
+  - USR_LB_AVG_CNT : Averaging count (1-127, ignored in FAST mode)
   - USR_LB_RATE    : Measurement rate mode (0-3)
 
 Default values defined in:
-  ArduCopter/UserParameters.cpp (lines 17-18)
+  ArduCopter/UserParameters.cpp (USR_LB_RATE 1, USR_LB_AVG_CNT 10)
 
 Scheduler task rate defined in:
-  ArduCopter/Copter.cpp (line 251)
+  ArduCopter/Copter.cpp
   SCHED_TASK(user_LB5900_logger, 50, 175, 159)
                                  ^^ Hz
 
@@ -107,14 +111,16 @@ If logged data shows lower than expected rate:
 1. Check avg_cnt parameter - this is usually the culprit
    Higher avg_cnt = proportionally slower rate
 
-2. Check scheduler rate in Copter.cpp
-   Sensor rate cannot exceed scheduler rate
+2. Check the LB59 Cnt field: steps above 1 are readings the 50 Hz log task
+   did not catch (sensor faster than 50 Hz)
 
 3. Verify mode setting (rate parameter)
    SUPER mode (rate=3) allows highest rates with averaging
 
-4. Check _healthy flag stability
-   Frequent health dropouts indicate timing margin issues
+4. Check the sensor health: LB59 records with Hth 0 (once a second) and the
+   texts "LB5900: no readings, reconnecting" / "reconnected". A reading must
+   arrive within three callback periods; after 2 s without one the driver
+   sends the configuration again
 
 --------------------------------------------------------------------------------
 REFERENCES
@@ -125,5 +131,5 @@ REFERENCES
 - AP_ARRC_LB5900.h header comments (measurement rate tables)
 
 ================================================================================
-Last updated: 2026-02-02
+Last updated: 2026-10-23
 ================================================================================
