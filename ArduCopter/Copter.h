@@ -264,6 +264,7 @@ private:
     AP_Int8 *flight_modes;
     const uint8_t num_flight_modes = 6;
 
+#if AP_ARRC_LB5900_ENABLED
     // ARRC_LB5900 sensor class declaration
     AP_ARRC_LB5900 ARRC_LB5900;
     // LB5900 downlink (CASS_SENSOR_RAW) per channel, its log and the sensor state reported to the GCS
@@ -280,6 +281,7 @@ private:
         bool lost;                                      // readings stopped after the sensor was running
     } arrc_lb;
     void arrc_lb5900_update();
+#endif
 
 #if AP_ARRC_SDR_ENABLED
     // ARRC onboard SDR (companion computer) interface
@@ -1072,7 +1074,9 @@ private:
     void userhook_auxSwitch3(const RC_Channel::AuxSwitchPos ch_flag);
 
     //ARRC Mavlink message
+#if AP_ARRC_LB5900_ENABLED
     void send_arrc_gcs_message(mavlink_channel_t chan);
+#endif
 
     //ARRC Libraries sensor code initializer
     void init_ARRC_lb5900(void);

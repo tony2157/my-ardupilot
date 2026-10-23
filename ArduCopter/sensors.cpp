@@ -1,6 +1,7 @@
 #include "Copter.h"
 
 void Copter::init_ARRC_lb5900(){
+#if AP_ARRC_LB5900_ENABLED
     if (arrc_rf_source() == ARRCRFSource::SDR) {
         // SDR only: never poll the LB5900
         ARRC_LB5900.set_enabled(false);
@@ -16,6 +17,7 @@ void Copter::init_ARRC_lb5900(){
     if (!ARRC_LB5900.init(busId,i2cAddr,freq,avg_cnt,rate)) {
         GCS_SEND_TEXT(MAV_SEVERITY_WARNING, "LB5900: no I2C bus %u", busId);
     }
+#endif
 }
 
 // return barometric altitude in centimeters

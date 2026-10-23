@@ -246,7 +246,7 @@ const AP_Scheduler::Task Copter::scheduler_tasks[] = {
 #if defined(USER_ARRC_SDR_LOOP) && AP_ARRC_SDR_ENABLED
     SCHED_TASK(user_ARRC_SDR_logger, 10,     75, 156),
 #endif
-#ifdef USER_ARRCLB5900_LOOP
+#if defined(USER_ARRCLB5900_LOOP) && AP_ARRC_LB5900_ENABLED
     SCHED_TASK(user_LB5900_logger,   50,    175, 159),
 #endif
 #ifdef USERHOOK_SLOWLOOP

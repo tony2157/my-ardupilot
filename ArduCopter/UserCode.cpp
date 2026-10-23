@@ -57,11 +57,15 @@ bool Copter::arrc_align_sample(bool sdr, uint32_t &count, float &power_dbm) cons
         return ARRC_SDR.get_copol(power_dbm, count);
     }
 #endif
+#if AP_ARRC_LB5900_ENABLED
     AP_ARRC_LB5900::Sample sample;
     const bool ok = ARRC_LB5900.get_sample(sample) && ARRC_LB5900.healthy();
     count = sample.count;
     power_dbm = sample.power_dbm;
     return ok;
+#else
+    return false;
+#endif
 }
 
 #ifdef USER_GIMBAL_LOOP
@@ -186,7 +190,11 @@ Copter::ARRCRFSource Copter::arrc_rf_source() const
 // true if the LB5900 power is logged and streamed (CASS_SENSOR_RAW)
 bool Copter::arrc_lb5900_streaming() const
 {
+#if AP_ARRC_LB5900_ENABLED
     return ARRC_LB5900.enabled() && arrc_rf_source() != ARRCRFSource::SDR;
+#else
+    return false;
+#endif
 }
 
 // true if the SDR measurement is streamed (ARRC_SENSOR_RAW)
@@ -248,10 +256,12 @@ bool Copter::arrc_arming_checks(size_t buflen, char *buffer)
         }
     }
 #endif
+#if AP_ARRC_LB5900_ENABLED
     if ((options & SDR_OPT_REQUIRE_LB5900) && arrc_lb5900_streaming() && !ARRC_LB5900.healthy()) {
         hal.util->snprintf(buffer, buflen, "LB5900: no readings");
         return false;
     }
+#endif
     return true;
 }
 
@@ -274,7 +284,9 @@ void Copter::user_ARRC_SDR_logger()
     bool log_rf_source = false;
     if (arrc_rf_source() == ARRCRFSource::AUTO && !arrc_lb5900_latched_off && ARRC_SDR.detected() &&
         ARRC_SDR.dialect_ok()) {
+#if AP_ARRC_LB5900_ENABLED
         ARRC_LB5900.set_enabled(false);
+#endif
         arrc_lb5900_latched_off = true;
         GCS_SEND_TEXT(MAV_SEVERITY_INFO, "RF source: SDR (LB5900 disabled)");
         log_rf_source = true;
@@ -304,7 +316,7 @@ void Copter::user_ARRC_SDR_logger()
         logger.Write("RFSR", "TimeUS,Src,LB,SDR", "s---", "F---", "QBBB",
                      AP_HAL::micros64(),
                      uint8_t(arrc_rf_source()),
-                     uint8_t(ARRC_LB5900.enabled()),
+                     uint8_t(arrc_lb5900_streaming()),
                      uint8_t(ARRC_SDR.detected()));
     }
 #endif
@@ -323,7 +335,7 @@ void Copter::user_ARRC_SDR_logger()
 }
 #endif
 
-#ifdef USER_ARRCLB5900_LOOP
+#if defined(USER_ARRCLB5900_LOOP) && AP_ARRC_LB5900_ENABLED
 void Copter::user_LB5900_logger()
 {
     if (!arrc_lb5900_streaming()) {
@@ -333,6 +345,7 @@ void Copter::user_LB5900_logger()
 }
 #endif
 
+#if AP_ARRC_LB5900_ENABLED
 // LB5900 at 50 Hz: offer each new reading to the channels streaming CASS_SENSOR_RAW, log it as LB59, and
 // report the sensor state to the GCS
 void Copter::arrc_lb5900_update()
@@ -403,6 +416,7 @@ void Copter::arrc_lb5900_update()
         arrc_lb.not_found_reported = true;
     }
 }
+#endif  // AP_ARRC_LB5900_ENABLED
 
 #ifdef USERHOOK_SLOWLOOP
 void Copter::userhook_SlowLoop()

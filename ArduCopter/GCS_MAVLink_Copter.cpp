@@ -251,6 +251,7 @@ int16_t GCS_MAVLINK_Copter::vfr_hud_throttle() const
     return (int16_t)(copter.motors->get_throttle() * 100);
 }
 
+#if AP_ARRC_LB5900_ENABLED
 // LB5900 RF power as CASS_SENSOR_RAW (app_datatype 4): values[0] power in dBm (NaN while the sensor is not
 // healthy), values[1..3] NaN (no cross-polar power or phases from an LB5900), values[4] readings taken since boot;
 // time_boot_ms is when the reading was taken. Each reading is sent once per channel, at most at the channel's
@@ -276,6 +277,7 @@ void Copter::send_arrc_gcs_message(mavlink_channel_t chan)
         arrc_lb.nan_ms[chan] = now_ms;
     }
 }
+#endif  // AP_ARRC_LB5900_ENABLED
 
 /*
   send PID tuning message
@@ -371,12 +373,14 @@ bool GCS_MAVLINK_Copter::try_send_message(enum ap_message id)
         break;
     }
 
+#if AP_ARRC_LB5900_ENABLED
     case MSG_ARRC_SDR:
         if (copter.arrc_lb5900_streaming()) {
             CHECK_PAYLOAD_SIZE(CASS_SENSOR_RAW);
             copter.send_arrc_gcs_message(chan);
         }
         break;
+#endif
 
 #if AP_ARRC_SDR_ENABLED
     case MSG_ARRC_SENSOR:
