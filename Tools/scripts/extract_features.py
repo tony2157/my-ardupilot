@@ -109,6 +109,8 @@ class ExtractFeatures(BuildScriptBase):
             ('HAL_MOUNT_STORM32SERIAL_ENABLED', 'AP_Mount_SToRM32_serial::update',),
             ('HAL_MOUNT_STORM32MAVLINK_ENABLED', 'AP_Mount_SToRM32::update',),
             ('AP_MOUNT_POI_LOCK_ENABLED', 'AP_Mount::set_poi_lock'),
+            ('AP_ARRC_SDR_ENABLED', 'AP_ARRC_SDR::handle_message',),
+            ('AP_ARRC_LB5900_ENABLED', 'AP_ARRC_LB5900::init',),
 
             ('HAL_SPEKTRUM_TELEM_ENABLED', r'AP::spektrum_telem',),
             ('HAL_{type}_TELEM_ENABLED', r'AP_(?P<type>.*)_Telem::init',),
