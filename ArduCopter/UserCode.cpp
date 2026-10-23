@@ -71,6 +71,7 @@ bool Copter::arrc_align_sample(bool sdr, uint32_t &count, float &power_dbm) cons
 #ifdef USER_GIMBAL_LOOP
 void Copter::user_ARRC_gimbal()
 {
+#if HAL_MOUNT_ENABLED
     if (gimbal_align.state == AlignState::IDLE) {
         return;
     }
@@ -168,6 +169,7 @@ void Copter::user_ARRC_gimbal()
         break;
     }
     }
+#endif  // HAL_MOUNT_ENABLED
 }
 #endif
 
@@ -437,6 +439,7 @@ void Copter::userhook_auxSwitch1(const RC_Channel::AuxSwitchPos ch_flag)
 {
     // put your aux switch #1 handler here (CHx_OPT = 47)
     // ARRC gimbal alignment: high starts it, low stops it (if running) and clears the polarization offset
+#if HAL_MOUNT_ENABLED
     switch (ch_flag) {
     case RC_Channel::AuxSwitchPos::HIGH: {
         if (gimbal_align.state != AlignState::IDLE) {
@@ -483,6 +486,7 @@ void Copter::userhook_auxSwitch1(const RC_Channel::AuxSwitchPos ch_flag)
     case RC_Channel::AuxSwitchPos::MIDDLE:
         break;
     }
+#endif  // HAL_MOUNT_ENABLED
 }
 
 void Copter::userhook_auxSwitch2(const RC_Channel::AuxSwitchPos ch_flag)
