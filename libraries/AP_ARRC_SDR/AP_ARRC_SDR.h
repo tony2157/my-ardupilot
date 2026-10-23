@@ -12,6 +12,7 @@
 #pragma once
 
 #include "AP_ARRC_SDR_config.h"
+#include "AP_ARRC_RateCap.h"
 
 #if AP_ARRC_SDR_ENABLED
 
@@ -75,13 +76,6 @@ private:
     // interval a channel requested for a message, false if it did not (no stream)
     static bool chan_interval(uint8_t chan, ap_message id, uint16_t &interval_ms);
 
-    // caps a stream at one message per interval on average (token bucket): a message that comes up to an
-    // eighth of an interval early still goes when the previous ones were on time
-    struct RateCap {
-        float tokens;
-        uint32_t last_ms;
-        bool take(uint16_t interval_ms);
-    };
 
     // true if a sample of the stream goes to chan now: the channel requested it with an interval, the interval
     // has passed since the last one and the channel keeps tx room for the heartbeat, ACKs and the GCS downlink
@@ -91,12 +85,12 @@ private:
     void send_nav_gps(mavlink_channel_t chan);
     void send_nav_ecef(mavlink_channel_t chan);
 
-    RateCap _nav_cap[uint8_t(NavStream::COUNT)][MAVLINK_COMM_NUM_BUFFERS];
+    AP_ARRC_RateCap _nav_cap[uint8_t(NavStream::COUNT)][MAVLINK_COMM_NUM_BUFFERS];
     uint64_t _gps_fix_us;       // latest GPS fix sent to the channels with the stream
     uint64_t _ecef_fix_us;
 
     // ARRC_SENSOR_RAW: sent as each measurement arrives, at most at the interval the channel requested
-    RateCap _rf_cap[MAVLINK_COMM_NUM_BUFFERS];
+    AP_ARRC_RateCap _rf_cap[MAVLINK_COMM_NUM_BUFFERS];
 
     // companion link
     uint32_t _last_hb_ms;

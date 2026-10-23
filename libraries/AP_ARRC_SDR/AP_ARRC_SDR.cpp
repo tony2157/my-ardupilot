@@ -38,22 +38,6 @@ bool AP_ARRC_SDR::chan_interval(uint8_t chan, ap_message id, uint16_t &interval_
     return (link != nullptr) && link->get_ap_message_interval(id, interval_ms) && (interval_ms > 0);
 }
 
-bool AP_ARRC_SDR::RateCap::take(uint16_t interval_ms)
-{
-    const uint32_t now_ms = AP_HAL::millis();
-    if (last_ms == 0) {
-        tokens = 1.0f;
-    } else {
-        tokens = MIN(tokens + float(now_ms - last_ms) / MAX(interval_ms, 1U), 1.5f);
-    }
-    last_ms = MAX(now_ms, 1U);
-    if (tokens < 0.875f) {
-        return false;
-    }
-    tokens -= 1.0f;
-    return true;
-}
-
 bool AP_ARRC_SDR::from_companion(const mavlink_message_t &msg) const
 {
     return msg.sysid == mavlink_system.sysid && msg.compid == MAV_COMP_ID_ONBOARD_COMPUTER;
