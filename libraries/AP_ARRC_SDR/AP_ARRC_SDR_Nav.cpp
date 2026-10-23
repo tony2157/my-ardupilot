@@ -8,7 +8,9 @@
  * requests each message with MAV_CMD_SET_MESSAGE_INTERVAL on its link: that subscribes the link and caps
  * the stream at the requested rate (IMU_FAST at 400 Hz or a slow link must not starve the heartbeat, the
  * ACKs and the GCS downlink); a sample is also held back when the channel's tx buffer is nearly full.
- * Instance 0 of each sensor; samples carry the time they were taken on the boot clock.
+ * The cap is the requested interval itself, not the stream scheduler's timing, which slows down while
+ * parameters or a mission are transferred. Instance 0 of each sensor; samples carry the time they were taken
+ * on the boot clock.
  */
 #include "AP_ARRC_SDR.h"
 
@@ -21,10 +23,14 @@
 #include <AP_Mount/AP_Mount.h>
 #include <GCS_MAVLink/GCS.h>
 
-// a channel keeps a stream this long after its message was last due there
-static constexpr uint32_t NAV_SUBSCRIPTION_MS = 2000;
 // tx space kept free on a channel when a sample is sent: a heartbeat, an ACK and an ARRC_SENSOR_RAW
 static constexpr uint16_t NAV_TX_HEADROOM_BYTES = 200;
+
+// the message of each stream
+static constexpr ap_message nav_msg[uint8_t(AP_ARRC_SDR::NavStream::COUNT)] {
+    MSG_ARRC_NAV_IMU, MSG_ARRC_NAV_MAG, MSG_ARRC_NAV_BARO, MSG_ARRC_NAV_GPS, MSG_ARRC_NAV_ECEF,
+    MSG_ARRC_GIMBAL_POINTING,
+};
 
 // boot time of a sample stamped with the 32-bit microsecond clock (less than 71 minutes old)
 static uint64_t sample_time_us(uint64_t now_us, uint32_t sample_us)
@@ -44,117 +50,155 @@ void AP_ARRC_SDR::nav_due(NavStream stream, mavlink_channel_t chan)
     if (chan >= MAVLINK_COMM_NUM_BUFFERS) {
         return;
     }
-    const uint8_t s = uint8_t(stream);
-    const uint32_t now_ms = MAX(AP_HAL::millis(), 1U);
-    const uint32_t prev_ms = _nav_due_ms[s][chan];
-    // the message is due at the interval the companion requested: that interval caps the stream
-    if (prev_ms != 0 && now_ms > prev_ms && now_ms - prev_ms < NAV_SUBSCRIPTION_MS) {
-        _nav_period_ms[s][chan] = now_ms - prev_ms;
+    // a channel with an interval gets the samples from the vehicle tasks; a single request gets the latest one
+    uint16_t interval_ms;
+    if (!chan_interval(chan, nav_msg[uint8_t(stream)], interval_ms)) {
+        nav_send(stream, chan);
     }
-    _nav_due_ms[s][chan] = now_ms;
-    if (stream == NavStream::GPS) {
-        send_nav_gps(chan);
-    } else if (stream == NavStream::ECEF) {
-        send_nav_ecef(chan);
-    }
-}
-
-bool AP_ARRC_SDR::nav_subscribed(NavStream stream, uint8_t chan) const
-{
-    const uint32_t due_ms = _nav_due_ms[uint8_t(stream)][chan];
-    return due_ms != 0 && AP_HAL::millis() - due_ms < NAV_SUBSCRIPTION_MS;
 }
 
 bool AP_ARRC_SDR::nav_ready(NavStream stream, uint8_t chan, uint16_t payload_bytes)
 {
-    if (!nav_subscribed(stream, chan)) {
-        return false;
-    }
     const uint8_t s = uint8_t(stream);
-    const uint32_t now_ms = AP_HAL::millis();
-    const uint32_t period_ms = _nav_period_ms[s][chan];
-    // at most one sample per requested interval (less an eighth, so a sample arriving a little early still goes)
-    if (period_ms > 0 && now_ms - _nav_sent_ms[s][chan] < period_ms - period_ms / 8) {
+    uint16_t interval_ms;
+    if (!chan_interval(chan, nav_msg[s], interval_ms)) {
         return false;
     }
     if (comm_get_txspace(mavlink_channel_t(chan)) < uint32_t(payload_bytes) + NAV_TX_HEADROOM_BYTES) {
         return false;
     }
-    _nav_sent_ms[s][chan] = now_ms;
-    return true;
+    return _nav_cap[s][chan].take(interval_ms);
+}
+
+void AP_ARRC_SDR::nav_send(NavStream stream, mavlink_channel_t chan)
+{
+    switch (stream) {
+    case NavStream::IMU: {
+        const AP_InertialSensor &ins = AP::ins();
+        const uint8_t i = 0;
+        if (ins.get_gyro_count() == 0 || ins.get_accel_count() == 0 || ins.get_last_update_usec() == 0 ||
+            !HAVE_PAYLOAD_SPACE(chan, ARRC_NAV_IMU)) {
+            return;
+        }
+        const uint64_t t_us = sample_time_us(AP_HAL::micros64(), ins.get_last_update_usec());
+        const Vector3f &gyro = ins.get_gyro(i);
+        const Vector3f &accel = ins.get_accel(i);
+        const float g[3] {gyro.x, gyro.y, gyro.z};
+        const float a[3] {accel.x, accel.y, accel.z};
+        const int16_t temperature = int16_t(constrain_float(ins.get_temperature(i) * 100.0f, INT16_MIN, INT16_MAX));
+        const uint8_t flags = (ins.get_gyro_health(i) ? ARRC_NAV_IMU_FLAGS_GYRO_HEALTHY : 0) |
+                              (ins.get_accel_health(i) ? ARRC_NAV_IMU_FLAGS_ACCEL_HEALTHY : 0);
+        mavlink_msg_arrc_nav_imu_send(chan, t_us, g, a, temperature, i, flags);
+        break;
+    }
+    case NavStream::MAG: {
+        const Compass &compass = AP::compass();
+        const uint8_t i = 0;
+        if (compass.get_count() == 0 || compass.last_update_usec(i) == 0 || !HAVE_PAYLOAD_SPACE(chan, ARRC_NAV_MAG)) {
+            return;
+        }
+        const uint64_t t_us = sample_time_us(AP_HAL::micros64(), compass.last_update_usec(i));
+        const Vector3f &field = compass.get_field(i);
+        const float f[3] {field.x, field.y, field.z};
+        mavlink_msg_arrc_nav_mag_send(chan, t_us, f, i, compass.healthy(i) ? 1 : 0);
+        break;
+    }
+    case NavStream::BARO: {
+        const AP_Baro &baro = AP::baro();
+        const uint8_t i = 0;
+        if (baro.num_instances() == 0 || baro.get_last_update(i) == 0 || !HAVE_PAYLOAD_SPACE(chan, ARRC_NAV_BARO)) {
+            return;
+        }
+        const uint64_t t_us = sample_time_ms_to_us(AP_HAL::micros64(), baro.get_last_update(i));
+        mavlink_msg_arrc_nav_baro_send(chan, t_us, baro.get_pressure(i), baro.get_altitude(i),
+                                       baro.get_temperature(i), i, baro.healthy(i) ? 1 : 0);
+        break;
+    }
+    case NavStream::GPS:
+        if (HAVE_PAYLOAD_SPACE(chan, ARRC_NAV_GPS)) {
+            send_nav_gps(chan);
+        }
+        break;
+    case NavStream::ECEF:
+        if (HAVE_PAYLOAD_SPACE(chan, ARRC_NAV_ECEF)) {
+            send_nav_ecef(chan);
+        }
+        break;
+    case NavStream::GIMBAL: {
+#if HAL_MOUNT_ENABLED
+        AP_Mount *mount = AP::mount();
+        if (mount != nullptr) {
+            mount->send_ARRC_pointing(chan);
+        }
+#endif
+        break;
+    }
+    case NavStream::COUNT:
+        break;
+    }
 }
 
 void AP_ARRC_SDR::nav_imu_sample(void)
 {
-    const AP_InertialSensor &ins = AP::ins();
-    const uint8_t i = 0;
-    if (ins.get_gyro_count() == 0 || ins.get_accel_count() == 0 || ins.get_last_update_usec() == 0) {
-        return;
-    }
-    const uint64_t t_us = sample_time_us(AP_HAL::micros64(), ins.get_last_update_usec());
-    const Vector3f &gyro = ins.get_gyro(i);
-    const Vector3f &accel = ins.get_accel(i);
-    const float g[3] {gyro.x, gyro.y, gyro.z};
-    const float a[3] {accel.x, accel.y, accel.z};
-    const int16_t temperature = int16_t(constrain_float(ins.get_temperature(i) * 100.0f, INT16_MIN, INT16_MAX));
-    const uint8_t flags = (ins.get_gyro_health(i) ? ARRC_NAV_IMU_FLAGS_GYRO_HEALTHY : 0) |
-                          (ins.get_accel_health(i) ? ARRC_NAV_IMU_FLAGS_ACCEL_HEALTHY : 0);
-    for (uint8_t c = 0; c < MAVLINK_COMM_NUM_BUFFERS; c++) {
-        const mavlink_channel_t chan = mavlink_channel_t(c);
-        if (nav_ready(NavStream::IMU, c, PAYLOAD_SIZE(chan, ARRC_NAV_IMU))) {
-            mavlink_msg_arrc_nav_imu_send(chan, t_us, g, a, temperature, i, flags);
+    for (uint8_t c = 0; c < gcs().num_gcs(); c++) {
+        if (nav_ready(NavStream::IMU, c, PAYLOAD_SIZE(mavlink_channel_t(c), ARRC_NAV_IMU))) {
+            nav_send(NavStream::IMU, mavlink_channel_t(c));
         }
     }
 }
 
 void AP_ARRC_SDR::nav_mag_sample(void)
 {
-    const Compass &compass = AP::compass();
-    const uint8_t i = 0;
-    if (compass.get_count() == 0 || compass.last_update_usec(i) == 0) {
-        return;
-    }
-    const uint64_t t_us = sample_time_us(AP_HAL::micros64(), compass.last_update_usec(i));
-    const Vector3f &field = compass.get_field(i);
-    const float f[3] {field.x, field.y, field.z};
-    for (uint8_t c = 0; c < MAVLINK_COMM_NUM_BUFFERS; c++) {
-        const mavlink_channel_t chan = mavlink_channel_t(c);
-        if (nav_ready(NavStream::MAG, c, PAYLOAD_SIZE(chan, ARRC_NAV_MAG))) {
-            mavlink_msg_arrc_nav_mag_send(chan, t_us, f, i, compass.healthy(i) ? 1 : 0);
+    for (uint8_t c = 0; c < gcs().num_gcs(); c++) {
+        if (nav_ready(NavStream::MAG, c, PAYLOAD_SIZE(mavlink_channel_t(c), ARRC_NAV_MAG))) {
+            nav_send(NavStream::MAG, mavlink_channel_t(c));
         }
     }
 }
 
 void AP_ARRC_SDR::nav_baro_sample(void)
 {
-    const AP_Baro &baro = AP::baro();
-    const uint8_t i = 0;
-    if (baro.num_instances() == 0 || baro.get_last_update(i) == 0) {
-        return;
-    }
-    const uint64_t t_us = sample_time_ms_to_us(AP_HAL::micros64(), baro.get_last_update(i));
-    for (uint8_t c = 0; c < MAVLINK_COMM_NUM_BUFFERS; c++) {
-        const mavlink_channel_t chan = mavlink_channel_t(c);
-        if (nav_ready(NavStream::BARO, c, PAYLOAD_SIZE(chan, ARRC_NAV_BARO))) {
-            mavlink_msg_arrc_nav_baro_send(chan, t_us, baro.get_pressure(i), baro.get_altitude(i),
-                                           baro.get_temperature(i), i, baro.healthy(i) ? 1 : 0);
+    for (uint8_t c = 0; c < gcs().num_gcs(); c++) {
+        if (nav_ready(NavStream::BARO, c, PAYLOAD_SIZE(mavlink_channel_t(c), ARRC_NAV_BARO))) {
+            nav_send(NavStream::BARO, mavlink_channel_t(c));
         }
     }
 }
 
 void AP_ARRC_SDR::nav_gimbal_sample(void)
 {
-#if HAL_MOUNT_ENABLED
-    AP_Mount *mount = AP::mount();
-    if (mount == nullptr) {
-        return;
-    }
-    for (uint8_t c = 0; c < MAVLINK_COMM_NUM_BUFFERS; c++) {
+    for (uint8_t c = 0; c < gcs().num_gcs(); c++) {
         if (nav_ready(NavStream::GIMBAL, c, PAYLOAD_SIZE(mavlink_channel_t(c), ARRC_GIMBAL_POINTING))) {
-            mount->send_ARRC_pointing(mavlink_channel_t(c));
+            nav_send(NavStream::GIMBAL, mavlink_channel_t(c));
         }
     }
-#endif
+}
+
+void AP_ARRC_SDR::nav_gps_sample(void)
+{
+    const AP_GPS &gps = AP::gps();
+    const uint8_t i = 0;
+    if (gps.status(i) != AP_GPS::NO_GPS && gps.last_message_time_ms(i) != 0) {
+        const uint64_t fix_us = sample_time_ms_to_us(AP_HAL::micros64(), gps.last_message_time_ms(i));
+        if (fix_us != _gps_fix_us) {
+            _gps_fix_us = fix_us;
+            for (uint8_t c = 0; c < gcs().num_gcs(); c++) {
+                if (nav_ready(NavStream::GPS, c, PAYLOAD_SIZE(mavlink_channel_t(c), ARRC_NAV_GPS))) {
+                    send_nav_gps(mavlink_channel_t(c));
+                }
+            }
+        }
+    }
+
+    AP_GPS::GPS_HPPOSECEF e;
+    if (AP::gps().get_hpposecef_latest(i, e) && e.time_us != _ecef_fix_us) {
+        _ecef_fix_us = e.time_us;
+        for (uint8_t c = 0; c < gcs().num_gcs(); c++) {
+            if (nav_ready(NavStream::ECEF, c, PAYLOAD_SIZE(mavlink_channel_t(c), ARRC_NAV_ECEF))) {
+                send_nav_ecef(mavlink_channel_t(c));
+            }
+        }
+    }
 }
 
 void AP_ARRC_SDR::send_nav_gps(mavlink_channel_t chan)
@@ -165,10 +209,6 @@ void AP_ARRC_SDR::send_nav_gps(mavlink_channel_t chan)
         return;
     }
     const uint64_t t_us = sample_time_ms_to_us(AP_HAL::micros64(), gps.last_message_time_ms(i));
-    if (t_us == _gps_sent_us[chan]) {
-        return;
-    }
-    _gps_sent_us[chan] = t_us;
     const Location &loc = gps.location(i);
     const Vector3f &vel = gps.velocity(i);
     const float v[3] {vel.x, vel.y, vel.z};
@@ -200,10 +240,9 @@ void AP_ARRC_SDR::send_nav_ecef(mavlink_channel_t chan)
 {
     const uint8_t i = 0;
     AP_GPS::GPS_HPPOSECEF e;
-    if (!AP::gps().get_hpposecef_latest(i, e) || e.time_us == _ecef_sent_us[chan]) {
+    if (!AP::gps().get_hpposecef_latest(i, e)) {
         return;
     }
-    _ecef_sent_us[chan] = e.time_us;
     const int32_t ecef[3] {e.ecef_x, e.ecef_y, e.ecef_z};
     const int8_t ecef_hp[3] {e.ecef_x_hp, e.ecef_y_hp, e.ecef_z_hp};
     mavlink_msg_arrc_nav_ecef_send(chan, e.time_us, e.itow, ecef, e.p_acc, e.gps_week, ecef_hp, e.flags, i);

@@ -193,6 +193,8 @@ public:
     void        update_send();
     bool        init(uint8_t instance);
     void        send_message(enum ap_message id);
+    // ARRC mod: public so AP_ARRC_SDR can cap its streams at the interval each channel requested
+    bool get_ap_message_interval(ap_message id, uint16_t &interval_ms) const;
     void        send_text(MAV_SEVERITY severity, const char *fmt, ...) const FMT_PRINTF(3, 4);
     void        queued_param_send();
     void        queued_mission_request_send();
@@ -644,7 +646,6 @@ protected:
     // reset a message interval via mavlink:
     MAV_RESULT handle_command_set_message_interval(const mavlink_command_int_t &packet);
     MAV_RESULT handle_command_get_message_interval(const mavlink_command_int_t &packet);
-    bool get_ap_message_interval(ap_message id, uint16_t &interval_ms) const;
     MAV_RESULT handle_command_request_message(const mavlink_command_int_t &packet);
 
     MAV_RESULT handle_START_RX_PAIR(const mavlink_command_int_t &packet);

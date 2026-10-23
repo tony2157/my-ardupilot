@@ -747,6 +747,8 @@ void Copter::twentyfive_hz_logging()
     if (!(g.log_bitmask & MASK_LOG_IMU_FAST)) {
         ARRC_SDR.nav_imu_sample();
     }
+    // the companion's GPS and ECEF samples, each new fix once
+    ARRC_SDR.nav_gps_sample();
 #endif
 
 #if HAL_GYROFFT_ENABLED
