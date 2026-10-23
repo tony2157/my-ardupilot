@@ -80,7 +80,7 @@ void Copter::user_ARRC_gimbal()
     auto abort_alignment = [this](const char *reason) {
         camera_mount.set_ARRC_pol_offset(gimbal_align.start_offset_deg, false);
         gimbal_align.state = AlignState::IDLE;
-        gcs().send_text(MAV_SEVERITY_WARNING, "Gimbal alignment failed: %s", reason);
+        GCS_SEND_TEXT(MAV_SEVERITY_WARNING, "Gimbal alignment failed: %s", reason);
     };
 
     const uint8_t gimbal_mode = camera_mount.get_ARRC_gimbal_mode();
@@ -158,14 +158,14 @@ void Copter::user_ARRC_gimbal()
             return;
         }
         if (sigma > ALIGN_MAX_SIGMA_DEG) {
-            gcs().send_text(MAV_SEVERITY_WARNING, "Gimbal alignment: %.1f deg +-%.1f, R %.3f", angle_offset, sigma, corr);
+            GCS_SEND_TEXT(MAV_SEVERITY_WARNING, "Gimbal alignment: %.1f deg +-%.1f, R %.3f", angle_offset, sigma, corr);
             abort_alignment("offset too uncertain");
             return;
         }
         gimbal_align.state = AlignState::IDLE;
         camera_mount.set_ARRC_pol_offset(angle_offset, true);
-        gcs().send_text(MAV_SEVERITY_INFO, "Gimbal alignment correction: %.2f deg", angle_offset);
-        gcs().send_text(MAV_SEVERITY_INFO, "Gimbal alignment success: +-%.2f deg, R = %.3f", sigma, corr);
+        GCS_SEND_TEXT(MAV_SEVERITY_INFO, "Gimbal alignment correction: %.2f deg", angle_offset);
+        GCS_SEND_TEXT(MAV_SEVERITY_INFO, "Gimbal alignment success: +-%.2f deg, R = %.3f", sigma, corr);
         break;
     }
     }
@@ -447,7 +447,7 @@ void Copter::userhook_auxSwitch1(const RC_Channel::AuxSwitchPos ch_flag)
         }
         const uint8_t gimbal_mode = camera_mount.get_ARRC_gimbal_mode();
         if (gimbal_mode != 2 && gimbal_mode != 3) {
-            gcs().send_text(MAV_SEVERITY_WARNING, "Gimbal alignment needs MNT1_ARRC_GMODE 2 or 3");
+            GCS_SEND_TEXT(MAV_SEVERITY_WARNING, "Gimbal alignment needs MNT1_ARRC_GMODE 2 or 3");
             return;
         }
         // the RF source in use: the SDR while detected, otherwise the LB5900
@@ -459,10 +459,10 @@ void Copter::userhook_auxSwitch1(const RC_Channel::AuxSwitchPos ch_flag)
               arrc_align_sample(true, count, power_dbm);
 #endif
         if (!sdr && !(arrc_lb5900_streaming() && arrc_align_sample(false, count, power_dbm))) {
-            gcs().send_text(MAV_SEVERITY_WARNING, "Gimbal alignment needs an RF power reading");
+            GCS_SEND_TEXT(MAV_SEVERITY_WARNING, "Gimbal alignment needs an RF power reading");
             return;
         }
-        gcs().send_text(MAV_SEVERITY_INFO, "Executing Gimbal alignment (%s)", sdr ? "SDR" : "LB5900");
+        GCS_SEND_TEXT(MAV_SEVERITY_INFO, "Executing Gimbal alignment (%s)", sdr ? "SDR" : "LB5900");
         for (uint8_t i = 0; i < ALIGN_NUM_STEPS; i++) {
             gimbal_align.angle_deg[i] = -ALIGN_HALF_SPAN_DEG + i * ALIGN_STEP_DEG;
             gimbal_align.power_mw[i] = 0;
@@ -478,10 +478,10 @@ void Copter::userhook_auxSwitch1(const RC_Channel::AuxSwitchPos ch_flag)
     case RC_Channel::AuxSwitchPos::LOW:
         if (gimbal_align.state != AlignState::IDLE) {
             gimbal_align.state = AlignState::IDLE;
-            gcs().send_text(MAV_SEVERITY_INFO, "Gimbal alignment stopped");
+            GCS_SEND_TEXT(MAV_SEVERITY_INFO, "Gimbal alignment stopped");
         }
         camera_mount.set_ARRC_pol_offset(0.0f, true);
-        gcs().send_text(MAV_SEVERITY_INFO, "Gimbal polarization offset cleared");
+        GCS_SEND_TEXT(MAV_SEVERITY_INFO, "Gimbal polarization offset cleared");
         break;
     case RC_Channel::AuxSwitchPos::MIDDLE:
         break;
