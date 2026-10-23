@@ -34,6 +34,7 @@
 #include "SIM_ADSB_Sagetech_MXS.h"
 #include "SIM_Volz.h"
 #include "SIM_AIS.h"
+#include "SIM_LB5900.h"
 
 namespace SITL {
 
@@ -295,6 +296,11 @@ public:
         AP_Float wcof_zn;
     };
     BaroParm baro[BARO_MAX_INSTANCES];
+
+#if AP_SIM_LB5900_ENABLED
+    // ARRC LB5900 RF power sensor on I2C
+    LB5900 lb5900_sim;
+#endif
 
     // airspeed parameters
     class AirspeedParm {

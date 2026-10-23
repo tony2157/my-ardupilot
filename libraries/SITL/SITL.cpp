@@ -655,6 +655,12 @@ const AP_Param::GroupInfo SIM::var_info3[] = {
     AP_SUBGROUPINFO(vicon, "VICON_", 56, SIM, ViconParms),
 #endif  // AP_SIM_VICON_ENABLED
 
+#if AP_SIM_LB5900_ENABLED
+    // @Group: LB59_
+    // @Path: ./SIM_LB5900.cpp
+    AP_SUBGROUPINFO(lb5900_sim, "LB59_", 61, SIM, LB5900),
+#endif
+
 #ifdef SFML_JOYSTICK
     AP_SUBGROUPEXTENSION("",      63, SIM,  var_sfml_joystick),
 #endif // SFML_JOYSTICK

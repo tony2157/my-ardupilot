@@ -47,6 +47,7 @@
 #include "SIM_TeraRangerI2C.h"
 #include "SIM_TFS20L.h"
 #include "SIM_ToshibaLED.h"
+#include "SIM_LB5900.h"
 
 #include <signal.h>
 
@@ -67,6 +68,17 @@ static IgnoredI2CDevice ignored;
 
 #if AP_SIM_TOSHIBALED_ENABLED
 static ToshibaLED toshibaled;
+#endif
+#if AP_SIM_LB5900_ENABLED
+// the simulated LB5900 is a SIM member for its SIM_LB59_ parameters
+class LB5900_I2C : public I2CDevice
+{
+public:
+    int rdwr(I2C::i2c_rdwr_ioctl_data *&data) override {
+        return AP::sitl()->lb5900_sim.rdwr(data);
+    }
+};
+static LB5900_I2C lb5900;
 #endif
 #if AP_SIM_RF_LIGHTWAREI2C_LEGACY16BIT_ENABLED
 static LightWareI2C_Legacy16Bit lightwarei2c_legacy16bit;
@@ -148,6 +160,9 @@ struct i2c_device_at_address {
 #if AP_SIM_TERARANGERI2C_ENABLED
     { 0, 0x31, terarangeri2c },   // RNGFNDx_TYPE = 14, RNGFNDx_ADDR = 49
 #endif  // AP_SIM_TERARANGERI2C_ENABLED
+#if AP_SIM_LB5900_ENABLED
+    { 0, 0x4C, lb5900 },          // ARRC LB5900: SIM_LB59_ENABLE 1, USR_LB_BUS 0, USR_LB_ADDR 76
+#endif
 #if AP_SIM_RF_LIGHTWAREI2C_LEGACY16BIT_ENABLED
     { 0, 0x66, lightwarei2c_legacy16bit },  // RNGFNDx_TYPE = 7, RNGFNDx_ADDR = 0x66
 #endif  // AP_SIM_RF_LIGHTWAREI2C_LEGACY16BIT_ENABLED
