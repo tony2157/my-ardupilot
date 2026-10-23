@@ -90,18 +90,13 @@ bool AP_Mount_Servo::get_attitude_quaternion(Quaternion& att_quat)
     return true;
 }
 
-// get attitude as euler angles in degrees, decoded in the same 312 order the quaternion is built in
-bool AP_Mount_Servo::get_attitude_euler(float& roll_deg, float& pitch_deg, float& yaw_bf_deg)
+// Euler angles decoded in the same 312 order the quaternion is built in
+void AP_Mount_Servo::euler_from_quaternion(const Quaternion &q, float &roll_rad, float &pitch_rad, float &yaw_rad) const
 {
-    Quaternion att_quat;
-    if (!get_attitude_quaternion(att_quat)) {
-        return false;
-    }
-    const Vector3f euler312 = att_quat.to_vector312();
-    roll_deg = degrees(euler312.x);
-    pitch_deg = degrees(euler312.y);
-    yaw_bf_deg = degrees(euler312.z);
-    return true;
+    const Vector3f euler312 = q.to_vector312();
+    roll_rad = euler312.x;
+    pitch_rad = euler312.y;
+    yaw_rad = euler312.z;
 }
 
 // private methods

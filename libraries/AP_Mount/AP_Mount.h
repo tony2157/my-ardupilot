@@ -199,10 +199,6 @@ public:
     void set_rate_target(float roll_degs, float pitch_degs, float yaw_degs, bool yaw_lock) { set_rate_target(_primary, roll_degs, pitch_degs, yaw_degs, yaw_lock); }
     void set_rate_target(uint8_t instance, float roll_degs, float pitch_degs, float yaw_degs, bool yaw_lock);
 
-    // ARRC set fixed yaw angle after antenna alignment
-    void set_fixed_yaw_angle(float fixed_yaw) { set_fixed_yaw_angle(_primary, fixed_yaw); }
-    void set_fixed_yaw_angle(uint8_t instance, float fixed_yaw);
-
     // ARRC set polarization offset (rotation about the probe boresight) in degrees. save writes it to storage
     void set_ARRC_pol_offset(float offset_deg, bool save) { set_ARRC_pol_offset(_primary, offset_deg, save); }
     void set_ARRC_pol_offset(uint8_t instance, float offset_deg, bool save);
@@ -210,10 +206,6 @@ public:
     // ARRC get gimbal mode (MNT1_ARRC_GMODE)
     uint8_t get_ARRC_gimbal_mode() const { return get_ARRC_gimbal_mode(_primary); }
     uint8_t get_ARRC_gimbal_mode(uint8_t instance) const;
-
-    // ARRC get elevation
-    float get_AUT_elevation() const { return get_AUT_elevation(_primary); }
-    float get_AUT_elevation(uint8_t instance) const;
 
     // set_roi_target - sets target location that mount should attempt to point towards
     void set_roi_target(const Location &target_loc) { set_roi_target(_primary,target_loc); }

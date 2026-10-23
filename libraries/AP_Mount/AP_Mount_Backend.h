@@ -69,9 +69,14 @@ public:
     // yaw is in body-frame.
     virtual bool get_attitude_quaternion(Quaternion& att_quat) = 0;
 
-    // get attitude as euler angles in degrees, yaw in body-frame. The default decodes the quaternion in
-    // the yaw-pitch-roll (321) order; a backend whose joints turn in another order overrides it
-    virtual bool get_attitude_euler(float& roll_deg, float& pitch_deg, float& yaw_bf_deg);
+    // get attitude as euler angles in degrees, yaw in body-frame, decoded with euler_from_quaternion()
+    bool get_attitude_euler(float& roll_deg, float& pitch_deg, float& yaw_bf_deg);
+
+    // Euler angles (radians) of an attitude in the convention get_attitude_euler() reports. The default is the
+    // yaw-pitch-roll (321) order; a backend whose joints turn in another order overrides it
+    virtual void euler_from_quaternion(const Quaternion &q, float &roll_rad, float &pitch_rad, float &yaw_rad) const {
+        q.to_euler(roll_rad, pitch_rad, yaw_rad);
+    }
 
     // get angular velocity of mount. Only available on some backends
     virtual bool get_angular_velocity(Vector3f& rates) { return false; }
@@ -122,9 +127,6 @@ public:
     // clear_roi_target - clears target location that mount should attempt to point towards
     void clear_roi_target();
 
-    // ARRC set fixed yaw angle after antenna alignment
-    void set_fixed_yaw_angle(float fixed_yaw);
-
     // ARRC gimbal modes (MNT1_ARRC_GMODE)
     enum class ARRCGimbalMode : uint8_t {
         ARDUPILOT = 0,      // original ArduPilot pointing, roll is zero
@@ -145,9 +147,6 @@ public:
     // ARRC send the latest pointing solution as ARRC_GIMBAL_POINTING (what ARGM logs)
     void send_ARRC_pointing(mavlink_channel_t chan) const;
 #endif
-
-    // ARRC get elevation
-    float get_AUT_elevation() {return _params.ARRC_elev;};
 
     // set_sys_target - sets system that mount should attempt to point towards
     void set_target_sysid(uint8_t sysid);

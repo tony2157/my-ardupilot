@@ -836,17 +836,6 @@ void AP_Mount::clear_roi_target(uint8_t instance)
     backend->clear_roi_target();
 }
 
-// ARRC set fixed yaw angle after antenna alignment
-void AP_Mount::set_fixed_yaw_angle(uint8_t instance, float fixed_yaw)
-{
-    auto *backend = get_instance(instance);
-    if (backend == nullptr) {
-        return;
-    }
-    // send command to backend
-    backend->set_fixed_yaw_angle(fixed_yaw);
-}
-
 // ARRC set polarization offset (rotation about the probe boresight) in degrees
 void AP_Mount::set_ARRC_pol_offset(uint8_t instance, float offset_deg, bool save)
 {
@@ -867,16 +856,6 @@ uint8_t AP_Mount::get_ARRC_gimbal_mode(uint8_t instance) const
     return uint8_t(backend->get_ARRC_gimbal_mode());
 }
 
-// ARRC get AUT elevation
-float AP_Mount::get_AUT_elevation(uint8_t instance) const
-{
-    auto *backend = get_instance(instance);
-    if (backend == nullptr) {
-        return 0;
-    }
-    // send command to backend
-    return backend->get_AUT_elevation();
-}
 
 //
 // camera controls for gimbals that include a camera
