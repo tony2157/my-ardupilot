@@ -24,6 +24,15 @@
 #include <AP_Math/location.h>
 #include <SRV_Channel/SRV_Channel.h>
 #include <AP_Logger/AP_Logger.h>
+#include <AP_AHRS/AP_AHRS.h>
+#include <AP_HAL/AP_HAL.h>
+#include <GCS_MAVLink/GCS.h>
+
+extern const AP_HAL::HAL& hal;
+
+// ARRC the vehicle heading is sent to a gimbal once it has been valid this long without a step this large
+#define AP_MOUNT_HEADING_SETTLE_MS  3000
+#define AP_MOUNT_HEADING_STEP_DEG   10.0f
 
 const AP_Param::GroupInfo AP_Mount::var_info[] = {
 
@@ -213,10 +222,52 @@ void AP_Mount::init()
 // update - give mount opportunity to update servos.  should be called at 10hz or higher
 void AP_Mount::update()
 {
+    // ARRC before the backends: a MAVLink gimbal waits for it
+    update_vehicle_heading_ready();
+
     // update each instance
     for (uint8_t instance=0; instance<AP_MOUNT_MAX_INSTANCES; instance++) {
         if (_backends[instance] != nullptr) {
             _backends[instance]->update();
+        }
+    }
+}
+
+// ARRC a gimbal that takes its heading from the vehicle (Gremsy) follows every step of it. At boot the AHRS heading
+// steps from DCM to the EKF before yaw alignment (0 deg) and then to the aligned heading, which shakes the gimbal yaw
+// for about 30 s. Latch vehicle_heading_ready once the EKF attitude (tilt and yaw aligned) has been valid for
+// AP_MOUNT_HEADING_SETTLE_MS without a step, or on arming. The heading is never held again afterwards
+void AP_Mount::update_vehicle_heading_ready()
+{
+    if (_heading.ready) {
+        return;
+    }
+    if (hal.util->get_soft_armed()) {
+        _heading.ready = true;
+        return;
+    }
+
+    const uint32_t now_ms = AP_HAL::millis();
+    const AP_AHRS &ahrs = AP::ahrs();
+    nav_filter_status filt_status {};
+    if (!ahrs.get_filter_status(filt_status) || !filt_status.flags.attitude) {
+        _heading.valid_ms = 0;
+        return;
+    }
+
+    // a step between two updates (20 ms apart) is an AHRS reset, not a rotation of the vehicle
+    const float yaw_rad = ahrs.get_yaw_rad();
+    const bool step = fabsf(wrap_PI(yaw_rad - _heading.last_yaw_rad)) > radians(AP_MOUNT_HEADING_STEP_DEG);
+    _heading.last_yaw_rad = yaw_rad;
+    if ((_heading.valid_ms == 0) || step) {
+        _heading.valid_ms = now_ms;
+        return;
+    }
+
+    if (now_ms - _heading.valid_ms >= AP_MOUNT_HEADING_SETTLE_MS) {
+        _heading.ready = true;
+        if (_num_instances > 0) {
+            GCS_SEND_TEXT(MAV_SEVERITY_INFO, "Mount: vehicle heading ready");
         }
     }
 }

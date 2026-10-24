@@ -241,6 +241,9 @@ public:
     // ARRC send ARRC_GIMBAL_POINTING to the companion computer for each instance with a recent pointing solution
     void send_ARRC_pointing(mavlink_channel_t chan);
 
+    // ARRC true once the vehicle heading may be sent to a gimbal (latched, see update_vehicle_heading_ready)
+    bool vehicle_heading_ready() const { return _heading.ready; }
+
 #if AP_MOUNT_POI_TO_LATLONALT_ENABLED
     // get poi information.  Returns true on success and fills in gimbal attitude, location and poi location
     bool get_poi(uint8_t instance, Quaternion &quat, Location &loc, Location &poi_loc) const;
@@ -374,6 +377,14 @@ private:
 
     // perform any required parameter conversion
     void convert_params();
+
+    // ARRC latch vehicle_heading_ready once the EKF heading is valid and steady, or on arming
+    void update_vehicle_heading_ready();
+    struct {
+        bool ready;             // latched true
+        uint32_t valid_ms;      // system time since which the heading is valid without a step, 0 if not valid
+        float last_yaw_rad;     // AHRS yaw at the previous update, for the step check
+    } _heading;
 };
 
 namespace AP {

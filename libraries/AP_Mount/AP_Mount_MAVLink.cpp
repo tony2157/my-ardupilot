@@ -103,7 +103,8 @@ void AP_Mount_MAVLink::find_gimbal()
     }
 
     // search for gimbal for 60 seconds or until armed
-    if ((now_ms > AP_MOUNT_MAVLINK_SEARCH_MS) && hal.util->get_soft_armed()) {
+    // ARRC mod: a gimbal that has replied keeps waiting for the vehicle heading, which arming makes ready
+    if ((now_ms > AP_MOUNT_MAVLINK_SEARCH_MS) && hal.util->get_soft_armed() && !_got_device_info) {
         return;
     }
 
@@ -126,6 +127,12 @@ void AP_Mount_MAVLink::find_gimbal()
             _last_devinfo_req_ms = now_ms;
             request_gimbal_device_information();
         }
+        return;
+    }
+
+    // ARRC mod: send the vehicle attitude and the targets only once the vehicle heading is valid. Until then the
+    // gimbal runs on its own instead of following the boot-time steps of the heading
+    if (!_frontend.vehicle_heading_ready()) {
         return;
     }
 
