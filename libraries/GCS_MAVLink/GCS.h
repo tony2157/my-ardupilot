@@ -645,6 +645,8 @@ protected:
 
     // reset a message interval via mavlink:
     MAV_RESULT handle_command_set_message_interval(const mavlink_command_int_t &packet);
+    // ARRC true if a gimbal asks for the vehicle attitude before the vehicle heading is ready
+    bool gimbal_attitude_request_on_hold(const mavlink_command_int_t &packet, const mavlink_message_t &msg) const;
     MAV_RESULT handle_command_get_message_interval(const mavlink_command_int_t &packet);
     MAV_RESULT handle_command_request_message(const mavlink_command_int_t &packet);
 

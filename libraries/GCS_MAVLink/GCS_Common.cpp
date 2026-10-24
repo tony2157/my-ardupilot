@@ -3205,6 +3205,27 @@ MAV_RESULT GCS_MAVLINK::handle_command_set_message_interval(const mavlink_comman
     return set_message_interval((uint32_t)packet.param1, (int32_t)packet.param2);
 }
 
+// ARRC a gimbal that takes its heading from the vehicle (Gremsy T7) asks for ATTITUDE itself as soon as it hears
+// the autopilot, while the boot-time heading still steps (see AP_Mount::update_vehicle_heading_ready). Hold such a
+// request until the heading is ready; the gimbal repeats it
+bool GCS_MAVLINK::gimbal_attitude_request_on_hold(const mavlink_command_int_t &packet, const mavlink_message_t &msg) const
+{
+#if HAL_MOUNT_ENABLED
+    const bool from_gimbal = (msg.compid == MAV_COMP_ID_GIMBAL) ||
+                             ((msg.compid >= MAV_COMP_ID_GIMBAL2) && (msg.compid <= MAV_COMP_ID_GIMBAL6));
+    const uint32_t msg_id = (uint32_t)packet.param1;
+    const bool attitude_msg = (msg_id == MAVLINK_MSG_ID_ATTITUDE) ||
+                              (msg_id == MAVLINK_MSG_ID_ATTITUDE_QUATERNION) ||
+                              (msg_id == MAVLINK_MSG_ID_AUTOPILOT_STATE_FOR_GIMBAL_DEVICE);
+    // a negative interval stops the message and is always accepted
+    const bool starts_msg = !is_negative(packet.param2);
+    const AP_Mount *mount = AP::mount();
+    return from_gimbal && attitude_msg && starts_msg && (mount != nullptr) && !mount->vehicle_heading_ready();
+#else
+    return false;
+#endif
+}
+
 MAV_RESULT GCS_MAVLINK::set_message_interval(uint32_t msg_id, int32_t interval_us)
 {
     const ap_message id = mavlink_id_to_ap_message_id(msg_id);
@@ -5877,6 +5898,9 @@ MAV_RESULT GCS_MAVLINK::handle_command_int_packet(const mavlink_command_int_t &p
     // support for dealing with streamrate for a specific message and
     // requesting a message instance:
     case MAV_CMD_SET_MESSAGE_INTERVAL:
+        if (gimbal_attitude_request_on_hold(packet, msg)) {
+            return MAV_RESULT_TEMPORARILY_REJECTED;
+        }
         return handle_command_set_message_interval(packet);
 
     case MAV_CMD_GET_MESSAGE_INTERVAL:
