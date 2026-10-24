@@ -13,7 +13,7 @@ before flying it.
 
 | Repository | Branch | Base | Commits |
 |---|---|---|---|
-| my-ardupilot | `ArduPilot-4.7-ARRC-revamp` | `ArduPilot-4.7-ARRC` 9afcd1ca49 | 19 |
+| my-ardupilot | `ArduPilot-4.7-ARRC-revamp` | `ArduPilot-4.7-ARRC` 9afcd1ca49 | 21 |
 | RFSonde_GUI | `Ludifly-SDR-revamp` | `Ludifly-SDR` 538ce1d | 5 |
 
 These were not changed:
@@ -26,12 +26,14 @@ These were not changed:
 Nothing is pushed.
 
 - **Firmware to flash:** `build/CubeOrangePlus-ODID/bin/arducopter.apj`.
-  - 1,721,092 B of flash used, 244,980 B free.
-  - That is 6,480 B more than ArduPilot-4.7-ARRC.
+  - 1,721,452 B of flash used, 244,620 B free.
+  - That is 6,840 B more than ArduPilot-4.7-ARRC (360 B of it for the gimbal-at-boot change).
   - 0 compiler warnings.
 - **Variant builds** (each needs a `./waf configure` with the option): all compile.
-  - CubeOrangePlus-ODID: default, without the SDR, without the LB5900, without the mount.
-  - SITL: without the SDR.
+  - CubeOrangePlus-ODID: default, without the SDR, without the LB5900, without the mount. The
+    default and the build without the mount were rebuilt with the gimbal-at-boot change.
+  - SITL: without the SDR. SITL Copter, Plane, Rover and Sub build with the gimbal-at-boot
+    change.
 - **Ludifly:** run it from source, or rebuild the exe from `Ludifly-SDR-revamp`. The installed exe
   is the old Ludifly. It works with the new firmware (section 4) but does not have the leaner link.
 
@@ -113,6 +115,32 @@ Nothing is pushed.
   - flag bit 3 = slew-limited.
 
   ARRC_GIMBAL_POINTING carries only the documented flag bits.
+
+### Gimbal at boot (Gremsy T7)
+
+Added after the first bench test: the T7 yaw wandered and then twitched for about 30 s after
+each boot.
+
+- The T7 takes its heading from the autopilot. Its absolute yaw equals the Cube's heading plus its
+  own yaw angle.
+- As soon as it hears the autopilot, the T7 asks for ATTITUDE at 50 Hz itself, 3-4 times a second.
+- At that moment the autopilot's heading still steps:
+  - DCM before and after the first compass reading;
+  - the EKF at 0 deg before its yaw alignment;
+  - then the aligned heading.
+
+  In SITL that was 0, 132, 0 and 132 deg within 3.5 s. In the 10-22 boot log the T7's yaw drifted
+  at 2-4 deg/s and snapped back 3-4 deg every 1-2 s until 40 s after boot.
+- **Now** nothing about the vehicle attitude reaches a gimbal until the EKF attitude (tilt and yaw
+  aligned) has been valid for 3 s without a heading step, or until arming.
+  - The gimbal's own ATTITUDE request is answered TEMPORARILY_REJECTED until then. The T7 repeats
+    it and gets the stream within 0.3 s afterwards.
+  - AUTOPILOT_STATE_FOR_GIMBAL_DEVICE and the attitude targets start then too.
+  - "Mount: vehicle heading ready" marks the moment. The heading is never held again after it.
+- Until then the T7 runs on its own, as it does before the autopilot has booted.
+- Not affected: requests from Ludifly, the companion or any other non-gimbal component, and a
+  gimbal stopping a message (interval -1).
+- Keep the stream rates of the gimbal port (`MAV3_*` here) at 0. A stream set there is not held.
 
 ### Polarization alignment (aux switch, RCx_OPTION 47)
 
@@ -254,6 +282,18 @@ All passed on the final build:
 - **t08 MAVLink1:** a gimbal on a MAVLink1 port gives the warning and the pre-arm failure. Nothing
   happens with MAVLink2.
 - **t09 Ludifly link:** section 4.
+- **t10 gimbal at boot** (fake T7 that asks for ATTITUDE like the real one; real and stock
+  parameter sets). Results in `/var/tmp/claude-revamp/runs/boot`. Both pass:
+  - The T7's ATTITUDE requests are rejected 20 times, then accepted.
+  - "Mount: vehicle heading ready" comes 3.0 s after the EKF yaw alignment, at 8.9 s of boot.
+  - The first ATTITUDE reaches the gimbal at 9.1 s, AUTOPILOT_STATE_FOR_GIMBAL_DEVICE and the
+    targets at 10.1 s, then 50 Hz each.
+  - The first heading the gimbal gets is the aligned one (131.9 deg). The largest step after it is
+    0.03 deg.
+  - The GCS gets ATTITUDE before that. A gimbal's -1 and its other requests are accepted.
+  - Control: stock ArduPilot 4.7.2 sends the gimbal ATTITUDE from 2.4 s, with steps of 132 deg.
+
+  The t01-t08 set was run again with this change (`runs/gate`): all pass.
 - **Regression against stock ArduPilot 4.7.2** (mission, failsafes, GPS loss, fence, mount, task
   timing, boot). Results in `/var/tmp/claude-revamp/runs/regr`.
   - Matches stock: arming times, modes, failsafe reactions, landing error, attitude errors,
@@ -296,6 +336,14 @@ Bench first, props off. Use a fresh log for each item, and keep Ludifly's tlog. 
      readings").
 5. **Gremsy T7.**
    - Boot with `MNT1_DEFLT_MODE 1`: the motors stay on.
+   - Boot 3-5 times with the T7 powered together with the Cube. The yaw must stay still through
+     the boot: no wandering, no twitching. Expect "Mount: vehicle heading ready" about 3 s after
+     "EKF3 IMU0 MAG0 initial yaw alignment complete".
+   - If it still twitches, boot once with the T7's MAVLink cable unplugged, wait 90 s, then plug it
+     in. Twitching then means the T7 reacts to the first contact itself, not to the boot-time
+     heading. That would be a gTune or Gremsy matter.
+   - For the record, one boot with `LOG_DISARMED 1` (set it back to 0 afterwards). It logs the
+     heading (ATT, XKF) and the gimbal's yaw (MNT) from boot.
    - GMODE 0, ROI at an AUT: points like stock.
    - GMODE 2 and 3: walk the vehicle around the AUT. The motion is smooth at the HPOL/VPOL
      boundaries.
@@ -323,6 +371,9 @@ Bench first, props off. Use a fresh log for each item, and keep Ludifly's tlog. 
 
 ## 7. Still open (not in this work)
 
+- **Here4 compass at boot:** in the 10-22 boot log it registers about 30-40 s after boot, with
+  "Compass 1 not healthy", then "Compass not calibrated". "Gyros inconsistent" also showed while
+  the IMUs warmed up. Worth a look on the Cube, as it shapes the heading at boot.
 - **H2:** FLTMODE2 = PosHold, which is compiled out (you asked to leave it).
 - **Configuration items C1-C5** from the review: BATT_FS_CRT_ACT, MAV3_OPTIONS saved, LGR/RC7.
   These are for you to apply on the Cube.
