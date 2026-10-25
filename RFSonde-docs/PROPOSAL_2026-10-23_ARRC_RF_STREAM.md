@@ -25,10 +25,12 @@ Nothing has been changed yet. This note covers the investigation and the propose
     full 30 Hz**. That saves about 2.0 kB/s (section 5).
 - **Where EXTRA3 does hurt is a failure mode, and it has already happened.** Your Ludifly log on 2026-10-16
   20:18 over the Herelink shows three SET_MESSAGE_INTERVAL ACKs lost:
-  ```
+
+  ```text
   SET_MESSAGE_INTERVAL(228) not accepted (No COMMAND_ACK ... after 3 attempts); using the EXTRA3 stream
   RF stream rate 30 Hz (extra3)
   ```
+
   That fallback asks for about 9 stock messages at 30 Hz, around 8.9 kB/s, more than the whole link. Taking
   227/228 out of EXTRA3 and removing the fallback closes this for good.
 
@@ -106,9 +108,11 @@ Real Cube + Herelink measurement, 10-22, RF 30, MAV3_OPTIONS 2
 **F2. A default RF rate that needs no GCS request. Pick one:**
 
 - **(a) SD-card file (no code).** Put `message-intervals-chan1.txt` in the SD card root:
-  ```
+
+  ```text
   228 25
   ```
+
   - 25 ms means "poll at 40 Hz". See F3 for why this does not cost more than 30 Hz.
   - It applies at every boot, to the Herelink port only. The USB companion port (chan0) gets no 228.
   - Ludifly's SET_MESSAGE_INTERVAL still overrides it, and interval 0 returns to it.

@@ -425,7 +425,7 @@ in SITL. Depends on start order.
 
 ## 5. Verified OK
 
-**Build and tests**
+### Build and tests
 
 - Builds:
   - CubeOrangePlus-ODID, CubeOrangePlus and SITL build with 0 warnings.
@@ -436,7 +436,7 @@ in SITL. Depends on start order.
   crashes/aborts, which only works under the waf test runner) fail identically on stock 4.7.2.
 - `param_parse.py` runs clean. All USR_* and MNTx_ARRC_* parameters are documented.
 
-**Flight behaviour vs stock (SITL, stock parameters on both builds)**
+### Flight behaviour vs stock (SITL, stock parameters on both builds)
 
 - Takeoff, Loiter, an Auto mission with DO_SET_ROI, RTL and landing match stock (landing error 0.03 vs
   0.04 m), as do attitude error and the EKF flag sequence.
@@ -449,7 +449,7 @@ in SITL. Depends on start order.
   - a GCS request for a missing mode is refused with "No such mode N".
 - With MNT1_TYPE 0, the ARRC mount code is inert: no extra messages, no ARGM, no texts.
 
-**Scheduler and threads**
+### Scheduler and threads
 
 - The ARRC tasks reuse the stock userhook slots (10 Hz/100 µs, 10 Hz/75 µs, 50 Hz/175 µs). Nothing custom is
   in FAST_TASK.
@@ -457,7 +457,7 @@ in SITL. Depends on start order.
   at boot (M2).
 - With LOG_BITMASK 180222 the IMU nav stream runs at 25 Hz from the 25 Hz logging task.
 
-**Companion link**
+### Companion link
 
 - The companion end-to-end harness (real RFSonde_Computer plus simulated SDR) passes 11/11 phases at sysid 2,
   with RF source 0 and with RF source 3.
@@ -482,7 +482,7 @@ in SITL. Depends on start order.
 - **GCS-loss failsafe with the real FS_GCS_ENABLE 1 / FS_OPTIONS 16, in Auto:** RTL at 5.0 s on both ARRC and
   stock. The companion's heartbeats (same sysid, compid 191) do not mask the GCS failsafe.
 
-**MAVLink dialect**
+### MAVLink dialect
 
 - There is no message, command or enum collision with any local XML, with ArduPilot/mavlink master
   (e03dad40), or with any `ap_upstream` branch.
@@ -492,7 +492,7 @@ in SITL. Depends on start order.
 - The firmware, companion and Ludifly all pin `b2f9a70f` with dialect hash 0x7EFB3788.
 - An anonymous clone of the fork gets the right submodule commit.
 
-**Gimbal**
+### Gimbal
 
 - With no limit hit, the ARRC pointing and polarization maths is exact (1e-6 deg in a replica; ≤ 0.03 deg
   decoded from the SITL quaternions).
@@ -501,7 +501,7 @@ in SITL. Depends on start order.
 - The servo PWM stays within the limits. Motor outputs are identical to stock.
 - ROI before home sends nothing, the same as stock.
 
-**Fixes from 2026-10-15**
+### Fixes from 2026-10-15
 
 - All seven F1-F7 fixes of 2026-10-15 are in HEAD.
 
