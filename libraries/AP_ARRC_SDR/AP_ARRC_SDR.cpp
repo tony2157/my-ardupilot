@@ -232,6 +232,7 @@ void AP_ARRC_SDR::handle_meas(const mavlink_message_t &msg)
         return;
     }
     _sdrm_log_ms = _meas_ms;
+    const uint64_t now_us = AP_HAL::micros64();
 // @LoggerMessage: SDRM
 // @Description: ARRC onboard SDR measurement (from the companion computer)
 // @Field: TimeUS: Time since system startup when the measurement was received
@@ -255,7 +256,7 @@ void AP_ARRC_SDR::handle_meas(const mavlink_message_t &msg)
                                 "ss-RRdd-Rzs-----",
                                 "FF-0000-000-----",
                                 "QQIffffffffHHHBB",
-                                AP_HAL::micros64(),
+                                now_us,
                                 _meas.time_usec,
                                 _meas.seq,
                                 _meas.pwr_c,
@@ -271,6 +272,25 @@ void AP_ARRC_SDR::handle_meas(const mavlink_message_t &msg)
                                 _meas.flags,
                                 _meas.phase_ref,
                                 _meas.script_id);
+    // the waveform filter's count and match (SDRM has no room left), while the companion reports a filter
+    if ((_meas.flags & (ARRC_MEAS_FLAGS_WF_MISMATCH | ARRC_MEAS_FLAGS_WF_FILTERED)) != 0 ||
+        (_have_meas_config && _meas_config.wf_filter != ARRC_WF_FILTER_OFF)) {
+// @LoggerMessage: SDWM
+// @Description: ARRC onboard SDR waveform filter, with the SDRM sample of the same Seq
+// @Field: TimeUS: Time since system startup when the measurement was received
+// @Field: Seq: Sequence number (SDRM.Seq)
+// @Field: NRej: Detections the filter found mismatched since the previous measurement
+// @Field: Mtch: Match of the averaged pulses to the template in dB (0 = perfect, NaN without pulses)
+        AP::logger().WriteStreaming("SDWM",
+                                    "TimeUS,Seq,NRej,Mtch",
+                                    "s---",
+                                    "F---",
+                                    "QIHf",
+                                    now_us,
+                                    _meas.seq,
+                                    _meas.n_wf_rej,
+                                    _meas.wf_match_db);
+    }
 #endif
 }
 
@@ -459,6 +479,7 @@ void AP_ARRC_SDR::log_meas_config(const mavlink_arrc_sdr_meas_config_t &p)
 #if HAL_LOGGING_ENABLED
     char template_name[17] {};
     memcpy(template_name, p.template_name, sizeof(p.template_name));
+    const uint64_t now_us = AP_HAL::micros64();
 // @LoggerMessage: SDRQ
 // @Description: ARRC onboard SDR measurement and recording configuration in effect
 // @Field: TimeUS: Time since system startup
@@ -482,7 +503,7 @@ void AP_ARRC_SDR::log_meas_config(const mavlink_arrc_sdr_meas_config_t &p)
                        "s------z----ss--",
                        "F------0----00--",
                        "QHBBBBIfBfBBffBN",
-                       AP_HAL::micros64(),
+                       now_us,
                        p.req_id,
                        p.result,
                        p.signal,
@@ -498,6 +519,21 @@ void AP_ARRC_SDR::log_meas_config(const mavlink_arrc_sdr_meas_config_t &p)
                        p.gate_post_s,
                        p.noise_correct,
                        template_name);
+// @LoggerMessage: SDWQ
+// @Description: ARRC onboard SDR waveform filter configuration in effect, with SDRQ
+// @Field: TimeUS: Time since system startup
+// @Field: Req: Request id that caused the change (0 = report)
+// @Field: WF: Waveform filter (ARRC_WF_FILTER)
+// @Field: Tol: Tolerance below a perfect match in dB (0 from a companion without the filter)
+    AP::logger().Write("SDWQ",
+                       "TimeUS,Req,WF,Tol",
+                       "s---",
+                       "F---",
+                       "QHBf",
+                       now_us,
+                       p.req_id,
+                       p.wf_filter,
+                       p.wf_tol_db);
 #endif
 }
 
