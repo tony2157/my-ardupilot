@@ -7,7 +7,7 @@
 [submodule "modules/mavlink"]
 	path = modules/mavlink
 	url = https://github.com/tony2157/my-mavlink
-	branch = ArduPilot-4.7-ARRC-SDR-WFfilter
+	branch = ArduPilot-4.7-ARRC-SDR
 [submodule "gtest"]
 	path = modules/gtest
 	url = https://github.com/ArduPilot/googletest
