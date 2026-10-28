@@ -87,6 +87,7 @@ private:
     void handle_command_ack(const mavlink_message_t &msg);
     void log_sdr_config(const mavlink_arrc_sdr_config_t &p);
     void log_meas_config(const mavlink_arrc_sdr_meas_config_t &p);
+    void log_due_configs(uint32_t now_ms);
     bool send_tx_stop(void);
     // CRC32 the companion and Ludifly compute over the ARRC messages of their dialect (rfsonde_cc protocol.py)
     static bool compute_dialect_hash(uint32_t &hash);
@@ -153,6 +154,8 @@ private:
     uint32_t _sdrs_log_ms;
     uint32_t _sdrc_log_ms;
     uint32_t _sdrq_log_ms;
+    bool _sdrc_log_pending;             // a configuration arrived within CONFIG_LOG_MIN_MS of the last one logged
+    bool _sdrq_log_pending;
 
     // latest companion status, logged as SDCC
     uint32_t _session_id;

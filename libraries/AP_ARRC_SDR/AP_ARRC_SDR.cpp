@@ -47,6 +47,8 @@ AP_ARRC_SDR::AP_ARRC_SDR(void) :
     _sdrs_log_ms(0),
     _sdrc_log_ms(0),
     _sdrq_log_ms(0),
+    _sdrc_log_pending(false),
+    _sdrq_log_pending(false),
     _session_id(0),
     _rec_mb(0),
     _meas_ms(0),
@@ -404,11 +406,8 @@ void AP_ARRC_SDR::handle_sdr_config(const mavlink_message_t &msg)
     }
     _sdr_config = p;
     _have_sdr_config = true;
-    const uint32_t now_ms = AP_HAL::millis();
-    if (now_ms - _sdrc_log_ms >= CONFIG_LOG_MIN_MS) {
-        _sdrc_log_ms = now_ms;
-        log_sdr_config(p);
-    }
+    _sdrc_log_pending = true;
+    log_due_configs(AP_HAL::millis());
 }
 
 void AP_ARRC_SDR::log_sdr_config(const mavlink_arrc_sdr_config_t &p)
@@ -467,10 +466,23 @@ void AP_ARRC_SDR::handle_meas_config(const mavlink_message_t &msg)
     }
     _meas_config = p;
     _have_meas_config = true;
-    const uint32_t now_ms = AP_HAL::millis();
-    if (now_ms - _sdrq_log_ms >= CONFIG_LOG_MIN_MS) {
+    _sdrq_log_pending = true;
+    log_due_configs(AP_HAL::millis());
+}
+
+// a configuration is logged at most every CONFIG_LOG_MIN_MS; one that arrives sooner (a change right after the
+// companion's report) is logged once that has passed instead of being dropped, so the log ends with the one in effect
+void AP_ARRC_SDR::log_due_configs(uint32_t now_ms)
+{
+    if (_sdrc_log_pending && now_ms - _sdrc_log_ms >= CONFIG_LOG_MIN_MS) {
+        _sdrc_log_pending = false;
+        _sdrc_log_ms = now_ms;
+        log_sdr_config(_sdr_config);
+    }
+    if (_sdrq_log_pending && now_ms - _sdrq_log_ms >= CONFIG_LOG_MIN_MS) {
+        _sdrq_log_pending = false;
         _sdrq_log_ms = now_ms;
-        log_meas_config(p);
+        log_meas_config(_meas_config);
     }
 }
 
@@ -541,6 +553,7 @@ void AP_ARRC_SDR::update(uint32_t timeout_ms)
 {
     _timeout_ms = timeout_ms;
     const uint32_t now_ms = AP_HAL::millis();
+    log_due_configs(now_ms);
     const bool link_ok = _last_hb_ms != 0 && now_ms - _last_hb_ms < timeout_ms;
     const bool status_ok = _last_sdr_status_ms != 0 && now_ms - _last_sdr_status_ms < timeout_ms;
     const bool sdr_ok = status_ok && (_sdr_flags & ARRC_SDR_FLAGS_DEVICE_PRESENT) != 0;
