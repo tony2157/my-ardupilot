@@ -18,6 +18,9 @@
 #   RFSONDE_SQUARES_ARGS  extra options for accuracy_squares.py (environment variable)
 #   T7_TWIN_DIR    the T7_twin folder of RFSonde_Gremsy (built with its build.py)
 #   RFSONDE_T7_ARGS  extra options for t7_twin, e.g. --console (environment variable)
+#   T7_EEPROM      the twin's parameter EEPROM (default ~/.cache/rfsonde/t7_eeprom_r2icm_I<instance>.bin,
+#                  for the default board: rev 2 encoders, ICM-42688 IMU; use another file with
+#                  --board-rev 1 or --imu bmi160 in RFSONDE_T7_ARGS)
 #
 # Switch the squares while running: accuracy_squares.py --off / --on (see RFSonde-sim/README.md).
 
@@ -81,11 +84,12 @@ if [ "$t7" = 1 ]; then
   python3 "$twin_dir/build.py" || { echo "RFSonde: T7 twin build failed"; exit 1; }
   cache="$HOME/.cache/rfsonde"
   mkdir -p "$cache"
-  eeprom="$cache/t7_eeprom_I$instance.bin"
+  # the calibrations in it belong to one simulated board (encoders, IMU chip)
+  eeprom="${T7_EEPROM:-$cache/t7_eeprom_r2icm_I$instance.bin}"
   if [ ! -f "$eeprom" ]; then
     # a new gimbal board: first-boot calibration, Gremsy's recommended profile, gyro calibration
     echo "RFSonde: preparing the T7 twin's EEPROM (first boot, about 3 minutes) ..."
-    python3 "$twin_dir/tools/t7tool.py" factory "$eeprom" || exit 1
+    python3 "$twin_dir/tools/t7tool.py" factory "$eeprom" --twin-args "$RFSONDE_T7_ARGS" || exit 1
   fi
   if [ "$instance" != 0 ]; then
     echo "RFSonde: note: models/rfsonde_t7 talks to the twin on UDP 9150; edit its twin_port for instance $instance"
