@@ -6327,7 +6327,7 @@ void GCS_MAVLINK::send_autopilot_state_for_gimbal_device() const
         0,      // velocity estimated delay in micros
         rate_ef_targets.z,  // feed forward angular velocity z
         est_status_flags,   // estimator status
-        0,      // landed_state (see MAV_LANDED_STATE)
+        landed_state(),  // ARRC: a Gremsy stops its own ATTITUDE request only when this says IN_AIR
         AP::ahrs().get_yaw_rate_earth());   // [rad/s] Z component of angular velocity in NED (North, East, Down). NaN if unknown
 #endif  // AP_AHRS_ENABLED
 }
