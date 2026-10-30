@@ -55,6 +55,10 @@ protected:
         return supported_target;
     };
 
+    // ARRC: Gremsy firmware (T7 7.8.7) reads GIMBAL_DEVICE_SET_ATTITUDE's quaternion as yaw-pitch-roll (321) Euler
+    // angles and holds them as its own yaw-roll-pitch (312) angles; its status quaternion is built the same way
+    bool quat_holds_312_angles() const { return strncmp(vendor_name, "GREMSY", 6) == 0; }
+
     // get attitude as a quaternion.  returns true on success
     bool get_attitude_quaternion(Quaternion& att_quat) override;
 

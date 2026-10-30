@@ -198,6 +198,22 @@ void AP_Mount_MAVLink::handle_gimbal_device_attitude_status(const mavlink_messag
     // take copy of message so it can be forwarded onto GCS later
     mavlink_msg_gimbal_device_attitude_status_decode(&msg, &_gimbal_device_attitude_status);
     _last_attitude_status_ms = AP_HAL::millis();
+
+    // ARRC: a Gremsy's quaternion is the 321 composition of its 312 angles; keep the true rotation
+    if (quat_holds_312_angles()) {
+        float *q = _gimbal_device_attitude_status.q;
+        Quaternion quat{q[0], q[1], q[2], q[3]};
+        const float len = quat.length();
+        if (isfinite(len) && fabsf(len - 1.0f) <= 0.1f) {
+            float roll, pitch, yaw;
+            quat.to_euler(roll, pitch, yaw);
+            quat.from_vector312(roll, pitch, yaw);
+            q[0] = quat.q1;
+            q[1] = quat.q2;
+            q[2] = quat.q3;
+            q[3] = quat.q4;
+        }
+    }
 }
 
 // request GIMBAL_DEVICE_INFORMATION message
@@ -300,10 +316,16 @@ void AP_Mount_MAVLink::send_target_angles(const MountAngleTarget &angle_rad)
     const uint16_t flags = earth_frame ? (GIMBAL_DEVICE_FLAGS_ROLL_LOCK | GIMBAL_DEVICE_FLAGS_PITCH_LOCK | GIMBAL_DEVICE_FLAGS_YAW_LOCK) : 0;
 
     // convert euler angles to quaternion
-    // ARRC mod: yaw-roll-pitch (312) order, the gimbal's axis order and the order the ARRC angles are computed in.
-    // Same as the default yaw-pitch-roll order when roll is zero
+    // ARRC mod: the angles are yaw-roll-pitch (312), the gimbal's axis order and the order the ARRC angles are
+    // computed in. A Gremsy turns the quaternion back into 321 angles and holds those numbers as 312 angles, so it
+    // gets the 321 composition of the 312 angles; other gimbals get the true rotation. Same when roll is zero
     Quaternion q;
-    q.from_vector312(roll_rad, pitch_rad, yaw_rad);
+    if (quat_holds_312_angles()) {
+        // a 321 decode cannot return a pitch beyond +-90 deg: -95 deg turned the pan 180 deg in the T7 twin
+        q.from_euler(roll_rad, constrain_float(pitch_rad, radians(-89.5f), radians(89.5f)), yaw_rad);
+    } else {
+        q.from_vector312(roll_rad, pitch_rad, yaw_rad);
+    }
 
     const mavlink_gimbal_device_set_attitude_t pkt {
         {q.q1, q.q2, q.q3, q.q4},
