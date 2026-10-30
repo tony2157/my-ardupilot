@@ -18,14 +18,16 @@ python3 ~/Github/my-ardupilot/RFSonde-sim/tools/make_norman_world.py
 # Terminal A
 gz sim -v4 -r norman_radars.sdf
 
-# Terminal B: SITL plus GPS accuracy squares (--rtk to start with RTK, --no-squares to skip them)
+# Terminal B: SITL, the T7 gimbal twin and GPS accuracy squares (--rtk to start with RTK, --no-squares to skip them)
 ~/Github/my-ardupilot/RFSonde-sim/tools/rfsonde_sitl.sh
 
 # Terminal C (optional): MAVProxy console for the gimbal and quick commands
 mavproxy.py --master tcp:127.0.0.1:5762 --console
 ```
 
-`rfsonde_sitl.sh` runs `sim_vehicle.py` with the `RFSonde_Norman` location, `config/rfsonde-gimbal.parm`, `config/gps-standard.parm` (or `gps-rtk.parm` with `--rtk`) and `--no-mavproxy`, and starts `tools/accuracy_squares.py` in the background. Other `sim_vehicle.py` options are passed on, and Ctrl+C stops everything. Connect your ground station to TCP `127.0.0.1:5760`: SITL does not start, or link to Gazebo, until that connection is made. SITL also accepts connections on TCP 5762 (the MAVProxy console) and 5763 (the squares helper). Don't give MAVProxy an `--out` to a port your ground station listens on: every packet would arrive twice, and mission uploads fail with `MAV_MISSION_INVALID_SEQUENCE`.
+`rfsonde_sitl.sh` runs `sim_vehicle.py` with the `RFSonde_Norman` location, `config/rfsonde-t7.parm`, `config/gps-standard.parm` (or `gps-rtk.parm` with `--rtk`) and `--no-mavproxy`, and starts `tools/accuracy_squares.py` in the background. Before that it builds and starts the Gremsy T7 digital twin (see [Vehicle and gimbal](#vehicle-and-gimbal)). Other `sim_vehicle.py` options are passed on, and Ctrl+C stops everything. Connect your ground station to TCP `127.0.0.1:5760`: SITL does not start, or link to Gazebo, until that connection is made. SITL also accepts connections on TCP 5762 (the MAVProxy console) and 5765 (the squares helper); 5763 is SERIAL2, the gimbal. Don't give MAVProxy an `--out` to a port your ground station listens on: every packet would arrive twice, and mission uploads fail with `MAV_MISSION_INVALID_SEQUENCE`.
+
+The previous servo gimbal is still available: `gz sim -v4 -r norman_radars_servo.sdf` and `rfsonde_sitl.sh --servo-gimbal` (`config/rfsonde-gimbal.parm`, squares helper on 5763).
 
 `RFSonde_Norman` is defined in `~/.config/ardupilot/locations.txt`. It must match the world origin below, or SITL GPS positions will be wrong.
 
@@ -54,7 +56,20 @@ Each radar model has named SDF frames for RF calculations:
 
 ### Vehicle and gimbal
 
-The world flies `models/rfsonde_iris`, the ArduPilot Iris carrying `models/rfsonde_gimbal`. Both are copies of the upstream ardupilot_gazebo models, so the upstream repo stays untouched. The gimbal is a 3-axis servo gimbal (vehicle → yaw → roll → pitch). The launch command under Run loads `config/rfsonde-gimbal.parm`: the upstream gimbal parameters plus `MNT1_DEFLT_MODE 2`, so the gimbal boots at neutral, and a 500-2500 µs servo range (instead of 1100-1900) so a 1 µs PWM step moves the gimbal at most 0.16° (yaw). The `servo_min`/`servo_max` of channels 8-10 in `rfsonde_iris/model.sdf` must match `SERVO9-11_MIN/MAX`.
+The world flies `models/rfsonde_iris_t7` (named `rfsonde_iris` in the world): the ArduPilot Iris carrying `models/rfsonde_t7`, a 3-axis gimbal in the Gremsy T7 layout (vehicle → pan → roll → tilt, mechanical stops at tilt −150°, roll ±80.5°, pan ±347°).
+
+**Gremsy T7 digital twin.** Nothing in Gazebo or ArduPilot moves this gimbal directly. The `GremsyT7Plugin` (ardupilot_gazebo, branch `main-GremsyT7`) exchanges every 1 ms physics step with `t7_twin`, the real T7 firmware v7.8.7 compiled from `RFSonde_Gremsy/T7_firmware_RE/src/c` and running on simulated hardware. The plugin sends the joint angles and the camera-plate IMU; the twin answers with the motor torques. The autopilot reaches the gimbal over MAVLink on SERIAL2 (`config/rfsonde-t7.parm`: `MNT1_TYPE 6`, `SERIAL2_PROTOCOL 2`, 115200, `MAV3_OPTIONS 2`, `SIM_BAUDLIMIT_EN 1`), the same as the real Cube, and reports `Mount: GREMSY T7V1 fw:7.8.7.0`.
+
+- `rfsonde_sitl.sh` rebuilds the twin at every start, so an edit of the T7 firmware C is in the simulator at the next launch. It finds the twin in `T7_TWIN_DIR` (default `/mnt/c/Users/sega0000/Github/RFSonde_Gremsy/T7_twin`).
+- The twin's parameter EEPROM is `~/.cache/rfsonde/t7_eeprom_I0.bin`. The first launch creates it: first-boot encoder and home calibration, Gremsy's recommended profile and a gyro calibration (`t7tool.py factory`, about 3 minutes). Delete it to start from a new board.
+- The twin's log is `~/.cache/rfsonde/t7_twin_I0.log`. Its telemetry is `t7_twin_I0.csv`: true joints and torques, the firmware's attitude, and the true antenna boresight azimuth/elevation. `RFSONDE_T7_ARGS=--console` adds the firmware's console messages to the log.
+- The gimbal's gTune port is TCP `5800`, for `T7_twin/tools/t7tool.py` (parameters, calibrations, motors, mode).
+- The twin and the plugin use UDP 9150; the plugin's `twin_port` in `rfsonde_t7/model.sdf` must match `9150 + 10 × instance`.
+- The parameter files are SITL defaults: values saved in SITL's `eeprom.bin` in earlier sessions (for example `MNT1_TYPE 1`) override them. If the mount is not detected, start once with `-w` to wipe them.
+
+Details: `RFSonde_Gremsy/T7_twin/README.md`.
+
+**Servo gimbal** (`norman_radars_servo.sdf`, `rfsonde_sitl.sh --servo-gimbal`). It flies `models/rfsonde_iris`, the ArduPilot Iris carrying `models/rfsonde_gimbal`. Both are copies of the upstream ardupilot_gazebo models, so the upstream repo stays untouched. The gimbal is a 3-axis servo gimbal (vehicle → yaw → roll → pitch). `config/rfsonde-gimbal.parm` holds the upstream gimbal parameters plus `MNT1_DEFLT_MODE 2`, so the gimbal boots at neutral, and a 500-2500 µs servo range (instead of 1100-1900) so a 1 µs PWM step moves the gimbal at most 0.16° (yaw). The `servo_min`/`servo_max` of channels 8-10 in `rfsonde_iris/model.sdf` must match `SERVO9-11_MIN/MAX`.
 
 | Axis | ArduPilot limits | Positive | Servo / RC | Gazebo joint |
 |---|---|---|---|---|
@@ -82,7 +97,7 @@ setyaw 194.5 30 0                                          # face the ATD first 
 
 `MNT1_ARRC_GMODE` sets how the RFSonde firmware aims at an ROI. 0 is standard ArduPilot, 1 keeps the probe plane parallel to the antenna under test, 2 is H-pol aligned and 3 is V-pol aligned. Modes 1–3 use `MNT1_ARRC_AZTH`, `_ELEV` and `_ZOFF`. The SITL defaults set mode 2.
 
-**Actual angles.** Gazebo publishes the achieved joint angles, in radians:
+**Actual angles.** Gazebo publishes the achieved joint angles, in radians (both gimbals):
 
 ```bash
 gz topic -e -t /world/norman_radars/model/rfsonde_iris/model/gimbal/joint_state
@@ -180,6 +195,6 @@ Edit `tools/make_norman_world.py` (positions, heights, takeoff point), then run 
 python3 ~/Github/my-ardupilot/RFSonde-sim/tools/make_norman_world.py
 ```
 
-This rewrites `models/norman_*` and `worlds/norman_radars.sdf` (both ignored by git). If you change the takeoff point, update `RFSonde_Norman` in `~/.config/ardupilot/locations.txt` too; the script prints the new values.
+This rewrites `models/norman_*`, `worlds/norman_radars.sdf` (T7 twin) and `worlds/norman_radars_servo.sdf` (servo gimbal), all ignored by git. If you change the takeoff point, update `RFSonde_Norman` in `~/.config/ardupilot/locations.txt` too; the script prints the new values.
 
 The OpenStreetMap data is in `osm/norman_osm.json` (© OpenStreetMap contributors, ODbL).

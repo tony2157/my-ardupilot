@@ -610,8 +610,18 @@ def main():
 </sdf>
 """
     os.makedirs(WORLDS, exist_ok=True)
+    # norman_radars.sdf flies the Gremsy T7 digital twin (rfsonde_iris_t7), norman_radars_servo.sdf the
+    # servo gimbal (rfsonde_iris).  Both keep the world name and the vehicle name rfsonde_iris, so the
+    # Gazebo topics are the same.
+    world_t7 = world.replace("      <uri>model://rfsonde_iris</uri>\n",
+                             "      <uri>model://rfsonde_iris_t7</uri>\n      <name>rfsonde_iris</name>\n")
     with open(os.path.join(WORLDS, f"{WORLD_NAME}.sdf"), "w") as f:
+        f.write(world_t7)
+    with open(os.path.join(WORLDS, f"{WORLD_NAME}_servo.sdf"), "w") as f:
         f.write(world)
+    stale = os.path.join(WORLDS, f"{WORLD_NAME}_t7.sdf")
+    if os.path.exists(stale):
+        os.remove(stale)
 
     print(f"origin (takeoff): {ORIGIN_LAT:.9f}, {ORIGIN_LON:.9f}, {GROUND_MSL} m")
     for k, (x, y) in pos.items():

@@ -3,3 +3,4 @@ models/norman_buildings/
 models/norman_ground/
 models/norman_trees/
 worlds/norman_radars.sdf
+worlds/norman_radars_servo.sdf

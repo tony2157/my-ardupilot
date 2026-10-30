@@ -1,0 +1,46 @@
+# RFSonde SITL parameters for the Gremsy T7 digital twin (T7_twin in RFSonde_Gremsy).
+# The twin runs the real T7 firmware and talks MAVLink on its COM2 port, which
+# SITL exposes on SERIAL2 (TCP); the same port and settings as the real Cube.
+
+# Iris is X frame
+FRAME_CLASS	     1
+FRAME_TYPE	     1
+
+# Match servo out for motors
+MOT_PWM_MIN      1100
+MOT_PWM_MAX      1900
+
+# T7 on SERIAL2 (MAV3), MAVLink2 at 115200 like the real board. SERIAL2_PROTOCOL must be 2:
+# GIMBAL_DEVICE_SET_ATTITUDE (284) and AUTOPILOT_STATE_FOR_GIMBAL_DEVICE (286) cannot go out as MAVLink1.
+SERIAL2_PROTOCOL 2
+SERIAL2_BAUD     115
+# private gimbal channel: no forwarding of the gimbal's streams to the GCS links
+MAV3_OPTIONS     2
+# limit every SITL serial port to its SERIALn_BAUD, as a real UART would
+SIM_BAUDLIMIT_EN 1
+
+# MAVLink gimbal (Gremsy), limits as on the real board
+MNT1_TYPE        6
+MNT1_ROLL_MIN    -45
+MNT1_ROLL_MAX    45
+MNT1_PITCH_MIN   -99
+MNT1_PITCH_MAX   45
+MNT1_YAW_MIN     -180
+MNT1_YAW_MAX     180
+# The real board used 0 (Retract), which the MAVLink backend sends as GIMBAL_DEVICE_FLAGS_RETRACT:
+# the T7 turns its motors off. Start in MAVLink targeting instead; set 0 to reproduce that.
+MNT1_DEFLT_MODE  2
+
+# Gimbal RC in (RC targeting)
+RC6_MAX          1900
+RC6_MIN          1100
+RC6_OPTION       212
+RC7_MAX          1900
+RC7_MIN          1100
+RC7_OPTION       213
+RC8_MAX          1900
+RC8_MIN          1100
+RC8_OPTION       214
+
+# SITL serial 5 (TCP 5765) for the accuracy-squares helper: serial 2 is the gimbal
+SERIAL5_PROTOCOL 2
