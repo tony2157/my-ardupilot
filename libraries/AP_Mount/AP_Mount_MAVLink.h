@@ -55,10 +55,6 @@ protected:
         return supported_target;
     };
 
-    // ARRC: Gremsy firmware (T7 7.8.7) reads GIMBAL_DEVICE_SET_ATTITUDE's quaternion as yaw-pitch-roll (321) Euler
-    // angles and holds them as its own yaw-roll-pitch (312) angles; its status quaternion is built the same way
-    bool quat_holds_312_angles() const { return strncmp(vendor_name, "GREMSY", 6) == 0; }
-
     // get attitude as a quaternion.  returns true on success
     bool get_attitude_quaternion(Quaternion& att_quat) override;
 
@@ -100,5 +96,10 @@ private:
     uint32_t _last_attitude_status_ms;  // system time last attitude status was received (used for health reporting)
     char vendor_name[MAVLINK_MSG_GIMBAL_DEVICE_INFORMATION_FIELD_VENDOR_NAME_LEN];  // vendor name
     char model_name[MAVLINK_MSG_GIMBAL_DEVICE_INFORMATION_FIELD_MODEL_NAME_LEN];  // model name
+
+    // ARRC: Gremsy firmware below build 2 (factory T7 7.8.7.0) reads GIMBAL_DEVICE_SET_ATTITUDE's quaternion as
+    // yaw-pitch-roll (321) Euler angles and holds them as its own yaw-roll-pitch (312) angles, and builds its status
+    // quaternion the same way. The RFSonde T7 build 7.8.7.2 uses true rotations. Set from GIMBAL_DEVICE_INFORMATION
+    bool _quat_holds_312_angles;
 };
 #endif // HAL_MOUNT_MAVLINK_ENABLED

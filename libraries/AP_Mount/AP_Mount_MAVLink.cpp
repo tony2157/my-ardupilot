@@ -174,6 +174,7 @@ void AP_Mount_MAVLink::handle_gimbal_device_information(const mavlink_message_t 
 
     strncpy(vendor_name, info.vendor_name, ARRAY_SIZE(vendor_name));
     strncpy(model_name, info.model_name, ARRAY_SIZE(model_name));
+    _quat_holds_312_angles = (strncmp(info.vendor_name, "GREMSY", 6) == 0) && (fw_ver_build < 2);
 
     // display gimbal info to user
     GCS_SEND_TEXT(MAV_SEVERITY_INFO, "Mount: %s %s fw:%u.%u.%u.%u",
@@ -199,8 +200,8 @@ void AP_Mount_MAVLink::handle_gimbal_device_attitude_status(const mavlink_messag
     mavlink_msg_gimbal_device_attitude_status_decode(&msg, &_gimbal_device_attitude_status);
     _last_attitude_status_ms = AP_HAL::millis();
 
-    // ARRC: a Gremsy's quaternion is the 321 composition of its 312 angles; keep the true rotation
-    if (quat_holds_312_angles()) {
+    // ARRC: an older Gremsy's quaternion is the 321 composition of its 312 angles; keep the true rotation
+    if (_quat_holds_312_angles) {
         float *q = _gimbal_device_attitude_status.q;
         Quaternion quat{q[0], q[1], q[2], q[3]};
         const float len = quat.length();
@@ -317,10 +318,11 @@ void AP_Mount_MAVLink::send_target_angles(const MountAngleTarget &angle_rad)
 
     // convert euler angles to quaternion
     // ARRC mod: the angles are yaw-roll-pitch (312), the gimbal's axis order and the order the ARRC angles are
-    // computed in. A Gremsy turns the quaternion back into 321 angles and holds those numbers as 312 angles, so it
-    // gets the 321 composition of the 312 angles; other gimbals get the true rotation. Same when roll is zero
+    // computed in. An older Gremsy turns the quaternion back into 321 angles and holds those numbers as 312 angles,
+    // so it gets the 321 composition of the 312 angles; other gimbals, including the RFSonde T7 7.8.7.2, get the true
+    // rotation, which allows pitch beyond +-90 deg. Same when roll is zero
     Quaternion q;
-    if (quat_holds_312_angles()) {
+    if (_quat_holds_312_angles) {
         // a 321 decode cannot return a pitch beyond +-90 deg: -95 deg turned the pan 180 deg in the T7 twin
         q.from_euler(roll_rad, constrain_float(pitch_rad, radians(-89.5f), radians(89.5f)), yaw_rad);
     } else {
