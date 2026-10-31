@@ -1125,7 +1125,7 @@ bool AP_Mount_Backend::get_angle_target_to_location(const Location &target, Moun
     constexpr float SLOPE_HYSTERESIS = 0.05f;                       // and above which they return to the ARRC mode
     constexpr float ELEVATION_THRESHOLD_RAD = 80.0f * DEG_TO_RAD;
     constexpr float PITCH_LIMIT_RAD = 75.0f * DEG_TO_RAD;
-    constexpr float ROLL_LIMIT_RAD = 35.0f * DEG_TO_RAD;
+    constexpr float ROLL_LIMIT_RAD = 60.0f * DEG_TO_RAD;            // RFSonde T7 7.8.7.5: roll joint guarded, estimate good to 70
     constexpr uint32_t PREV_CMD_TIMEOUT_MS = 500;                   // a previous command older than this is not continued
     constexpr uint32_t HOLD_TIMEOUT_MS = 2000;                      // nor held when too close
 
