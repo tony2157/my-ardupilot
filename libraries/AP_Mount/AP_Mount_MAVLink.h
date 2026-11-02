@@ -61,6 +61,9 @@ protected:
     // ARRC gimbal's measured attitude as an earth-frame (NED) quaternion
     bool get_measured_attitude_ef(Quaternion &q_ef) const override;
 
+    // ARRC gimbal's latest attitude report as it sent it and the boot time it was received
+    bool get_measured_attitude_report(Quaternion &q, uint16_t &flags, uint32_t &gimbal_ms, uint64_t &rx_us) const override;
+
 private:
 
     // search for gimbal in GCS_MAVLink routing table
@@ -94,6 +97,7 @@ private:
     uint8_t _compid;                // component id of gimbal
     mavlink_gimbal_device_attitude_status_t _gimbal_device_attitude_status;  // copy of most recently received gimbal status
     uint32_t _last_attitude_status_ms;  // system time last attitude status was received (used for health reporting)
+    uint64_t _last_attitude_status_us;  // ARRC the same in microseconds, for the companion's records
     char vendor_name[MAVLINK_MSG_GIMBAL_DEVICE_INFORMATION_FIELD_VENDOR_NAME_LEN];  // vendor name
     char model_name[MAVLINK_MSG_GIMBAL_DEVICE_INFORMATION_FIELD_MODEL_NAME_LEN];  // model name
 

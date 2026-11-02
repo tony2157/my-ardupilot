@@ -93,6 +93,19 @@ bool AP_Mount_MAVLink::get_measured_attitude_ef(Quaternion &q_ef) const
     return true;
 }
 
+bool AP_Mount_MAVLink::get_measured_attitude_report(Quaternion &q, uint16_t &flags, uint32_t &gimbal_ms, uint64_t &rx_us) const
+{
+    if ((_last_attitude_status_ms == 0) || (AP_HAL::millis() - _last_attitude_status_ms > 1000)) {
+        return false;
+    }
+    const float *s = _gimbal_device_attitude_status.q;
+    q = Quaternion(s[0], s[1], s[2], s[3]);
+    flags = _gimbal_device_attitude_status.flags;
+    gimbal_ms = _gimbal_device_attitude_status.time_boot_ms;
+    rx_us = _last_attitude_status_us;
+    return true;
+}
+
 // search for gimbal in GCS_MAVLink routing table
 void AP_Mount_MAVLink::find_gimbal()
 {
@@ -199,6 +212,7 @@ void AP_Mount_MAVLink::handle_gimbal_device_attitude_status(const mavlink_messag
     // take copy of message so it can be forwarded onto GCS later
     mavlink_msg_gimbal_device_attitude_status_decode(&msg, &_gimbal_device_attitude_status);
     _last_attitude_status_ms = AP_HAL::millis();
+    _last_attitude_status_us = AP_HAL::micros64();
 
     // ARRC: an older Gremsy's quaternion is the 321 composition of its 312 angles; keep the true rotation
     if (_quat_holds_312_angles) {

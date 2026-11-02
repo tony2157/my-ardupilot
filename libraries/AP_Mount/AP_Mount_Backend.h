@@ -144,6 +144,10 @@ public:
     // ARRC gimbal's measured attitude as an earth-frame (NED) quaternion, for gimbals that report it
     virtual bool get_measured_attitude_ef(Quaternion &q_ef) const { return false; }
 
+    // ARRC gimbal's latest attitude report as it sent it (quaternion, GIMBAL_DEVICE_FLAGS, its own time_boot_ms)
+    // and the boot time it was received, for gimbals that report it. False if none within 1 s
+    virtual bool get_measured_attitude_report(Quaternion &q, uint16_t &flags, uint32_t &gimbal_ms, uint64_t &rx_us) const { return false; }
+
 #if HAL_GCS_ENABLED
     // ARRC send the latest pointing solution as ARRC_GIMBAL_POINTING (what ARGM logs)
     void send_ARRC_pointing(mavlink_channel_t chan) const;
