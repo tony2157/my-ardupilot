@@ -238,6 +238,40 @@ const AP_Param::GroupInfo AP_Mount_Params::var_info[] = {
     // @User: Advanced
     AP_GROUPINFO("_ARRC_SLEW", 23, AP_Mount_Params, ARRC_slew, 60.0f),
 
+    // @Param: _ARRC_PRBX
+    // @DisplayName: ARRC probe phase centre forward
+    // @Description: Position of the probe antenna's phase centre, forward. With MNT1_ARRC_PMNT 0 (probe on the gimbal) from the gimbal rotation center (MNT1_ARRC_XOFF, YOFF, ZOFF) along the probe boresight, in the gimbal frame; with 1 (fixed to the airframe) from the vehicle origin (IMU) along the body forward axis. Recorded for post-processing; the pointing does not use it
+    // @Units: m
+    // @Range: -2 2
+    // @Increment: .01
+    // @User: Standard
+    AP_GROUPINFO("_ARRC_PRBX", 24, AP_Mount_Params, ARRC_probe_x, 0.0f),
+
+    // @Param: _ARRC_PRBY
+    // @DisplayName: ARRC probe phase centre right
+    // @Description: Position of the probe antenna's phase centre, to the right. In the gimbal frame from the gimbal rotation center (MNT1_ARRC_PMNT 0), or along the body right axis from the vehicle origin (IMU) (MNT1_ARRC_PMNT 1). Recorded for post-processing; the pointing does not use it
+    // @Units: m
+    // @Range: -2 2
+    // @Increment: .01
+    // @User: Standard
+    AP_GROUPINFO("_ARRC_PRBY", 25, AP_Mount_Params, ARRC_probe_y, 0.0f),
+
+    // @Param: _ARRC_PRBZ
+    // @DisplayName: ARRC probe phase centre down
+    // @Description: Position of the probe antenna's phase centre, downward (down is positive, unlike MNT1_ARRC_ZOFF). In the gimbal frame from the gimbal rotation center (MNT1_ARRC_PMNT 0), or along the body down axis from the vehicle origin (IMU) (MNT1_ARRC_PMNT 1). Recorded for post-processing; the pointing does not use it
+    // @Units: m
+    // @Range: -2 2
+    // @Increment: .01
+    // @User: Standard
+    AP_GROUPINFO("_ARRC_PRBZ", 26, AP_Mount_Params, ARRC_probe_z, 0.0f),
+
+    // @Param: _ARRC_PMNT
+    // @DisplayName: ARRC probe mounting
+    // @Description: Where the probe antenna is mounted, which sets the frame of MNT1_ARRC_PRBX, PRBY and PRBZ. Recorded for post-processing; the pointing does not use it
+    // @Values: 0:On the gimbal,1:Fixed to the airframe
+    // @User: Standard
+    AP_GROUPINFO("_ARRC_PMNT", 27, AP_Mount_Params, ARRC_probe_mount, 0),
+
     AP_GROUPEND
 };
 

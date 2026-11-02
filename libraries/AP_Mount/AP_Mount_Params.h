@@ -41,4 +41,8 @@ public:
     AP_Float    ARRC_pol_offset;    // Polarization offset about the probe boresight found by the gimbal alignment, in degrees
     AP_Float    ARRC_lead;          // Position lead time compensating the gimbal command latency, in seconds
     AP_Float    ARRC_slew;          // Rate limit of the ARRC modes' angle commands, in degrees per second
+    AP_Float    ARRC_probe_x;       // Probe phase centre position (frame per ARRC_probe_mount), forward, in meters
+    AP_Float    ARRC_probe_y;       // Probe phase centre position, right, in meters
+    AP_Float    ARRC_probe_z;       // Probe phase centre position, down, in meters
+    AP_Int8     ARRC_probe_mount;   // 0: probe on the gimbal, 1: probe fixed to the airframe
 };
