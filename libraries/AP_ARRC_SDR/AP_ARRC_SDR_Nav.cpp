@@ -10,7 +10,9 @@
  * ACKs and the GCS downlink); a sample is also held back when the channel's tx buffer is nearly full.
  * The cap is the requested interval itself, not the stream scheduler's timing, which slows down while
  * parameters or a mission are transferred. Instance 0 of each sensor; samples carry the time they were taken
- * on the boot clock.
+ * on the boot clock. The IMU samples also carry the INS delta angle and velocity summed since the channel's
+ * previous sample (unfiltered, as the EKF uses them), the GPS samples the driver's corrected fix time in
+ * microseconds and the gimbal samples the gimbal's own attitude report with its receive time.
  */
 #include "AP_ARRC_SDR.h"
 
@@ -25,6 +27,14 @@
 
 // tx space kept free on a channel when a sample is sent: a heartbeat, an ACK and an ARRC_SENSOR_RAW
 static constexpr uint16_t NAV_TX_HEADROOM_BYTES = 200;
+
+// a channel's IMU deltas are summed while its last ARRC_NAV_IMU is this recent; after a longer pause the
+// next sample starts a new interval (delta_time 0)
+static constexpr uint32_t NAV_IMU_DELTA_IDLE_MS = 2000;
+
+// the driver's corrected fix time is used when it is at most this much older than the fix's receive time;
+// an older one belongs to an earlier fix (5 or 10 Hz)
+static constexpr uint32_t NAV_GPS_EPOCH_MAX_AGE_US = 80000;
 
 // the message of each stream
 static constexpr ap_message nav_msg[uint8_t(AP_ARRC_SDR::NavStream::COUNT)] {
@@ -88,7 +98,24 @@ void AP_ARRC_SDR::nav_send(NavStream stream, mavlink_channel_t chan)
         const int16_t temperature = int16_t(constrain_float(ins.get_temperature(i) * 100.0f, INT16_MIN, INT16_MAX));
         const uint8_t flags = (ins.get_gyro_health(i) ? ARRC_NAV_IMU_FLAGS_GYRO_HEALTHY : 0) |
                               (ins.get_accel_health(i) ? ARRC_NAV_IMU_FLAGS_ACCEL_HEALTHY : 0);
-        mavlink_msg_arrc_nav_imu_send(chan, t_us, g, a, temperature, i, flags);
+        // the sums since the channel's previous sample, then a new interval from here
+        ImuDelta &d = _imu_delta[chan];
+        const uint32_t now_ms = AP_HAL::millis();
+        Vector3f angle;
+        Vector3f dv;
+        float dt = 0;
+        if (d.sent_ms != 0 && now_ms - d.sent_ms <= NAV_IMU_DELTA_IDLE_MS) {
+            d.q.to_axis_angle(angle);
+            dv = d.dv;
+            dt = d.dt;
+        }
+        d.q.initialise();
+        d.dv.zero();
+        d.dt = 0;
+        d.sent_ms = MAX(now_ms, 1U);
+        const float da[3] {angle.x, angle.y, angle.z};
+        const float dvel[3] {dv.x, dv.y, dv.z};
+        mavlink_msg_arrc_nav_imu_send(chan, t_us, g, a, temperature, i, flags, da, dvel, dt);
         break;
     }
     case NavStream::MAG: {
@@ -144,6 +171,39 @@ void AP_ARRC_SDR::nav_imu_sample(void)
         if (nav_ready(NavStream::IMU, c, PAYLOAD_SIZE(mavlink_channel_t(c), ARRC_NAV_IMU))) {
             nav_send(NavStream::IMU, mavlink_channel_t(c));
         }
+    }
+}
+
+void AP_ARRC_SDR::nav_imu_accumulate(void)
+{
+    const AP_InertialSensor &ins = AP::ins();
+    const uint32_t update_us = ins.get_last_update_usec();
+    if (update_us == _imu_delta_update_us) {
+        return;
+    }
+    _imu_delta_update_us = update_us;
+    const uint8_t i = 0;
+    Vector3f da;
+    Vector3f dv;
+    float da_dt;
+    float dv_dt;
+    if (!ins.get_delta_angle(i, da, da_dt) || !ins.get_delta_velocity(i, dv, dv_dt)) {
+        return;
+    }
+    const uint32_t now_ms = AP_HAL::millis();
+    for (uint8_t c = 0; c < MIN(gcs().num_gcs(), uint8_t(MAVLINK_COMM_NUM_BUFFERS)); c++) {
+        ImuDelta &d = _imu_delta[c];
+        if (d.sent_ms == 0 || now_ms - d.sent_ms > NAV_IMU_DELTA_IDLE_MS) {
+            continue;
+        }
+        // as EKF3 down-samples its IMU data: the rotation as a quaternion (summing angles would add coning
+        // errors), each velocity change rotated into the body frame at the start of the interval
+        d.q.rotate(da);
+        d.q.normalize();
+        Matrix3f rot;
+        d.q.rotation_matrix(rot);
+        d.dv += rot * dv;
+        d.dt += da_dt;
     }
 }
 
@@ -222,6 +282,11 @@ void AP_ARRC_SDR::send_nav_gps(mavlink_channel_t chan)
     float h_acc = NaNf;
     float v_acc = NaNf;
     float s_acc = NaNf;
+    // the driver's corrected fix time (receiver output, jitter corrected), if it belongs to this fix
+    uint64_t epoch_us = gps.last_corrected_gps_time_usec(i);
+    if (epoch_us == 0 || epoch_us > t_us + 1000U || t_us + 1000U - epoch_us > NAV_GPS_EPOCH_MAX_AGE_US + 1000U) {
+        epoch_us = 0;
+    }
     if (gps.horizontal_accuracy(i, h_acc)) {
         flags |= ARRC_NAV_GPS_FLAGS_H_ACC_VALID;
     }
@@ -233,7 +298,7 @@ void AP_ARRC_SDR::send_nav_gps(mavlink_channel_t chan)
     }
     mavlink_msg_arrc_nav_gps_send(chan, t_us, gps.time_week_ms(i), loc.lat, loc.lng, loc.alt * 10, alt_ellipsoid_mm,
                                   v, h_acc, v_acc, s_acc, gps.time_week(i), gps.get_hdop(i), gps.get_vdop(i),
-                                  uint8_t(gps.status(i)), gps.num_sats(i), i, flags);
+                                  uint8_t(gps.status(i)), gps.num_sats(i), i, flags, epoch_us);
 }
 
 void AP_ARRC_SDR::send_nav_ecef(mavlink_channel_t chan)

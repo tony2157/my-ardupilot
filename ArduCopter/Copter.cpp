@@ -144,6 +144,10 @@ const AP_Scheduler::Task Copter::scheduler_tasks[] = {
     // camera mount's fast update
     FAST_TASK_CLASS(AP_Mount, &copter.camera_mount, update_fast),
 #endif
+#if AP_ARRC_SDR_ENABLED
+    // the INS delta angle and velocity of this loop for the companion's IMU samples
+    FAST_TASK_CLASS(AP_ARRC_SDR, &copter.ARRC_SDR, nav_imu_accumulate),
+#endif
 #if HAL_LOGGING_ENABLED
     FAST_TASK(Log_Video_Stabilisation),
 #endif

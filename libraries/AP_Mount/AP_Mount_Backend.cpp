@@ -804,6 +804,18 @@ void AP_Mount_Backend::send_ARRC_pointing(mavlink_channel_t chan) const
     }
     const float q[4] {q_cmd.q1, q_cmd.q2, q_cmd.q3, q_cmd.q4};
     const float probe_pos[3] {_arrc.pos.x, _arrc.pos.y, _arrc.pos.z};
+    // the gimbal's own report with its receive time and clock, so its attitude can be timed afterwards
+    Quaternion q_rep;
+    uint16_t rep_flags = 0;
+    uint32_t rep_ms = 0;
+    uint64_t rep_us = 0;
+    float q_meas[4] {NaNf, NaNf, NaNf, NaNf};
+    if (get_measured_attitude_report(q_rep, rep_flags, rep_ms, rep_us)) {
+        q_meas[0] = q_rep.q1;
+        q_meas[1] = q_rep.q2;
+        q_meas[2] = q_rep.q3;
+        q_meas[3] = q_rep.q4;
+    }
     mavlink_msg_arrc_gimbal_pointing_send(chan,
                                           _arrc.update_us,
                                           q,
@@ -817,7 +829,11 @@ void AP_Mount_Backend::send_ARRC_pointing(mavlink_channel_t chan) const
                                           uint8_t(get_mode()),
                                           uint8_t(_arrc.mode),
                                           _arrc.flags & ARRC_FLAGS_MAVLINK,
-                                          _instance);
+                                          _instance,
+                                          q_meas,
+                                          rep_us,
+                                          rep_ms,
+                                          rep_flags);
 }
 #endif  // HAL_GCS_ENABLED
 

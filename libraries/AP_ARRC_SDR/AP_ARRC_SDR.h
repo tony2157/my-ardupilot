@@ -17,6 +17,7 @@
 #if AP_ARRC_SDR_ENABLED
 
 #include <AP_HAL/AP_HAL.h>
+#include <AP_Math/AP_Math.h>
 #include <GCS_MAVLink/GCS_MAVLink.h>
 #include <GCS_MAVLink/ap_message.h>
 
@@ -78,6 +79,9 @@ public:
     void nav_gimbal_sample(void);
     // GPS and ECEF, called faster than the fix rate: each new fix is sent once
     void nav_gps_sample(void);
+    // every loop, after the INS update: the INS delta angle and velocity, summed for each channel that gets
+    // ARRC_NAV_IMU until its next sample
+    void nav_imu_accumulate(void);
 
     // companion data session id (0 if unknown)
     uint32_t session_id(void) const { return _session_id; }
@@ -113,6 +117,15 @@ private:
 
     AP_ARRC_RateCap _nav_cap[uint8_t(NavStream::COUNT)][MAVLINK_COMM_NUM_BUFFERS];
     uint64_t _gps_fix_us;       // latest GPS fix sent to the channels with the stream
+
+    // ARRC_NAV_IMU delta angle and velocity since the channel's previous sample
+    struct ImuDelta {
+        Quaternion q;           // rotation since the start of the interval
+        Vector3f dv;            // velocity change, body frame at the start of the interval
+        float dt;
+        uint32_t sent_ms;       // last sample on the channel: summed while it is recent
+    } _imu_delta[MAVLINK_COMM_NUM_BUFFERS];
+    uint32_t _imu_delta_update_us;  // INS update the sums last took
     uint64_t _ecef_fix_us;
 
     // ARRC_SENSOR_RAW: sent as each measurement arrives, at most at the interval the channel requested

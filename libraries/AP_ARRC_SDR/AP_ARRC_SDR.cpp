@@ -61,6 +61,13 @@ AP_ARRC_SDR::AP_ARRC_SDR(void) :
     memset(_nav_cap, 0, sizeof(_nav_cap));
     _gps_fix_us = 0;
     _ecef_fix_us = 0;
+    for (ImuDelta &d : _imu_delta) {
+        d.q.initialise();
+        d.dv.zero();
+        d.dt = 0;
+        d.sent_ms = 0;
+    }
+    _imu_delta_update_us = 0;
     memset(_rf_cap, 0, sizeof(_rf_cap));
     memset(&_sdr_config, 0, sizeof(_sdr_config));
     memset(&_meas_config, 0, sizeof(_meas_config));
