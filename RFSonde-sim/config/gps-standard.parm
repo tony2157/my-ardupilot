@@ -6,12 +6,28 @@
 #   position error = slowly varying part (SIM_GPS_HBIAS/VBIAS, correlation time SIM_GPS_BTAU)
 #                    + white noise (SIM_GPS_HWN/VWN); velocity white noise SIM_GPS_VELNSE.
 #   Reported accuracy = sqrt(BIAS^2 + WN^2); RTK Fixed is reported when it is below 0.1 m.
+#   gps-rtk.parm adds a fast term, a baseline (ppm) term and RTK float/fixed states.
+# Site and receiver, the same in every profile (see gps-rtk.parm)
+SIM_GEODESY      1
+SIM_GPS_GEOID    -27.33
+SIM_GPS1_LAG_MS  0
+SIM_GPS2_LAG_MS  0
+SIM_GPS_LAG_RND  90
 SIM_GPS_HBIAS    1.2
 SIM_GPS_HWN      0.3
 SIM_GPS_VBIAS    1.9
 SIM_GPS_VWN      0.4
 SIM_GPS_BTAU     60
 SIM_GPS_VELNSE   0.05
+# RTK-only terms off (they stay set when switching from gps-rtk.parm)
+SIM_GPS_FHBIAS   0
+SIM_GPS_FVBIAS   0
+SIM_GPS_PPM      0
+SIM_GPS_VPPM     0
+SIM_GPS_PCO_V    0
+SIM_GPS_CONV     0
+SIM_GPS_FLTACC   0
+SIM_GPS_FIXLOSS  0
 # stock SITL values for the parameters the old RFSonde model reused
 SIM_GPS1_ACC     0.3
 SIM_GPS2_ACC     0.3

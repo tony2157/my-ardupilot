@@ -109,30 +109,54 @@ gz topic -e -t /world/norman_radars/model/rfsonde_iris/model/gimbal/joint_state
 
 ### GPS accuracy and RTK
 
-SITL simulates the GPS receiver; Gazebo only supplies the true position. The RFSonde GNSS error model (`libraries/SITL/SIM_GPS.h`, `GNSSErrorModel`) adds two terms to each axis:
+SITL simulates the GPS receiver; Gazebo only supplies the true position. Two parts of SITL matter at centimetre level: how the true position becomes latitude, longitude and height (geodesy), and the GNSS error model.
 
-- a slowly varying error, a first-order Gauss-Markov process with exact discretisation, so the statistics don't depend on `SIM_GPS1_HZ`;
+**Geodesy.** With `SIM_GEODESY 1` (all profiles), SITL treats the simulated north, east, down position as a tangent plane at home and converts it through WGS84 ECEF in double precision. The true position is then exact, with no 1e-7° (about 1 cm) steps, for every consumer, including the simulated GPS and its HPPOSECEF message. The tangent plane is flat like the Gazebo world: 1.5 km from home it is 0.18 m above the ellipsoid. With `SIM_GEODESY 0` (stock), SITL uses a spherical Earth: at this site 1.5 km north comes out 5 m short and 1.5 km east 1.7 m long. Set it before the flight. The truth is logged as `SIMG` (NED from home and latitude, longitude, height, all doubles).
+
+**Geoid.** `SIM_GPS_GEOID` is the geoid height N (-27.33 m here: ellipsoid 341.334 m, orthometric 368.668 m at the survey point). SITL altitudes stay above mean sea level; the simulated receiver reports ellipsoid height = MSL + N (u-blox POSLLH, PVT `height` and HPPOSECEF, NMEA GGA), as a real receiver does. With `SIM_GEODESY 1` the tangent plane starts at the ellipsoid height of home.
+
+**Error model** (`libraries/SITL/SIM_GPS.h`, `GNSSErrorModel`). Each axis gets:
+
+- a slowly varying error (atmosphere, orbits), a first-order Gauss-Markov process;
+- a faster one (multipath), also Gauss-Markov;
+- a baseline error that grows with the horizontal distance from home (the RTK base), in ppm;
 - white noise.
 
-It also adds white noise to the velocity. The simulated u-blox reports the configured 1-sigma accuracy (`hAcc`, `vAcc`, `sAcc`), and reports RTK Fixed when `hAcc` is below 0.1 m. With all model parameters at 0, the stock SITL GPS applies (`SIM_GPS1_ACC`, `SIM_GPS1_NOISE`).
+The Gauss-Markov terms use the exact discretisation, so the statistics don't depend on `SIM_GPS1_HZ`. The velocity gets white noise. The simulated u-blox reports the 1-sigma size of these terms as its accuracy (`hAcc`, `vAcc`, `sAcc`). A constant vertical phase-centre error can be added; the receiver doesn't know it, so it is not in the accuracy. With all model parameters at 0, the stock SITL GPS applies (`SIM_GPS1_ACC`, `SIM_GPS1_NOISE`).
+
+**RTK states.** With `SIM_GPS_CONV` above 0, the solution is RTK float for that time after lock, with an extra random offset, then RTK fixed. `SIM_GPS_FIXLOSS` adds random fix losses; after each one the solution is float for `SIM_GPS_REFIX` with a new offset. The fix type and the reported accuracy follow the state. With both at 0, RTK Fixed is reported whenever `hAcc` is below 0.1 m, with no float stage.
+
+**Latency.** `SIM_GPS_LAG_RND` adds a lag drawn once per boot between 0 and its value to `SIM_GPS1_LAG_MS`, like a receiver whose latency changes from one power-up to the next. SITL announces the drawn lag (`SIM GPS1: lag 59 ms`). The serial link adds about 18-20 ms in SITL (u-blox, 5 Hz).
 
 | Parameter | Meaning |
 |---|---|
+| `SIM_GEODESY` | 1 = exact WGS84 tangent plane at home, 0 = stock spherical Earth |
+| `SIM_GPS_GEOID` | geoid height N (m); ellipsoid height = MSL + N |
 | `SIM_GPS_HBIAS` / `SIM_GPS_VBIAS` | slowly varying error, 1σ per horizontal axis / vertical (m) |
-| `SIM_GPS_BTAU` | its correlation time (s) |
+| `SIM_GPS_BTAU` | its correlation time (s), also used by the baseline error |
+| `SIM_GPS_FHBIAS` / `SIM_GPS_FVBIAS` | fast error, 1σ per horizontal axis / vertical (m) |
+| `SIM_GPS_FTAU` | its correlation time (s) |
+| `SIM_GPS_PPM` / `SIM_GPS_VPPM` | baseline error, 1σ per horizontal axis / vertical, in ppm of the horizontal distance from home |
 | `SIM_GPS_HWN` / `SIM_GPS_VWN` | white noise per sample (m) |
+| `SIM_GPS_PCO_V` | constant vertical phase-centre error (m, positive reads high) |
 | `SIM_GPS_VELNSE` | velocity noise per axis (m/s) |
-| `SIM_GPS_SEED` | random seed (0 = new each start) |
+| `SIM_GPS_CONV` | RTK float time after lock (s), 0 = no float stage |
+| `SIM_GPS_FLTACC` | float error, 1σ per horizontal axis (m), twice vertically |
+| `SIM_GPS_FIXLOSS` / `SIM_GPS_REFIX` | mean time between random fix losses (s, 0 = none) / float time after a loss (s) |
+| `SIM_GPS_LAG_RND` | range of the per-boot random lag (ms), added to `SIM_GPS1_LAG_MS` |
+| `SIM_GPS_SEED` | random seed (0 = new each start; a fixed seed also repeats the per-boot lag) |
 
-The profiles (u-blox ZED-F9P class) include matching EKF3 settings:
+The profiles (u-blox ZED-F9P class) include matching EKF3 settings. All of them set the site and receiver lines: `SIM_GEODESY 1`, `SIM_GPS_GEOID -27.33`, `SIM_GPS1_LAG_MS 0` and `SIM_GPS_LAG_RND 90`, about 18-110 ms in total, the Here4 range measured in flight (15-110 ms).
 
 | Profile | Horizontal | Vertical 1σ | Fix | EKF3 |
 |---|---|---|---|---|
 | `config/gps-standard.parm` | 1.5 m CEP | 1.9 m | 3D | defaults (`EK3_POSNE_M_NSE 0.5`) |
 | `config/gps-sbas.parm` | 1.0 m CEP | 1.3 m | 3D | defaults |
-| `config/gps-rtk.parm` | 1.1 cm CEP | 1.4 cm | RTK Fixed | `EK3_POSNE_M_NSE 0.05`, `EK3_VELNE_M_NSE 0.1` |
+| `config/gps-rtk.parm` | 1.0 cm CEP + 1 ppm | 1.5 cm + 1.5 ppm | float 10 s, then RTK Fixed | `EK3_POSNE_M_NSE 0.05`, `EK3_VELNE_M_NSE 0.1` |
 
-All profiles set `EK3_SRC1_POSZ 3` (GPS height). EKF3 weighs GPS position by `max(hAcc, EK3_POSNE_M_NSE)`, so the RTK profile lowers that floor.
+The RTK profile follows the F9P specification (0.01 m + 1 ppm CEP, 0.01 m + 1 ppm R50 vertical) converted to 1σ: white noise 2 mm / 4 mm, a fast term of 3 mm / 6 mm with a 20 s correlation time (an assumption), and a slow term of 7.7 mm / 13.2 mm with 20 min. That totals 8.5 mm per axis and 15 mm vertical, plus 0.85 ppm per axis and 1.48 ppm vertical of the distance from home (1.3 mm and 2.2 mm at 1.5 km). The float error (0.2 m per axis) is an assumption; random fix losses are off.
+
+All profiles set `EK3_SRC1_POSZ 3` (GPS height). EKF3 weighs GPS position by `max(hAcc, EK3_POSNE_M_NSE)`, so the RTK profile lowers that floor. The profiles that are not RTK set the RTK-only terms to 0, so switching profiles never leaves them on.
 
 Start with `tools/rfsonde_sitl.sh --gps sbas` or `--rtk`. To switch at any time, run in Terminal C:
 
@@ -140,7 +164,7 @@ Start with `tools/rfsonde_sitl.sh --gps sbas` or `--rtk`. To switch at any time,
 param load ~/Github/my-ardupilot/RFSonde-sim/config/gps-rtk.parm        # or gps-sbas.parm / gps-standard.parm
 ```
 
-In Mission Planner, use Config → Full Parameter List → Load from file → Write Params. The error changes size immediately, with no RTK float stage. Home altitude is set at arming, so arming in standard mode and then enabling RTK leaves a constant height offset until the next arming.
+In Mission Planner, use Config → Full Parameter List → Load from file → Write Params. The error changes size immediately. Loading the RTK profile with the GPS already locked starts the 10 s float stage. Home altitude is set at arming, so arming in standard mode and then enabling RTK leaves a constant height offset until the next arming.
 
 ### Evaluate GNSS and EKF accuracy
 

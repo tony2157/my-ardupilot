@@ -1,11 +1,41 @@
-# RFSonde SITL GPS profile: RTK fixed (u-blox ZED-F9P class: 0.01 m + 1 ppm CEP, base within a few km).
-# Reported as RTK Fixed straight away (no float stage). Load the same way as gps-standard.parm.
-SIM_GPS_HBIAS    0.008
-SIM_GPS_HWN      0.005
-SIM_GPS_VBIAS    0.012
-SIM_GPS_VWN      0.008
-SIM_GPS_BTAU     30
+# RFSonde SITL GPS profile: RTK fixed (u-blox ZED-F9P class, Here4: 0.01 m + 1 ppm CEP horizontal,
+# 0.01 m + 1 ppm R50 vertical, base at home). Load the same way as gps-standard.parm.
+#
+# Site and receiver, the same in every profile:
+#   exact WGS84 geodesy (the simulated NED is a tangent plane at home, no 1e-7 deg steps);
+#   geoid height N at the KOUN-area survey point (ellipsoid 341.334 m, orthometric 368.668 m);
+#   lag drawn once per boot in 0..90 ms; SITL adds about 18-20 ms of serial transport (u-blox, 5 Hz),
+#   so the total is about 18-110 ms, the Here4 range measured in flight (15-110 ms).
+SIM_GEODESY      1
+SIM_GPS_GEOID    -27.33
+SIM_GPS1_LAG_MS  0
+SIM_GPS2_LAG_MS  0
+SIM_GPS_LAG_RND  90
+#
+# Error model, 1-sigma per horizontal axis / vertical (F9P RTK literature values):
+#   white noise 2 mm / 4 mm;
+#   fast term (multipath) 3 mm / 6 mm, correlation time 20 s (an assumption);
+#   slow term (atmosphere, orbits) 7.7 mm / 13.2 mm, 20 min;
+#   totals 8.5 mm per axis (0.01 m CEP) and 15 mm vertical (0.01 m R50).
+#   Baseline: 1 ppm CEP = 0.85 ppm per axis, 1 ppm R50 = 1.48 ppm vertical, of the distance from home.
+SIM_GPS_HWN      0.002
+SIM_GPS_VWN      0.004
+SIM_GPS_FHBIAS   0.003
+SIM_GPS_FVBIAS   0.006
+SIM_GPS_FTAU     20
+SIM_GPS_HBIAS    0.0077
+SIM_GPS_VBIAS    0.0132
+SIM_GPS_BTAU     1200
+SIM_GPS_PPM      0.85
+SIM_GPS_VPPM     1.48
+SIM_GPS_PCO_V    0
 SIM_GPS_VELNSE   0.02
+# RTK float for 10 s after lock, with a 0.2 m per axis (0.4 m vertical) float error (an assumption),
+# then fixed; no random fix losses (SIM_GPS_FIXLOSS: mean interval in s, SIM_GPS_REFIX: float time)
+SIM_GPS_CONV     10
+SIM_GPS_FLTACC   0.2
+SIM_GPS_FIXLOSS  0
+SIM_GPS_REFIX    5
 SIM_GPS1_ACC     0.3
 SIM_GPS2_ACC     0.3
 
