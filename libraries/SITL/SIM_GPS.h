@@ -82,6 +82,7 @@ struct GPS_Data {
 // RTK states (SIM_GPS_CONV ... SIM_GPS_REFIX): after lock the solution is float for the convergence
 // time, with an extra random offset, then fixed; random fix losses (exponential intervals) go back
 // to float for the re-fix time with a new offset. They draw from a third random stream.
+// SIM_GPS_LAG_RND: an extra lag drawn uniformly once per (re)seed, i.e. once per boot.
 class GNSSErrorModel {
 public:
     struct Params {
@@ -118,7 +119,11 @@ public:
     // advance the model to now_ms and return the current error, baseline_m from home
     Error update(const Params &p, uint32_t now_ms, uint8_t instance, float baseline_m, bool have_lock);
 
+    // extra lag (ms) drawn uniformly in 0..range_ms once per seed
+    uint16_t extra_lag_ms(const Params &p, uint16_t range_ms, uint32_t now_ms, uint8_t instance);
+
 private:
+    void seed_check(const Params &p, uint32_t now_ms, uint8_t instance);
     static void propagate(double state[3], double dt, float tau, std::mt19937 &gen, std::normal_distribution<double> &n);
     CarrierSolution update_carrier(const Params &p, uint32_t now_ms, double dt, bool have_lock);
     void start_float(uint32_t now_ms, float duration_s);
@@ -137,6 +142,7 @@ private:
     bool rtk_float;
     uint32_t rtk_fix_ms;        // when the float solution fixes
     double float_ofs[3] {};     // float solution error per axis in units of its sigma
+    double lag_fraction;        // per-boot random lag as a fraction of SIM_GPS_LAG_RND
     uint32_t last_ms;
     uint32_t seed_used;
     bool initialised;
@@ -261,6 +267,7 @@ private:
 
     // RFSonde GNSS error model
     GNSSErrorModel error_model;
+    uint32_t reported_lag_ms;   // last lag sent to the GCS with SIM_GPS_LAG_RND
 };
 
 }

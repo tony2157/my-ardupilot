@@ -838,6 +838,14 @@ const AP_Param::GroupInfo SIM::var_gps[] = {
     // @User: Advanced
     AP_GROUPINFO("GPS_REFIX",  61, SIM,  gps_refix_time, 5),
 
+    // @Param: GPS_LAG_RND
+    // @DisplayName: GPS random lag range
+    // @Description: RFSonde: extra GPS lag drawn uniformly between 0 and this value once per boot (with SIM_GPS_SEED, so a fixed seed repeats it) and added to SIM_GPSn_LAG_MS, like a receiver whose latency changes from one power-up to the next. 0 disables it.
+    // @Units: ms
+    // @Range: 0 1000
+    // @User: Advanced
+    AP_GROUPINFO("GPS_LAG_RND",  62, SIM,  gps_lag_rnd, 0),
+
     // 30 was GPS2_DISABLE
     // 31 was GPS2_LAG_MS
     // 32 was GPS2_TYPE

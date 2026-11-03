@@ -242,6 +242,7 @@ public:
     AP_Float gps_float_acc; // RTK float extra error, 1-sigma per horizontal axis (m), twice vertically
     AP_Float gps_fix_loss;  // mean time between RTK fix losses (s), 0 = never
     AP_Float gps_refix_time; // RTK float time after a fix loss (s)
+    AP_Int16 gps_lag_rnd;   // range of the per-boot random extra GPS lag (ms)
     AP_Int8  geodesy;       // RFSonde exact geodesy, see enum Geodesy
 
     // initial offset on GPS lat/lon, used to shift origin

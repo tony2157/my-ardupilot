@@ -239,8 +239,7 @@ CarrierSolution GNSSErrorModel::update_carrier(const Params &p, uint32_t now_ms,
     return rtk_float ? CarrierSolution::FLOAT : CarrierSolution::FIXED;
 }
 
-GNSSErrorModel::Error GNSSErrorModel::update(const Params &p, uint32_t now_ms, uint8_t instance, float baseline_m,
-                                             bool have_lock)
+void GNSSErrorModel::seed_check(const Params &p, uint32_t now_ms, uint8_t instance)
 {
     const uint32_t seed = p.seed != 0 ? p.seed + instance : 0;
     if (!initialised || seed != seed_used) {
@@ -257,10 +256,25 @@ GNSSErrorModel::Error GNSSErrorModel::update(const Params &p, uint32_t now_ms, u
             fast[i] = unit_normal2(generator2);
             base[i] = unit_normal2(generator2);
         }
+        std::seed_seq seed4 { seed != 0 ? seed : std::random_device{}(), 0x52465334U };
+        std::mt19937 generator4(seed4);
+        lag_fraction = std::uniform_real_distribution<double>(0.0, 1.0)(generator4);
         seed_used = seed;
         last_ms = now_ms;
         initialised = true;
     }
+}
+
+uint16_t GNSSErrorModel::extra_lag_ms(const Params &p, uint16_t range_ms, uint32_t now_ms, uint8_t instance)
+{
+    seed_check(p, now_ms, instance);
+    return uint16_t(lag_fraction * range_ms + 0.5);
+}
+
+GNSSErrorModel::Error GNSSErrorModel::update(const Params &p, uint32_t now_ms, uint8_t instance, float baseline_m,
+                                             bool have_lock)
+{
+    seed_check(p, now_ms, instance);
 
     const double dt = (now_ms - last_ms) * 1.0e-3;
     last_ms = now_ms;
@@ -717,7 +731,16 @@ void GPS::update()
 
     // get delayed data
     d.timestamp_ms = now_ms;
-    d = interpolate_data(d, params.delay_ms);
+    uint32_t delay_ms = params.delay_ms;
+    if (_sitl->gps_lag_rnd > 0) {
+        // RFSonde: per-boot random extra lag, drawn once with the error model's seed
+        delay_ms += error_model.extra_lag_ms(model_params, _sitl->gps_lag_rnd, now_ms, instance);
+        if (delay_ms != reported_lag_ms) {
+            reported_lag_ms = delay_ms;
+            GCS_SEND_TEXT(MAV_SEVERITY_INFO, "SIM GPS%u: lag %u ms", unsigned(instance + 1), unsigned(delay_ms));
+        }
+    }
+    d = interpolate_data(d, delay_ms);
 
     // Applying GPS glitch
     // Using first gps glitch
