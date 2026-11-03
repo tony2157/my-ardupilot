@@ -2,6 +2,8 @@
 
 ## norman_radars: Max Westheimer Airport radar site, Norman, OK
 
+RadarSim (a dual-pol phased-array radar measured through an emulated bladeRF in this world): see [RADARSIM.md](RADARSIM.md).
+
 The world covers a 2 km radius around KCRI. It includes generic WSR-88D models for KCRI and KOUN, the NSSL ATD and its calibration tower, and the real OpenStreetMap layout of buildings, runways, taxiways, roads and trees. All of them sit at their true positions.
 
 ### Generate (once after cloning)
@@ -37,7 +39,7 @@ The previous servo gimbal is still available: `gz sim -v4 -r norman_radars_servo
 - The origin is also the drone takeoff point: **35.2380802 N, 97.4631246 W, 358.6 m MSL**. It sits in the open field 50 m east and 200 m north of the ATD radome.
 - The drone starts facing south-east (heading 135°). Change `TAKEOFF_HEADING_DEG` in `tools/make_norman_world.py` and the last number of `RFSonde_Norman` together.
 - Ground level is 358.6 m MSL (NAVD88), taken from the ATD survey of the calibration tower base (1176.42 ft).
-- SITL converts positions to lat/lon with ArduPilot's simplified spherical Earth. Its reported GPS position differs from the true geodetic position by about 0.2% of the distance from takeoff, which is under 1 m at the radars. Gazebo geometry is exact WGS84, so use Gazebo truth for RF ranges.
+- SITL converts positions to lat/lon exactly (WGS84, double precision) when `SIM_GEODESY` is 1, as every `config/gps-*.parm` sets, with the geoid height `SIM_GPS_GEOID` -27.33 m. With `SIM_GEODESY` 0 (stock ArduPilot) it uses a spherical Earth and 1e-7 deg steps: about 5 m off in north and 1.7 m in east at 1.5 km. Gazebo geometry is exact WGS84.
 
 ### Radar positions
 
