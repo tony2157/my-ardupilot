@@ -641,17 +641,16 @@ void GPS::update()
     // RFSonde: constant vertical antenna phase-centre error, not known to the receiver
     err.down -= _sitl->gps_pco_up;
 
-    // RFSonde exact geodesy: apply the position error and the antenna offset on the WGS84 ellipsoid
+    // RFSonde exact geodesy: apply the antenna offset and the position error on the WGS84 ellipsoid;
+    // the error is added after the lag, so the lag interpolation does not average it over samples
     const bool exact = _sitl->exact_geodesy();
 
     d.num_sats = params.numsats;
     d.geoid_sep = _sitl->gps_geoid;
     if (exact) {
-        const Vector3d llh = wgs84_llh_offset_ned(Vector3d { latitude, longitude, altitude },
-                                                  Vector3d { err.north, err.east, err.down });
-        d.latitude = llh.x;
-        d.longitude = llh.y;
-        d.altitude = llh.z + params.noise * sinf(now_ms * 0.0005f) + params.alt_offset;
+        d.latitude = latitude;
+        d.longitude = longitude;
+        d.altitude = altitude + params.noise * sinf(now_ms * 0.0005f) + params.alt_offset;
     } else {
         // position error applied with the same spherical-earth scaling as the antenna offset below
         const double err_rad_per_m = 1.569612305760477e-7;
@@ -666,9 +665,10 @@ void GPS::update()
 
     // Add offset to c.g. velocity to get velocity at antenna and add simulated error
     Vector3f velErrorNED = params.vel_err;
-    d.speedN = speedN + (velErrorNED.x * rand_float()) + err.vel_north;
-    d.speedE = speedE + (velErrorNED.y * rand_float()) + err.vel_east;
-    d.speedD = speedD + (velErrorNED.z * rand_float()) + err.vel_down;
+    const Vector3f model_vel_err = exact ? Vector3f() : Vector3f(err.vel_north, err.vel_east, err.vel_down);
+    d.speedN = speedN + (velErrorNED.x * rand_float()) + model_vel_err.x;
+    d.speedE = speedE + (velErrorNED.y * rand_float()) + model_vel_err.y;
+    d.speedD = speedD + (velErrorNED.z * rand_float()) + model_vel_err.z;
 
     d.have_lock = have_lock;
     d.carrier = err.carrier;
@@ -741,6 +741,22 @@ void GPS::update()
         }
     }
     d = interpolate_data(d, delay_ms);
+
+    if (exact) {
+        const Vector3d llh = wgs84_llh_offset_ned(Vector3d { d.latitude, d.longitude, d.altitude },
+                                                  Vector3d { err.north, err.east, err.down });
+        d.latitude = llh.x;
+        d.longitude = llh.y;
+        d.altitude = llh.z;
+        d.speedN += err.vel_north;
+        d.speedE += err.vel_east;
+        d.speedD += err.vel_down;
+        d.carrier = err.carrier;
+        if (use_model) {
+            d.horizontal_acc = err.h_acc;
+            d.vertical_acc = err.v_acc;
+        }
+    }
 
     // Applying GPS glitch
     // Using first gps glitch
