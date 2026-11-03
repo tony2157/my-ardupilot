@@ -8,10 +8,13 @@
     <!-- Gremsy T7 digital twin: GremsyT7Plugin (inside rfsonde_t7) drives its joints with the
          torques of the T7 firmware running in T7_twin; the autopilot reaches the gimbal over
          MAVLink on SERIAL2 (config/rfsonde-t7.parm), not through servo channels. -->
+    <!-- RFSonde geometry: the gimbal centre (where the three axes cross) 0.46 m below the vehicle origin, from the
+         measured lever arm GPS -> pivot (0, -0.14, +0.62) m FRD and the GPS 0.16 m above the origin
+         (MNT1_ARRC_ZOFF -0.46). The gimbal links have no collision geometry: on the ground they hang through it. -->
     <include>
       <uri>model://rfsonde_t7</uri>
       <name>gimbal</name>
-      <pose>0 0 -0.07 0 0 0</pose>
+      <pose>0 0 -0.32 0 0 0</pose>
     </include>
 
     <joint name="gimbal_joint" type="revolute">
@@ -27,6 +30,16 @@
     </joint>
 
     <!-- plugins -->
+    <!-- RadarSim truth: sim time and the true poses of the horn phase centre (gimbal antenna_rf), the vehicle origin and
+         the gimbal base, written at every physics step to /dev/shm/rfsonde_truth_I0 (RFSONDE_TRUTH_PATH overrides
+         it) for the RadarSim service and the companion's sim clock. The plugin is in ardupilot_gazebo main-RadarSim;
+         without it Gazebo logs an error and runs on. -->
+    <plugin filename="RFSondeTruthPlugin" name="RFSondeTruthPlugin">
+      <shm_path>/dev/shm/rfsonde_truth_I0</shm_path>
+      <body><name>horn</name><link>gimbal::payload_link</link><pose>0.11 0 0 0 0 0</pose></body>
+      <body><name>base</name><link>iris_with_standoffs::base_link</link><pose>0 0 0 0 0 0</pose></body>
+      <body><name>gimbal</name><link>gimbal::base_link</link><pose>0 0 0 0 0 0</pose></body>
+    </plugin>
     <plugin filename="gz-sim-joint-state-publisher-system"
       name="gz::sim::systems::JointStatePublisher">
     </plugin>

@@ -1,0 +1,13 @@
+# RFSonde RadarSim: the gimbal geometry of the RFSonde (models/rfsonde_iris_t7) and the probe pointing for the
+# ATD-like radar of RFSonde_NF2FF radarsim/scenarios/atd_stare.yaml. Load after rfsonde-t7.parm and a gps-*.parm.
+# AZTH/ELEV follow the beam: MNT1_ARRC_AZTH = beam azimuth + 180, MNT1_ARRC_ELEV = beam elevation
+# (rfsonde_radarsim.sh prints them for the scenario's beam).
+MNT1_ARRC_GMODE  3
+MNT1_ARRC_ZOFF   -0.46
+MNT1_ARRC_PRBX   0.11
+MNT1_ARRC_PRBY   0
+MNT1_ARRC_PRBZ   0
+MNT1_ARRC_PMNT   0
+MNT1_ARRC_AZTH   191.62
+MNT1_ARRC_ELEV   3.0
+GPS1_DELAY_MS    80
