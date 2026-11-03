@@ -5,7 +5,10 @@
 # Order: gz sim (the world's vehicle carries RFSondeTruthPlugin; GZ_SIM_SYSTEM_PLUGIN_PATH must include the
 # ardupilot_gazebo main-RadarSim build), then rfsonde_sitl.sh, then this script. Ctrl+C stops both processes.
 #
-#   rfsonde_radarsim.sh [-I N] [--scenario FILE] [--beam AZ,EL] [--gain DB] [--out DIR]
+#   rfsonde_radarsim.sh [-I N] [--scenario FILE] [--beam AZ,EL] [--gain DB] [--out DIR] [--gui]
+#
+# --gui also opens the RadarSim GUI (rfsonde_radarsim.gui, needs dearpygui in RADARSIM_PY's venv): it changes the
+# running radar (frequency, element, orientation, rotation, steering, element errors) and plots its pattern.
 #
 # Environment: RADARSIM_DIR (RFSonde_NF2FF/radarsim), RADARSIM_PY (its venv python), CC_DIR (RFSonde_Computer),
 # CC_PY (its venv python).
@@ -15,6 +18,7 @@ scenario=
 beam=
 gain=12
 out=
+gui=0
 while [ $# -gt 0 ]; do
   case "$1" in
     -I) instance=$2; shift ;;
@@ -23,6 +27,7 @@ while [ $# -gt 0 ]; do
     --beam) beam=$2; shift ;;
     --gain) gain=$2; shift ;;
     --out) out=$2; shift ;;
+    --gui) gui=1 ;;
     *) echo "unknown option $1"; exit 1 ;;
   esac
   shift
@@ -97,5 +102,10 @@ pids="$pids $!"
 (cd "$CC_DIR" && RFSONDE_SIM_CLOCK="$ring" PYTHONPATH="$CC_DIR" exec "$CC_PY" -m rfsonde_cc -c "$out/cc.yaml") \
   > "$out/cc.log" 2>&1 &
 pids="$pids $!"
+if [ "$gui" = 1 ]; then
+  (cd "$RADARSIM_DIR" && exec "$RADARSIM_PY" -m rfsonde_radarsim.gui --instance "$instance" -c "$out/scenario.yaml") \
+    > "$out/gui.log" 2>&1 &
+  pids="$pids $!"
+fi
 echo "RadarSim: radar service and companion running (logs and data in $out; companion on SITL tcp $((5762 + 10 * instance)))"
 wait

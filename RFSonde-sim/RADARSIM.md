@@ -20,7 +20,7 @@ and the companion's timing chain (`RFSONDE_SIM_CLOCK`). A slow Gazebo slows them
 # Gazebo plugins: build the RadarSim worktree (your main checkout stays on its branch)
 cd ~/Github/ardupilot_gazebo-RadarSim && mkdir -p build && cd build && GZ_VERSION=jetty cmake .. && make -j8
 # radar service venv
-cd /mnt/c/Users/sega0000/Github/RFSonde_NF2FF/radarsim && python3 -m venv venv && venv/bin/pip install numpy scipy numba h5py pyyaml matplotlib pytest
+cd /mnt/c/Users/sega0000/Github/RFSonde_NF2FF/radarsim && python3 -m venv venv && venv/bin/pip install numpy scipy numba h5py pyyaml matplotlib pytest dearpygui
 # companion venv (docs/DEVELOPMENT.md of RFSonde_Computer)
 cd /mnt/c/Users/sega0000/Github/RFSonde_Computer && python3 -m venv .venv && .venv/bin/pip install -e ".[dev]"
 ```
@@ -32,9 +32,14 @@ cd /mnt/c/Users/sega0000/Github/RFSonde_Computer && python3 -m venv .venv && .ve
 GZ_SIM_SYSTEM_PLUGIN_PATH=~/Github/ardupilot_gazebo-RadarSim/build:$GZ_SIM_SYSTEM_PLUGIN_PATH gz sim -v4 -r norman_radars.sdf
 # Terminal B: SITL as usual, with the RTK profile and the RadarSim gimbal parameters
 ~/Github/my-ardupilot/RFSonde-sim/tools/rfsonde_sitl.sh --rtk --add-param-file=$HOME/Github/my-ardupilot/RFSonde-sim/config/radarsim.parm
-# Terminal C: the radar service and the companion (prints MNT1_ARRC_AZTH/ELEV for the scenario's beam)
-~/Github/my-ardupilot/RFSonde-sim/tools/rfsonde_radarsim.sh --beam -10,3
+# Terminal C: the radar service and the companion (prints MNT1_ARRC_AZTH/ELEV for the scenario's beam);
+# --gui also opens the radar GUI
+~/Github/my-ardupilot/RFSonde-sim/tools/rfsonde_radarsim.sh --beam -10,3 --gui
 ```
+
+The T7 twin may start before or after Gazebo (`rfsonde_sitl.sh` starts it): the gimbal plugin locksteps with it as
+soon as it answers. An older RadarSim build ran a late twin's start-up motor test without its torques, so the T7
+latched its motors off and ArduPilot reported "Mount: not healthy"; rebuild the RadarSim plugins if you see that.
 
 The companion connects to SITL on TCP 5762 (+10 per instance), so don't put the MAVProxy console there. Ludifly
 shows the measurements as from the real CC. Data and logs: `~/.cache/rfsonde/radarsim_I<n>/` (the companion's HDF5
@@ -46,6 +51,24 @@ venv/bin/python -m rfsonde_radarsim.scoring --truth ~/.cache/rfsonde/radarsim_I0
   --cc ~/.cache/rfsonde/radarsim_I0/cc/data --out score.json --fig fig
 ```
 
+## The radar GUI
+
+`rfsonde_radarsim.sh --gui`, or on its own next to a running service:
+
+```bash
+cd /mnt/c/Users/sega0000/Github/RFSonde_NF2FF/radarsim && venv/bin/python -m rfsonde_radarsim.gui --instance 0
+```
+
+One panel: operating frequency, embedded element (isotropic, cos, cos^2, cos^n, dipole over ground, patch, Huygens),
+the face's mechanical azimuth and elevation (earth frame), pedestal rotation at a set rate (off by default: the radar
+stays at the entered angles), electronic steering, dead elements and per-element power and phase errors (standard
+deviations, random from a seed). Every change reaches the running radar at the next physics step, without losing a
+pulse, and is logged in the truth file (`config_log`); a new frequency's horn pattern follows about 2.5 s later.
+Retune the SDR from Ludifly when you change the radar frequency: the companion receives off-tune pulses out of band.
+The plot shows the transmit pattern within 10 deg of the beam (H or V port, co- or cross-pol, EIRP or phase, far field
+or at a range) and where the drone is in it. GUI azimuths are clockwise seen from above (the scenario's `beams.az_deg`
+is minus the GUI's steering azimuth). The control link is UDP 15975 + 10 x instance.
+
 ## The radar
 
 `radarsim/scenarios/atd_stare.yaml` (sources and assumptions in its comments): the ATD's 76 panels x 8 x 8 dual-pol
@@ -53,7 +76,8 @@ elements on a 4 m face at the surveyed radome position, the face 1.63 m in front
 calibration tower; EIRP 84.8 / 85.3 dBW (H / V); uniform transmit taper; element, panel, phase-shifter and leakage
 errors; SHV transmission; the triple-PRT dwell (12 x 3 ms, 20 x 1 ms, 15 x 1.5 ms) with a 38 us pulse-compression
 pulse and a 1.8 us fill pulse 8 MHz up. The beam is parked (`beams`); electronic steering is `az_deg`, `el_deg` off
-broadside (+az toward the face's +x, which points west when the face looks north).
+broadside (+az toward the face's +x, which points west when the face looks north). The pedestal is stationary unless
+`rotation` is enabled (scenario or GUI).
 
 ## Assumptions to replace with measurements
 
