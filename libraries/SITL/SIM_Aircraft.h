@@ -324,6 +324,13 @@ protected:
     /* update location from position */
     void update_position(void);
 
+    // RFSonde exact geodesy (SIM_GEODESY 1): true latitude, longitude (degrees) and height (m),
+    // converted through WGS84 ECEF from the tangent plane at home without quantization
+    Vector3d location_exact;
+    bool location_exact_valid;
+    bool exact_geodesy();
+    void exact_location(const Vector3d &pos, Vector3d &llh, Location &loc) const;
+
     /* update body frame magnetic field */
     void update_mag_field_bf(void);
 
@@ -402,6 +409,7 @@ private:
         Vector3f velocity_ef;
         uint64_t last_update_us;
         Location location;
+        Vector3d location_exact;
     } smoothing;
 
     Buzzer *buzzer;

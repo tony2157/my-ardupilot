@@ -532,17 +532,27 @@ void GPS::update()
         err = error_model.update(model_params, now_ms, instance);
     }
 
-    // position error applied with the same spherical-earth scaling as the antenna offset below
-    const double err_rad_per_m = 1.569612305760477e-7;
+    // RFSonde exact geodesy: apply the position error and the antenna offset on the WGS84 ellipsoid
+    const bool exact = _sitl->exact_geodesy();
+
     d.num_sats = params.numsats;
-    d.latitude = latitude + degrees(err.north * err_rad_per_m);
-    d.longitude = longitude + degrees(err.east * err_rad_per_m / cos(radians(latitude)));
+    if (exact) {
+        const Vector3d llh = wgs84_llh_offset_ned(Vector3d { latitude, longitude, altitude },
+                                                  Vector3d { err.north, err.east, err.down });
+        d.latitude = llh.x;
+        d.longitude = llh.y;
+        d.altitude = llh.z + params.noise * sinf(now_ms * 0.0005f) + params.alt_offset;
+    } else {
+        // position error applied with the same spherical-earth scaling as the antenna offset below
+        const double err_rad_per_m = 1.569612305760477e-7;
+        d.latitude = latitude + degrees(err.north * err_rad_per_m);
+        d.longitude = longitude + degrees(err.east * err_rad_per_m / cos(radians(latitude)));
+        // add an altitude error controlled by a slow sine wave
+        d.altitude = altitude - err.down + params.noise * sinf(now_ms * 0.0005f) + params.alt_offset;
+    }
     d.yaw_deg = wrap_360(_sitl->state.yawDeg + params.heading_offset);
     d.roll_deg = _sitl->state.rollDeg;
     d.pitch_deg = _sitl->state.pitchDeg;
-
-    // add an altitude error controlled by a slow sine wave
-    d.altitude = altitude - err.down + params.noise * sinf(now_ms * 0.0005f) + params.alt_offset;
 
     // Add offset to c.g. velocity to get velocity at antenna and add simulated error
     Vector3f velErrorNED = params.vel_err;
@@ -580,12 +590,20 @@ void GPS::update()
         // rotate the antenna offset into the earth frame
         Vector3f posRelOffsetEF = rotmat * posRelOffsetBF;
 
-        // Add the offset to the latitude, longitude and height using a spherical earth approximation
-        double const earth_rad_inv = 1.569612305760477e-7; // use Authalic/Volumetric radius
-        double lng_scale_factor = earth_rad_inv / cos(radians(d.latitude));
-        d.latitude += degrees(posRelOffsetEF.x * earth_rad_inv);
-        d.longitude += degrees(posRelOffsetEF.y * lng_scale_factor);
-        d.altitude -= posRelOffsetEF.z;
+        if (exact) {
+            const Vector3d llh = wgs84_llh_offset_ned(Vector3d { d.latitude, d.longitude, d.altitude },
+                                                      posRelOffsetEF.todouble());
+            d.latitude = llh.x;
+            d.longitude = llh.y;
+            d.altitude = llh.z;
+        } else {
+            // Add the offset to the latitude, longitude and height using a spherical earth approximation
+            double const earth_rad_inv = 1.569612305760477e-7; // use Authalic/Volumetric radius
+            double lng_scale_factor = earth_rad_inv / cos(radians(d.latitude));
+            d.latitude += degrees(posRelOffsetEF.x * earth_rad_inv);
+            d.longitude += degrees(posRelOffsetEF.y * lng_scale_factor);
+            d.altitude -= posRelOffsetEF.z;
+        }
 
         // calculate a velocity offset due to the antenna position offset and body rotation rate
         // note: % operator is overloaded for cross product

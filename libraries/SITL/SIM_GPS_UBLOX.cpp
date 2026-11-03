@@ -224,11 +224,17 @@ void GPS_UBlox::publish(const GPS_Data *d)
 
     const auto gps_tow = gps_time();
 
+    // RFSonde exact geodesy: round positions to the message resolution, as a receiver does, instead of truncating
+    const bool exact = _sitl->exact_geodesy();
+    auto pos_int = [exact](double v) -> int32_t {
+        return exact ? static_cast<int32_t>(lround(v)) : static_cast<int32_t>(v);
+    };
+
     pos.time = gps_tow.ms;
-    pos.longitude = d->longitude * 1.0e7;
-    pos.latitude  = d->latitude * 1.0e7;
-    pos.altitude_ellipsoid = d->altitude * 1000.0f;
-    pos.altitude_msl = d->altitude * 1000.0f;
+    pos.longitude = pos_int(d->longitude * 1.0e7);
+    pos.latitude  = pos_int(d->latitude * 1.0e7);
+    pos.altitude_ellipsoid = pos_int(d->altitude * 1000.0f);
+    pos.altitude_msl = pos_int(d->altitude * 1000.0f);
     pos.horizontal_accuracy = d->horizontal_acc*1000;
     pos.vertical_accuracy = d->vertical_acc*1000;
 
@@ -287,10 +293,10 @@ void GPS_UBlox::publish(const GPS_Data *d)
 
     pvt.flags2 =0;
     pvt.num_sv = d->have_lock ? d->num_sats : 3;
-    pvt.lon = d->longitude * 1.0e7;
-    pvt.lat  = d->latitude * 1.0e7;
-    pvt.height = d->altitude * 1000.0f;
-    pvt.h_msl = d->altitude * 1000.0f;
+    pvt.lon = pos_int(d->longitude * 1.0e7);
+    pvt.lat  = pos_int(d->latitude * 1.0e7);
+    pvt.height = pos_int(d->altitude * 1000.0f);
+    pvt.h_msl = pos_int(d->altitude * 1000.0f);
     pvt.h_acc = d->horizontal_acc * 1000;
     pvt.v_acc = d->vertical_acc * 1000;
     pvt.velN = 1000.0f * d->speedN;
@@ -333,7 +339,12 @@ void GPS_UBlox::publish(const GPS_Data *d)
                              d->longitude * (M_PI / 180.0),
                              (double)d->altitude };
         Vector3d ecef;          // metres, ECEF
-        wgsllh2ecef(llh, ecef);
+        if (exact) {
+            // RFSonde exact geodesy: WGS84 without the single precision constants of AP_Math
+            ecef = wgs84_llh_to_ecef(Vector3d { d->latitude, d->longitude, (double)d->altitude });
+        } else {
+            wgsllh2ecef(llh, ecef);
+        }
 
         // split a metre value into int32 cm base + int8 0.1mm remainder so that
         //   base*0.01 + hp*0.0001 == value (to 0.1 mm).  |hp| <= 99 -> fits int8.

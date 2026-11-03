@@ -743,6 +743,13 @@ const AP_Param::GroupInfo SIM::var_gps[] = {
     // @User: Advanced
     AP_GROUPINFO("GPS_SEED",    23, SIM,  gps_seed, 0),
 
+    // @Param: GEODESY
+    // @DisplayName: Simulation geodesy
+    // @Description: RFSonde: how the simulated position becomes latitude, longitude and height. Spherical: stock spherical earth, kept in 1e-7 degrees and centimetres. WGS84 exact: the north, east, down position is a tangent plane at home, converted through WGS84 ECEF in double precision for every consumer; the simulated GPS also applies its error and antenna offset on the ellipsoid. Set it before the flight.
+    // @Values: 0:Spherical,1:WGS84 exact
+    // @User: Advanced
+    AP_GROUPINFO("GEODESY",    63, SIM,  geodesy, 0),
+
     // 30 was GPS2_DISABLE
     // 31 was GPS2_LAG_MS
     // 32 was GPS2_TYPE
@@ -1893,6 +1900,73 @@ OUT:
 
     // ::fprintf(stderr, "Distance @%f = %fm\n", angle, min_dist_cm*0.01f);
     return min_dist_cm * 0.01f;
+}
+
+/*
+  RFSonde exact geodesy. WGS84 is done here rather than with the AP_Math wgs* helpers: those are
+  compiled with single precision constants, which rounds the flattening and moves the ellipsoid by
+  up to 0.65 mm. The SITL library is compiled with double precision constants.
+ */
+static const double WGS84_EXACT_A = 6378137.0;
+static const double WGS84_EXACT_F = 1.0 / 298.257223563;
+static const double WGS84_EXACT_E2 = WGS84_EXACT_F * (2.0 - WGS84_EXACT_F);
+
+// ECEF (m) of latitude, longitude (degrees) and height (m)
+Vector3d wgs84_llh_to_ecef(const Vector3d &llh)
+{
+    const double lat = llh.x * DEG_TO_RAD_DOUBLE;
+    const double lon = llh.y * DEG_TO_RAD_DOUBLE;
+    const double slat = sin(lat);
+    const double n = WGS84_EXACT_A / sqrt(1.0 - WGS84_EXACT_E2 * slat * slat);
+    return Vector3d { (n + llh.z) * cos(lat) * cos(lon),
+                      (n + llh.z) * cos(lat) * sin(lon),
+                      (n * (1.0 - WGS84_EXACT_E2) + llh.z) * slat };
+}
+
+// latitude, longitude (degrees) and height (m) of an ECEF position, Bowring's method iterated to
+// convergence (valid away from the earth's centre)
+Vector3d wgs84_ecef_to_llh(const Vector3d &ecef)
+{
+    const double b = WGS84_EXACT_A * (1.0 - WGS84_EXACT_F);
+    const double ep2 = WGS84_EXACT_E2 / (1.0 - WGS84_EXACT_E2);
+    const double p = sqrt(ecef.x * ecef.x + ecef.y * ecef.y);
+    double beta = atan2(ecef.z, (1.0 - WGS84_EXACT_F) * p);
+    double lat = 0;
+    for (uint8_t i = 0; i < 10; i++) {
+        const double sb = sin(beta), cb = cos(beta);
+        lat = atan2(ecef.z + ep2 * b * sb * sb * sb, p - WGS84_EXACT_E2 * WGS84_EXACT_A * cb * cb * cb);
+        const double beta_new = atan2((1.0 - WGS84_EXACT_F) * sin(lat), cos(lat));
+        if (fabs(beta_new - beta) < 1.0e-15) {
+            break;
+        }
+        beta = beta_new;
+    }
+    const double sl = sin(lat);
+    const double h = p * cos(lat) + ecef.z * sl - WGS84_EXACT_A * sqrt(1.0 - WGS84_EXACT_E2 * sl * sl);
+    return Vector3d { lat * RAD_TO_DEG_DOUBLE, atan2(ecef.y, ecef.x) * RAD_TO_DEG_DOUBLE, h };
+}
+
+// rotation from the local north, east, down axes at lat/lon (degrees) to ECEF
+static Matrix3d wgs84_ned_to_ecef(double lat_deg, double lon_deg)
+{
+    const double lat = lat_deg * DEG_TO_RAD_DOUBLE, lon = lon_deg * DEG_TO_RAD_DOUBLE;
+    const double slat = sin(lat), clat = cos(lat);
+    const double slon = sin(lon), clon = cos(lon);
+    return Matrix3d(-slat * clon, -slon, -clat * clon,
+                    -slat * slon,  clon, -clat * slon,
+                    clat,          0.0,  -slat);
+}
+
+// latitude, longitude (degrees) and height (m) of a point given in the tangent plane at ref_llh
+Vector3d wgs84_llh_offset_ned(const Vector3d &ref_llh, const Vector3d &ned)
+{
+    return wgs84_ecef_to_llh(wgs84_llh_to_ecef(ref_llh) + wgs84_ned_to_ecef(ref_llh.x, ref_llh.y) * ned);
+}
+
+// north, east, down position (m) of llh in the tangent plane at ref_llh
+Vector3d wgs84_ned_from_llh(const Vector3d &ref_llh, const Vector3d &llh)
+{
+    return wgs84_ned_to_ecef(ref_llh.x, ref_llh.y).mul_transpose(wgs84_llh_to_ecef(llh) - wgs84_llh_to_ecef(ref_llh));
 }
 
 } // namespace SITL

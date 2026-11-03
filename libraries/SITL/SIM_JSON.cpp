@@ -397,7 +397,13 @@ void JSON::recv_fdm(const struct sitl_input &input)
             set_start_location(new_loc, 0.0f);
         }
 
-        position = origin.get_distance_NED_double(new_loc);
+        if (exact_geodesy()) {
+            // RFSonde exact geodesy: keep the received position unquantized
+            const Vector3d home_llh { home.lat * 1.0e-7, home.lng * 1.0e-7, home.alt * 0.01 };
+            position = wgs84_ned_from_llh(home_llh, Vector3d { state.latitude, state.longitude, state.altitude });
+        } else {
+            position = origin.get_distance_NED_double(new_loc);
+        }
     } else {
         position = state.position;
         position.xy() += origin.get_distance_NE_double(home);

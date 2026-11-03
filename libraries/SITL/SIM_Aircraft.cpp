@@ -160,6 +160,12 @@ bool Aircraft::on_ground() const
 */
 void Aircraft::update_position(void)
 {
+    location_exact_valid = exact_geodesy();
+    if (location_exact_valid) {
+        exact_location(position, location_exact, location);
+        return;
+    }
+
     location = origin;
     location.offset(position.x, position.y);
 
@@ -203,6 +209,39 @@ void Aircraft::update_position(void)
             origin.lng = location.lng;
         }
     }
+}
+
+/*
+  RFSonde exact geodesy: true when SIM_GEODESY selects WGS84. Positions are then kept from home (no
+  origin movement), as a tangent plane at home
+*/
+bool Aircraft::exact_geodesy()
+{
+    if (sitl == nullptr || !sitl->exact_geodesy()) {
+        return false;
+    }
+    if (origin.lat != home.lat || origin.lng != home.lng) {
+        const Vector2d home_to_origin = home.get_distance_NE_double(origin);
+        position.xy() += home_to_origin;
+        smoothing.position.xy() += home_to_origin;
+        origin.lat = home.lat;
+        origin.lng = home.lng;
+    }
+    return true;
+}
+
+/*
+  RFSonde exact geodesy: latitude, longitude and height of a position from home through WGS84
+  ECEF, and the matching Location rounded to its resolution
+*/
+void Aircraft::exact_location(const Vector3d &pos, Vector3d &llh, Location &loc) const
+{
+    const Vector3d home_llh { home.lat * 1.0e-7, home.lng * 1.0e-7, home.alt * 0.01 };
+    llh = wgs84_llh_offset_ned(home_llh, pos);
+    loc = home;
+    loc.lat = static_cast<int32_t>(lround(llh.x * 1.0e7));
+    loc.lng = static_cast<int32_t>(lround(llh.y * 1.0e7));
+    loc.alt = static_cast<int32_t>(lround(llh.z * 100.0));
 }
 
 /*
@@ -391,6 +430,11 @@ void Aircraft::fill_fdm(struct sitl_fdm &fdm)
     fdm.latitude  = location.lat * 1.0e-7;
     fdm.longitude = location.lng * 1.0e-7;
     fdm.altitude  = location.alt * 1.0e-2;
+    if (location_exact_valid) {
+        fdm.latitude  = location_exact.x;
+        fdm.longitude = location_exact.y;
+        fdm.altitude  = location_exact.z;
+    }
     fdm.heading   = degrees(atan2f(velocity_ef.y, velocity_ef.x));
     fdm.speedN    = velocity_ef.x;
     fdm.speedE    = velocity_ef.y;
@@ -445,6 +489,11 @@ void Aircraft::fill_fdm(struct sitl_fdm &fdm)
         fdm.latitude  = smoothing.location.lat * 1.0e-7;
         fdm.longitude = smoothing.location.lng * 1.0e-7;
         fdm.altitude  = smoothing.location.alt * 1.0e-2;
+        if (location_exact_valid) {
+            fdm.latitude  = smoothing.location_exact.x;
+            fdm.longitude = smoothing.location_exact.y;
+            fdm.altitude  = smoothing.location_exact.z;
+        }
     }
 
 
@@ -522,6 +571,26 @@ void Aircraft::fill_fdm(struct sitl_fdm &fdm)
             achieved_rate_hz/rate_hz,
             full_count
         );
+        if (location_exact_valid) {
+// @LoggerMessage: SIMG
+// @Description: RFSonde exact geodesy (SIM_GEODESY 1): simulated position given to the sensors
+// @Field: TimeUS: Time since system startup
+// @Field: PN: North position from home, tangent plane at home
+// @Field: PE: East position from home, tangent plane at home
+// @Field: PD: Down position from home, tangent plane at home
+// @Field: Lat: Latitude
+// @Field: Lng: Longitude
+// @Field: Alt: Height
+            const Vector3d &ned = is_smoothed ? smoothing.position : position;
+            AP::logger().WriteStreaming(
+                "SIMG",
+                "TimeUS,PN,PE,PD,Lat,Lng,Alt",
+                "Qdddddd",
+                AP_HAL::micros64(),
+                ned.x, ned.y, ned.z,
+                fdm.latitude, fdm.longitude, fdm.altitude
+            );
+        }
     }
 #endif
 }
@@ -931,6 +1000,7 @@ void Aircraft::smooth_sensors(void)
         smoothing.gyro = gyro;
         smoothing.last_update_us = now;
         smoothing.location = location;
+        smoothing.location_exact = location_exact;
         printf("Smoothing reset at %.3f\n", now * 1.0e-6f);
         return;
     }
@@ -1003,9 +1073,13 @@ void Aircraft::smooth_sensors(void)
     smoothing.velocity_ef += accel_e * delta_time;
     smoothing.position += (smoothing.velocity_ef * delta_time).todouble();
 
-    smoothing.location = origin;
-    smoothing.location.offset(smoothing.position.x, smoothing.position.y);
-    smoothing.location.alt  = static_cast<int32_t>(home.alt - smoothing.position.z * 100.0f);
+    if (location_exact_valid) {
+        exact_location(smoothing.position, smoothing.location_exact, smoothing.location);
+    } else {
+        smoothing.location = origin;
+        smoothing.location.offset(smoothing.position.x, smoothing.position.y);
+        smoothing.location.alt  = static_cast<int32_t>(home.alt - smoothing.position.z * 100.0f);
+    }
 
     smoothing.last_update_us = now;
 }

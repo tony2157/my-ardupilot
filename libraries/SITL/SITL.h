@@ -176,6 +176,13 @@ public:
         UBX_IS_F9P = 1U << 0,
     };
 
+    // RFSonde: how the simulated position becomes latitude, longitude and height (SIM_GEODESY)
+    enum class Geodesy : uint8_t {
+        SPHERICAL = 0,  // spherical earth offsets, position kept in 1e-7 deg and cm
+        WGS84 = 1,      // tangent plane at home through WGS84 ECEF, kept in double precision
+    };
+    bool exact_geodesy() const { return geodesy.get() == int8_t(Geodesy::WGS84); }
+
     struct sitl_fdm state;
 
     // throttle when motors are active. 0 = 'no throttle', 1 = 'full throttle'
@@ -224,6 +231,7 @@ public:
     AP_Float gps_v_white;   // vertical white noise, 1-sigma (m)
     AP_Float gps_vel_noise; // velocity white noise, 1-sigma per axis (m/s)
     AP_Int32 gps_seed;      // random seed, 0 = random
+    AP_Int8  geodesy;       // RFSonde exact geodesy, see enum Geodesy
 
     // initial offset on GPS lat/lon, used to shift origin
     AP_Float gps_init_lat_ofs;
@@ -663,6 +671,14 @@ public:
     bool set_pose(uint8_t instance, const Location &loc, const Quaternion &quat,
                   const Vector3f &velocity_ef, const Vector3f &gyro_rads);
 };
+
+// RFSonde exact geodesy (SIM_GEODESY 1): WGS84 conversions in double precision between ECEF or a
+// local tangent plane at a reference point (north, east, down, metres) and llh: latitude,
+// longitude (degrees) and height (metres)
+Vector3d wgs84_llh_to_ecef(const Vector3d &llh);
+Vector3d wgs84_ecef_to_llh(const Vector3d &ecef);
+Vector3d wgs84_llh_offset_ned(const Vector3d &ref_llh, const Vector3d &ned);
+Vector3d wgs84_ned_from_llh(const Vector3d &ref_llh, const Vector3d &llh);
 
 } // namespace SITL
 
