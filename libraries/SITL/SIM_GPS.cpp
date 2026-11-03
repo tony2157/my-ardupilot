@@ -204,7 +204,43 @@ void GNSSErrorModel::propagate(double x[3], double dt, float tau, std::mt19937 &
     }
 }
 
-GNSSErrorModel::Error GNSSErrorModel::update(const Params &p, uint32_t now_ms, uint8_t instance, float baseline_m)
+void GNSSErrorModel::start_float(uint32_t now_ms, float duration_s)
+{
+    rtk_float = is_positive(duration_s);
+    rtk_fix_ms = now_ms + uint32_t(duration_s * 1000);
+    for (double &x : float_ofs) {
+        x = unit_normal3(generator3);
+    }
+}
+
+// RTK float after lock until converged, then fixed; random fix losses go back to float
+CarrierSolution GNSSErrorModel::update_carrier(const Params &p, uint32_t now_ms, double dt, bool have_lock)
+{
+    if (!is_positive(p.conv_time) && !is_positive(p.fix_loss)) {
+        rtk_locked = false;
+        rtk_float = false;
+        return CarrierSolution::BY_ACCURACY;
+    }
+    if (!have_lock) {
+        rtk_locked = false;
+        rtk_float = false;
+        return CarrierSolution::NONE;
+    }
+    if (!rtk_locked) {
+        rtk_locked = true;
+        start_float(now_ms, p.conv_time);
+    } else if (!rtk_float && is_positive(p.fix_loss) && dt > 0 &&
+               unit_uniform3(generator3) < 1.0 - exp(-dt / p.fix_loss)) {
+        start_float(now_ms, p.refix_time);
+    }
+    if (rtk_float && int32_t(now_ms - rtk_fix_ms) >= 0) {
+        rtk_float = false;
+    }
+    return rtk_float ? CarrierSolution::FLOAT : CarrierSolution::FIXED;
+}
+
+GNSSErrorModel::Error GNSSErrorModel::update(const Params &p, uint32_t now_ms, uint8_t instance, float baseline_m,
+                                             bool have_lock)
 {
     const uint32_t seed = p.seed != 0 ? p.seed + instance : 0;
     if (!initialised || seed != seed_used) {
@@ -215,6 +251,8 @@ GNSSErrorModel::Error GNSSErrorModel::update(const Params &p, uint32_t now_ms, u
         }
         std::seed_seq seed2 { seed != 0 ? seed : std::random_device{}(), 0x52465332U };
         generator2.seed(seed2);
+        std::seed_seq seed3 { seed != 0 ? seed : std::random_device{}(), 0x52465333U };
+        generator3.seed(seed3);
         for (uint8_t i = 0; i < 3; i++) {
             fast[i] = unit_normal2(generator2);
             base[i] = unit_normal2(generator2);
@@ -247,11 +285,19 @@ GNSSErrorModel::Error GNSSErrorModel::update(const Params &p, uint32_t now_ms, u
     e.east += p.h_fast * fast[1] + base_h * base[1];
     e.down += p.v_fast * fast[2] + base_v * base[2];
 
+    // RTK float solution error
+    e.carrier = update_carrier(p, now_ms, dt, have_lock);
+    const float float_h = rtk_float ? p.float_acc : 0.0f;
+    const float float_v = 2.0f * float_h;
+    e.north += float_h * float_ofs[0];
+    e.east += float_h * float_ofs[1];
+    e.down += float_v * float_ofs[2];
+
     // 1-sigma size of the error
     e.h_acc = norm(p.h_bias, p.h_white);
     e.v_acc = norm(p.v_bias, p.v_white);
-    const float h_more = norm(p.h_fast, base_h);
-    const float v_more = norm(p.v_fast, base_v);
+    const float h_more = norm(p.h_fast, base_h, float_h);
+    const float v_more = norm(p.v_fast, base_v, float_v);
     if (is_positive(h_more)) {
         e.h_acc = norm(e.h_acc, h_more);
     }
@@ -560,7 +606,10 @@ void GPS::update()
         (uint32_t)_sitl->gps_seed.get(),
         _sitl->gps_h_fast, _sitl->gps_v_fast, _sitl->gps_fast_tau,
         _sitl->gps_h_ppm, _sitl->gps_v_ppm,
+        _sitl->gps_conv_time, _sitl->gps_float_acc, _sitl->gps_fix_loss, _sitl->gps_refix_time,
     };
+    // simulate delayed lock times
+    const bool have_lock = (params.enabled && now_ms >= params.lock_time*1000UL);
     const bool use_model = GNSSErrorModel::enabled(model_params);
     GNSSErrorModel::Error err {};
     if (use_model) {
@@ -573,7 +622,7 @@ void GPS::update()
             here.lng = longitude * 1.0e7;
             baseline_m = home.get_distance(here);
         }
-        err = error_model.update(model_params, now_ms, instance, baseline_m);
+        err = error_model.update(model_params, now_ms, instance, baseline_m, have_lock);
     }
     // RFSonde: constant vertical antenna phase-centre error, not known to the receiver
     err.down -= _sitl->gps_pco_up;
@@ -607,8 +656,8 @@ void GPS::update()
     d.speedE = speedE + (velErrorNED.y * rand_float()) + err.vel_east;
     d.speedD = speedD + (velErrorNED.z * rand_float()) + err.vel_down;
 
-    // simulate delayed lock times
-    d.have_lock = (params.enabled && now_ms >= params.lock_time*1000UL);
+    d.have_lock = have_lock;
+    d.carrier = err.carrier;
 
     // fill in accuracies: the model's 1-sigma values when it is enabled, otherwise SIM_GPS_ACC
     if (use_model) {

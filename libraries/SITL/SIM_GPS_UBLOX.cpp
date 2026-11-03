@@ -286,10 +286,23 @@ void GPS_UBlox::publish(const GPS_Data *d)
     pvt.t_acc = 0;
     pvt.nano = 0;
     pvt.fix_type = d->have_lock? 0x3 : 0;
-    // RFSonde: report an RTK fixed solution only when the reported horizontal accuracy is RTK grade (< 0.1 m),
-    // otherwise a standard 3D fix, so RTK can be switched on and off with parameters
-    pvt.flags = (d->horizontal_acc < 0.1f) ? 0b10000011  // carrsoln=fixed, psm = na, diffsoln and fixok
-                                           : 0b00000001; // fixok only
+    switch (d->carrier) {
+    case CarrierSolution::BY_ACCURACY:
+        // RFSonde: report an RTK fixed solution only when the reported horizontal accuracy is RTK grade (< 0.1 m),
+        // otherwise a standard 3D fix, so RTK can be switched on and off with parameters
+        pvt.flags = (d->horizontal_acc < 0.1f) ? 0b10000011  // carrsoln=fixed, psm = na, diffsoln and fixok
+                                               : 0b00000001; // fixok only
+        break;
+    case CarrierSolution::NONE:
+        pvt.flags = 0;
+        break;
+    case CarrierSolution::FLOAT:
+        pvt.flags = 0b01000011;     // carrsoln=float, diffsoln and fixok
+        break;
+    case CarrierSolution::FIXED:
+        pvt.flags = 0b10000011;     // carrsoln=fixed, diffsoln and fixok
+        break;
+    }
 
     pvt.flags2 =0;
     pvt.num_sv = d->have_lock ? d->num_sats : 3;

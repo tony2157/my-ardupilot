@@ -806,6 +806,38 @@ const AP_Param::GroupInfo SIM::var_gps[] = {
     // @User: Advanced
     AP_GROUPINFO("GPS_GEOID",  57, SIM,  gps_geoid, 0),
 
+    // @Param: GPS_CONV
+    // @DisplayName: GPS RTK convergence time
+    // @Description: RFSonde GNSS error model: after the receiver gets lock the solution is RTK float for this time, then RTK fixed. 0 with SIM_GPS_FIXLOSS 0 keeps the previous behaviour (RTK fixed whenever the reported horizontal accuracy is below 0.1 m).
+    // @Units: s
+    // @Range: 0 600
+    // @User: Advanced
+    AP_GROUPINFO("GPS_CONV",  58, SIM,  gps_conv_time, 0),
+
+    // @Param: GPS_FLTACC
+    // @DisplayName: GPS RTK float error
+    // @Description: RFSonde GNSS error model: 1-sigma size, per horizontal axis, of the extra position error while the solution is RTK float (twice this vertically). A new random offset is drawn for each float period; it goes away when the solution fixes. The reported accuracy includes it.
+    // @Units: m
+    // @Range: 0 5
+    // @User: Advanced
+    AP_GROUPINFO("GPS_FLTACC",  59, SIM,  gps_float_acc, 0),
+
+    // @Param: GPS_FIXLOSS
+    // @DisplayName: GPS RTK fix loss interval
+    // @Description: RFSonde GNSS error model: mean time between random losses of the RTK fixed solution (exponentially distributed). After a loss the solution is RTK float for SIM_GPS_REFIX. 0 disables fix losses.
+    // @Units: s
+    // @Range: 0 86400
+    // @User: Advanced
+    AP_GROUPINFO("GPS_FIXLOSS",  60, SIM,  gps_fix_loss, 0),
+
+    // @Param: GPS_REFIX
+    // @DisplayName: GPS RTK re-fix time
+    // @Description: RFSonde GNSS error model: time the solution stays RTK float after a random fix loss.
+    // @Units: s
+    // @Range: 0 600
+    // @User: Advanced
+    AP_GROUPINFO("GPS_REFIX",  61, SIM,  gps_refix_time, 5),
+
     // 30 was GPS2_DISABLE
     // 31 was GPS2_LAG_MS
     // 32 was GPS2_TYPE

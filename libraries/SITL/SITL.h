@@ -238,6 +238,10 @@ public:
     AP_Float gps_v_ppm;     // vertical baseline error, 1-sigma (ppm of the horizontal distance from home)
     AP_Float gps_pco_up;    // constant vertical antenna phase-centre error (m, positive reads high)
     AP_Float gps_geoid;     // geoid height above the WGS84 ellipsoid (m)
+    AP_Float gps_conv_time; // RTK float to fixed convergence time after lock (s), 0 = fixed at once
+    AP_Float gps_float_acc; // RTK float extra error, 1-sigma per horizontal axis (m), twice vertically
+    AP_Float gps_fix_loss;  // mean time between RTK fix losses (s), 0 = never
+    AP_Float gps_refix_time; // RTK float time after a fix loss (s)
     AP_Int8  geodesy;       // RFSonde exact geodesy, see enum Geodesy
 
     // initial offset on GPS lat/lon, used to shift origin

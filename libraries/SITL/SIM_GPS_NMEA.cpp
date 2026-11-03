@@ -69,11 +69,18 @@ void GPS_NMEA::publish(const GPS_Data *d)
              (deg - int(deg))*60,
              d->longitude<0?'W':'E');
 
+    // GGA fix quality: RFSonde RTK states report 4 (RTK fixed) and 5 (RTK float)
+    int quality = d->have_lock ? 1 : 0;
+    if (d->carrier == CarrierSolution::FIXED) {
+        quality = 4;
+    } else if (d->carrier == CarrierSolution::FLOAT) {
+        quality = 5;
+    }
     nmea_printf("$GPGGA,%s,%s,%s,%01d,%02d,%04.1f,%07.2f,M,%.1f,M,,",
                      tstring,
                      lat_string,
                      lng_string,
-                     d->have_lock?1:0,
+                     quality,
                      d->have_lock?d->num_sats:3,
                      1.2,
                      d->altitude,
