@@ -770,7 +770,6 @@ const AP_Param::GroupInfo SIM::var_gps[] = {
     // @Param: GPS_PPM
     // @DisplayName: GPS horizontal baseline error
     // @Description: RFSonde GNSS error model: 1-sigma horizontal error per axis that grows with the horizontal distance from home (the RTK base), in parts per million of that distance. It varies with the correlation time SIM_GPS_BTAU. A receiver specification of 1 ppm CEP is about 0.85 ppm per axis.
-    // @Units: ppm
     // @Range: 0 100
     // @User: Advanced
     AP_GROUPINFO("GPS_PPM",    27, SIM,  gps_h_ppm, 0),
@@ -778,7 +777,6 @@ const AP_Param::GroupInfo SIM::var_gps[] = {
     // @Param: GPS_VPPM
     // @DisplayName: GPS vertical baseline error
     // @Description: RFSonde GNSS error model: 1-sigma vertical error that grows with the horizontal distance from home, in parts per million of that distance. A receiver specification of 1 ppm R50 is about 1.48 ppm.
-    // @Units: ppm
     // @Range: 0 100
     // @User: Advanced
     AP_GROUPINFO("GPS_VPPM",    28, SIM,  gps_v_ppm, 0),
