@@ -3,7 +3,8 @@
 # bladeRF 2.0 micro + GPSDO (RFSonde_Computer, sdr.backend radarsim) for one SITL instance.
 #
 # Order: gz sim (the world's vehicle carries RFSondeTruthPlugin; GZ_SIM_SYSTEM_PLUGIN_PATH must include the
-# ardupilot_gazebo main-RadarSim build), then rfsonde_sitl.sh, then this script. Ctrl+C stops both processes.
+# ardupilot_gazebo main-RadarSim build), then rfsonde_sitl.sh, then this script. Ctrl+C stops both processes (and
+# with them the companion's SDR: Ludifly then shows none); run the GUI with --gui or in another terminal.
 #
 #   rfsonde_radarsim.sh [-I N] [--scenario FILE] [--beam AZ,EL] [--gain DB] [--out DIR] [--gui]
 #
@@ -83,6 +84,7 @@ EOF
 
 pids=
 cleanup() {
+  echo "RadarSim: stopping the radar service and the companion (the SDR goes away)"
   # background jobs of a script ignore SIGINT: stop them with SIGTERM (both close their files), then make sure
   for p in $pids; do kill -TERM "$p" 2>/dev/null; done
   for _ in 1 2 3 4 5 6 7 8 9 10; do
@@ -108,4 +110,6 @@ if [ "$gui" = 1 ]; then
   pids="$pids $!"
 fi
 echo "RadarSim: radar service and companion running (logs and data in $out; companion on SITL tcp $((5762 + 10 * instance)))"
+echo "RadarSim: keep this running; Ctrl+C stops the radar and the companion's SDR. Radar GUI in another terminal:"
+echo "  cd $RADARSIM_DIR && $RADARSIM_PY -m rfsonde_radarsim.gui --instance $instance"
 wait

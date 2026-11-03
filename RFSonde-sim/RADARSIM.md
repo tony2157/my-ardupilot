@@ -53,7 +53,8 @@ venv/bin/python -m rfsonde_radarsim.scoring --truth ~/.cache/rfsonde/radarsim_I0
 
 ## The radar GUI
 
-`rfsonde_radarsim.sh --gui`, or on its own next to a running service:
+`rfsonde_radarsim.sh --gui`, or on its own in another terminal while the launcher keeps running (Ctrl+C in the
+launcher's terminal stops the radar service and the companion, so Ludifly shows no SDR):
 
 ```bash
 cd /mnt/c/Users/sega0000/Github/RFSonde_NF2FF/radarsim && venv/bin/python -m rfsonde_radarsim.gui --instance 0
