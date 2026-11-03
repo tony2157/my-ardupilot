@@ -536,6 +536,7 @@ void GPS::update()
     const bool exact = _sitl->exact_geodesy();
 
     d.num_sats = params.numsats;
+    d.geoid_sep = _sitl->gps_geoid;
     if (exact) {
         const Vector3d llh = wgs84_llh_offset_ned(Vector3d { latitude, longitude, altitude },
                                                   Vector3d { err.north, err.east, err.down });

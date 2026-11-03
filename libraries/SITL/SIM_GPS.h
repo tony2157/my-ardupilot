@@ -51,6 +51,7 @@ struct GPS_Data {
     float vertical_acc;
     float speed_acc;
     uint8_t num_sats;
+    float geoid_sep;    // RFSonde: geoid height above the ellipsoid (m); ellipsoid height = altitude + geoid_sep
 
     // Get course over ground [rad], where 0 = North in WGS-84 coordinate system.
     // Calculated from 2D velocity.

@@ -399,8 +399,9 @@ void JSON::recv_fdm(const struct sitl_input &input)
 
         if (exact_geodesy()) {
             // RFSonde exact geodesy: keep the received position unquantized
-            const Vector3d home_llh { home.lat * 1.0e-7, home.lng * 1.0e-7, home.alt * 0.01 };
-            position = wgs84_ned_from_llh(home_llh, Vector3d { state.latitude, state.longitude, state.altitude });
+            const double geoid = sitl->gps_geoid.get();
+            const Vector3d home_llh { home.lat * 1.0e-7, home.lng * 1.0e-7, home.alt * 0.01 + geoid };
+            position = wgs84_ned_from_llh(home_llh, Vector3d { state.latitude, state.longitude, state.altitude + geoid });
         } else {
             position = origin.get_distance_NED_double(new_loc);
         }

@@ -236,8 +236,11 @@ bool Aircraft::exact_geodesy()
 */
 void Aircraft::exact_location(const Vector3d &pos, Vector3d &llh, Location &loc) const
 {
-    const Vector3d home_llh { home.lat * 1.0e-7, home.lng * 1.0e-7, home.alt * 0.01 };
+    // the tangent plane starts at the ellipsoid height of home; altitudes stay above mean sea level
+    const double geoid = sitl->gps_geoid.get();
+    const Vector3d home_llh { home.lat * 1.0e-7, home.lng * 1.0e-7, home.alt * 0.01 + geoid };
     llh = wgs84_llh_offset_ned(home_llh, pos);
+    llh.z -= geoid;
     loc = home;
     loc.lat = static_cast<int32_t>(lround(llh.x * 1.0e7));
     loc.lng = static_cast<int32_t>(lround(llh.y * 1.0e7));

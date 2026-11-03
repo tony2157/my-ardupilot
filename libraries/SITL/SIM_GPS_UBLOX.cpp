@@ -233,7 +233,7 @@ void GPS_UBlox::publish(const GPS_Data *d)
     pos.time = gps_tow.ms;
     pos.longitude = pos_int(d->longitude * 1.0e7);
     pos.latitude  = pos_int(d->latitude * 1.0e7);
-    pos.altitude_ellipsoid = pos_int(d->altitude * 1000.0f);
+    pos.altitude_ellipsoid = pos_int((d->altitude + d->geoid_sep) * 1000.0f);
     pos.altitude_msl = pos_int(d->altitude * 1000.0f);
     pos.horizontal_accuracy = d->horizontal_acc*1000;
     pos.vertical_accuracy = d->vertical_acc*1000;
@@ -295,7 +295,7 @@ void GPS_UBlox::publish(const GPS_Data *d)
     pvt.num_sv = d->have_lock ? d->num_sats : 3;
     pvt.lon = pos_int(d->longitude * 1.0e7);
     pvt.lat  = pos_int(d->latitude * 1.0e7);
-    pvt.height = pos_int(d->altitude * 1000.0f);
+    pvt.height = pos_int((d->altitude + d->geoid_sep) * 1000.0f);
     pvt.h_msl = pos_int(d->altitude * 1000.0f);
     pvt.h_acc = d->horizontal_acc * 1000;
     pvt.v_acc = d->vertical_acc * 1000;
@@ -337,11 +337,11 @@ void GPS_UBlox::publish(const GPS_Data *d)
     {
         const Vector3d llh { d->latitude  * (M_PI / 180.0),
                              d->longitude * (M_PI / 180.0),
-                             (double)d->altitude };
+                             (double)(d->altitude + d->geoid_sep) };
         Vector3d ecef;          // metres, ECEF
         if (exact) {
             // RFSonde exact geodesy: WGS84 without the single precision constants of AP_Math
-            ecef = wgs84_llh_to_ecef(Vector3d { d->latitude, d->longitude, (double)d->altitude });
+            ecef = wgs84_llh_to_ecef(Vector3d { d->latitude, d->longitude, (double)(d->altitude + d->geoid_sep) });
         } else {
             wgsllh2ecef(llh, ecef);
         }

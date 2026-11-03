@@ -750,6 +750,14 @@ const AP_Param::GroupInfo SIM::var_gps[] = {
     // @User: Advanced
     AP_GROUPINFO("GEODESY",    63, SIM,  geodesy, 0),
 
+    // @Param: GPS_GEOID
+    // @DisplayName: GPS geoid height
+    // @Description: RFSonde: height of the geoid (mean sea level) above the WGS84 ellipsoid at the simulated site, N. The simulated receivers report height above the ellipsoid as the simulated altitude plus N where their messages carry it (u-blox POSLLH, PVT and HPPOSECEF, NMEA GGA). With SIM_GEODESY 1 the tangent plane at home also starts at the ellipsoid height.
+    // @Units: m
+    // @Range: -110 90
+    // @User: Advanced
+    AP_GROUPINFO("GPS_GEOID",  57, SIM,  gps_geoid, 0),
+
     // 30 was GPS2_DISABLE
     // 31 was GPS2_LAG_MS
     // 32 was GPS2_TYPE

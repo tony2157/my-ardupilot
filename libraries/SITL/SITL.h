@@ -231,6 +231,7 @@ public:
     AP_Float gps_v_white;   // vertical white noise, 1-sigma (m)
     AP_Float gps_vel_noise; // velocity white noise, 1-sigma per axis (m/s)
     AP_Int32 gps_seed;      // random seed, 0 = random
+    AP_Float gps_geoid;     // geoid height above the WGS84 ellipsoid (m)
     AP_Int8  geodesy;       // RFSonde exact geodesy, see enum Geodesy
 
     // initial offset on GPS lat/lon, used to shift origin
