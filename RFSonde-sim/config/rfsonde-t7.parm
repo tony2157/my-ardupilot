@@ -18,6 +18,9 @@ SERIAL2_BAUD     115
 MAV3_OPTIONS     2
 # limit every SITL serial port to its SERIALn_BAUD, as a real UART would
 SIM_BAUDLIMIT_EN 1
+# so SERIAL1 (TCP 5762: the companion computer or the MAVProxy console) needs the companion's real 921600: at the
+# 57600 default its streams queued replies for 2.8 s and the companion rejected every time sync (NO TIMESYNC)
+SERIAL1_BAUD     921
 
 # MAVLink gimbal (Gremsy), limits as on the real board
 MNT1_TYPE        6
