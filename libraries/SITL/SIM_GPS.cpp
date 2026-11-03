@@ -194,14 +194,30 @@ GPS::GPS(uint8_t _instance) :
     SerialDevice(8192, 2048),
     instance{_instance} {}
 
-GNSSErrorModel::Error GNSSErrorModel::update(const Params &p, uint32_t now_ms, uint8_t instance)
+// first-order Gauss-Markov step with the exact discretisation, state in units of its sigma
+void GNSSErrorModel::propagate(double x[3], double dt, float tau, std::mt19937 &gen, std::normal_distribution<double> &n)
+{
+    const double phi = exp(-dt / MAX(tau, 0.1f));
+    const double drive = sqrt(1.0 - phi * phi);
+    for (uint8_t i = 0; i < 3; i++) {
+        x[i] = phi * x[i] + drive * n(gen);
+    }
+}
+
+GNSSErrorModel::Error GNSSErrorModel::update(const Params &p, uint32_t now_ms, uint8_t instance, float baseline_m)
 {
     const uint32_t seed = p.seed != 0 ? p.seed + instance : 0;
     if (!initialised || seed != seed_used) {
-        // (re)seed, and start the correlated error in its steady state
+        // (re)seed, and start the correlated errors in their steady state
         generator.seed(seed != 0 ? seed : std::random_device{}());
         for (double &x : state) {
             x = unit_normal(generator);
+        }
+        std::seed_seq seed2 { seed != 0 ? seed : std::random_device{}(), 0x52465332U };
+        generator2.seed(seed2);
+        for (uint8_t i = 0; i < 3; i++) {
+            fast[i] = unit_normal2(generator2);
+            base[i] = unit_normal2(generator2);
         }
         seed_used = seed;
         last_ms = now_ms;
@@ -211,11 +227,9 @@ GNSSErrorModel::Error GNSSErrorModel::update(const Params &p, uint32_t now_ms, u
     const double dt = (now_ms - last_ms) * 1.0e-3;
     last_ms = now_ms;
     if (dt > 0) {
-        const double phi = exp(-dt / MAX(p.tau, 0.1f));
-        const double drive = sqrt(1.0 - phi * phi);
-        for (double &x : state) {
-            x = phi * x + drive * unit_normal(generator);
-        }
+        propagate(state, dt, p.tau, generator, unit_normal);
+        propagate(fast, dt, p.fast_tau, generator2, unit_normal2);
+        propagate(base, dt, p.tau, generator2, unit_normal2);
     }
 
     Error e;
@@ -225,6 +239,25 @@ GNSSErrorModel::Error GNSSErrorModel::update(const Params &p, uint32_t now_ms, u
     e.vel_north = p.vel_noise * unit_normal(generator);
     e.vel_east = p.vel_noise * unit_normal(generator);
     e.vel_down = p.vel_noise * unit_normal(generator);
+
+    // fast and baseline terms
+    const float base_h = p.h_ppm * 1.0e-6f * baseline_m;
+    const float base_v = p.v_ppm * 1.0e-6f * baseline_m;
+    e.north += p.h_fast * fast[0] + base_h * base[0];
+    e.east += p.h_fast * fast[1] + base_h * base[1];
+    e.down += p.v_fast * fast[2] + base_v * base[2];
+
+    // 1-sigma size of the error
+    e.h_acc = norm(p.h_bias, p.h_white);
+    e.v_acc = norm(p.v_bias, p.v_white);
+    const float h_more = norm(p.h_fast, base_h);
+    const float v_more = norm(p.v_fast, base_v);
+    if (is_positive(h_more)) {
+        e.h_acc = norm(e.h_acc, h_more);
+    }
+    if (is_positive(v_more)) {
+        e.v_acc = norm(e.v_acc, v_more);
+    }
     return e;
 }
 
@@ -525,12 +558,25 @@ void GPS::update()
         _sitl->gps_h_bias, _sitl->gps_v_bias, _sitl->gps_bias_tau,
         _sitl->gps_h_white, _sitl->gps_v_white, _sitl->gps_vel_noise,
         (uint32_t)_sitl->gps_seed.get(),
+        _sitl->gps_h_fast, _sitl->gps_v_fast, _sitl->gps_fast_tau,
+        _sitl->gps_h_ppm, _sitl->gps_v_ppm,
     };
     const bool use_model = GNSSErrorModel::enabled(model_params);
     GNSSErrorModel::Error err {};
     if (use_model) {
-        err = error_model.update(model_params, now_ms, instance);
+        // horizontal distance from home, the RTK base, for the baseline error
+        const Location &home = _sitl->state.home;
+        float baseline_m = 0;
+        if (home.lat != 0 || home.lng != 0) {
+            Location here = home;
+            here.lat = latitude * 1.0e7;
+            here.lng = longitude * 1.0e7;
+            baseline_m = home.get_distance(here);
+        }
+        err = error_model.update(model_params, now_ms, instance, baseline_m);
     }
+    // RFSonde: constant vertical antenna phase-centre error, not known to the receiver
+    err.down -= _sitl->gps_pco_up;
 
     // RFSonde exact geodesy: apply the position error and the antenna offset on the WGS84 ellipsoid
     const bool exact = _sitl->exact_geodesy();
@@ -566,8 +612,8 @@ void GPS::update()
 
     // fill in accuracies: the model's 1-sigma values when it is enabled, otherwise SIM_GPS_ACC
     if (use_model) {
-        d.horizontal_acc = norm(model_params.h_bias, model_params.h_white);
-        d.vertical_acc = norm(model_params.v_bias, model_params.v_white);
+        d.horizontal_acc = err.h_acc;
+        d.vertical_acc = err.v_acc;
         d.speed_acc = norm(model_params.vel_noise, velErrorNED.xy().length());
     } else {
         d.horizontal_acc = params.accuracy;

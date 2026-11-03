@@ -743,6 +743,54 @@ const AP_Param::GroupInfo SIM::var_gps[] = {
     // @User: Advanced
     AP_GROUPINFO("GPS_SEED",    23, SIM,  gps_seed, 0),
 
+    // @Param: GPS_FHBIAS
+    // @DisplayName: GPS horizontal fast correlated error
+    // @Description: RFSonde GNSS error model: 1-sigma size, per north and east axis, of a second, faster first-order Gauss-Markov horizontal position error (multipath), added to the slow one. 0 disables this term.
+    // @Units: m
+    // @Range: 0 10
+    // @User: Advanced
+    AP_GROUPINFO("GPS_FHBIAS",    24, SIM,  gps_h_fast, 0),
+
+    // @Param: GPS_FVBIAS
+    // @DisplayName: GPS vertical fast correlated error
+    // @Description: RFSonde GNSS error model: 1-sigma size of the faster first-order Gauss-Markov vertical position error.
+    // @Units: m
+    // @Range: 0 10
+    // @User: Advanced
+    AP_GROUPINFO("GPS_FVBIAS",    25, SIM,  gps_v_fast, 0),
+
+    // @Param: GPS_FTAU
+    // @DisplayName: GPS fast error correlation time
+    // @Description: RFSonde GNSS error model: correlation time of the fast position error.
+    // @Units: s
+    // @Range: 0.1 3600
+    // @User: Advanced
+    AP_GROUPINFO("GPS_FTAU",    26, SIM,  gps_fast_tau, 20),
+
+    // @Param: GPS_PPM
+    // @DisplayName: GPS horizontal baseline error
+    // @Description: RFSonde GNSS error model: 1-sigma horizontal error per axis that grows with the horizontal distance from home (the RTK base), in parts per million of that distance. It varies with the correlation time SIM_GPS_BTAU. A receiver specification of 1 ppm CEP is about 0.85 ppm per axis.
+    // @Units: ppm
+    // @Range: 0 100
+    // @User: Advanced
+    AP_GROUPINFO("GPS_PPM",    27, SIM,  gps_h_ppm, 0),
+
+    // @Param: GPS_VPPM
+    // @DisplayName: GPS vertical baseline error
+    // @Description: RFSonde GNSS error model: 1-sigma vertical error that grows with the horizontal distance from home, in parts per million of that distance. A receiver specification of 1 ppm R50 is about 1.48 ppm.
+    // @Units: ppm
+    // @Range: 0 100
+    // @User: Advanced
+    AP_GROUPINFO("GPS_VPPM",    28, SIM,  gps_v_ppm, 0),
+
+    // @Param: GPS_PCO_V
+    // @DisplayName: GPS vertical phase centre error
+    // @Description: RFSonde: constant vertical error of the antenna phase centre, unknown to the receiver (not in the reported accuracy). Positive reports the position higher.
+    // @Units: m
+    // @Range: -1 1
+    // @User: Advanced
+    AP_GROUPINFO("GPS_PCO_V",    29, SIM,  gps_pco_up, 0),
+
     // @Param: GEODESY
     // @DisplayName: Simulation geodesy
     // @Description: RFSonde: how the simulated position becomes latitude, longitude and height. Spherical: stock spherical earth, kept in 1e-7 degrees and centimetres. WGS84 exact: the north, east, down position is a tangent plane at home, converted through WGS84 ECEF in double precision for every consumer; the simulated GPS also applies its error and antenna offset on the ellipsoid. Set it before the flight.

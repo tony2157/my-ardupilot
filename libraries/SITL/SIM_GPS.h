@@ -61,12 +61,15 @@ struct GPS_Data {
     float speed_2d() const WARN_IF_UNUSED;
 };
 
-// RFSonde GNSS error model (SIM_GPS_HBIAS ... SIM_GPS_SEED).
-// Per axis (north, east, down) the position error is a first-order Gauss-Markov process (slowly
-// varying error from atmosphere, orbits, multipath) plus white noise, and the velocity gets white
-// noise. The Gauss-Markov state is kept in units of its standard deviation and propagated with the
-// exact discretisation x <- phi*x + sqrt(1 - phi^2)*n, phi = exp(-dt/tau), so the statistics do not
-// depend on the GPS update rate and a change of the configured sizes applies immediately.
+// RFSonde GNSS error model (SIM_GPS_HBIAS ... SIM_GPS_SEED, SIM_GPS_FHBIAS ... SIM_GPS_VPPM).
+// Per axis (north, east, down) the position error is the sum of a slowly varying first-order
+// Gauss-Markov process (atmosphere, orbits), a faster one (multipath), a baseline error that grows
+// with the horizontal distance from home (a Gauss-Markov process with the slow correlation time,
+// scaled by ppm x distance) and white noise; the velocity gets white noise. Each Gauss-Markov
+// state is kept in units of its standard deviation and propagated with the exact discretisation
+// x <- phi*x + sqrt(1 - phi^2)*n, phi = exp(-dt/tau), so the statistics do not depend on the GPS
+// update rate and a change of the configured sizes applies immediately. The fast and baseline
+// terms draw from their own random stream, so the other terms keep the sequence of a given seed.
 class GNSSErrorModel {
 public:
     struct Params {
@@ -77,23 +80,36 @@ public:
         float v_white;      // vertical white noise, 1-sigma (m)
         float vel_noise;    // velocity white noise, 1-sigma per axis (m/s)
         uint32_t seed;      // 0 = random seed
+        float h_fast;       // horizontal fast correlated error, 1-sigma per axis (m)
+        float v_fast;       // vertical fast correlated error, 1-sigma (m)
+        float fast_tau;     // correlation time of the fast error (s)
+        float h_ppm;        // horizontal baseline error, 1-sigma per axis (ppm of the distance from home)
+        float v_ppm;        // vertical baseline error, 1-sigma (ppm of the horizontal distance from home)
     };
     struct Error {
         double north, east, down;   // position error (m)
         float vel_north, vel_east, vel_down;   // velocity error (m/s)
+        float h_acc, v_acc;         // 1-sigma size of the position error (m)
     };
 
     static bool enabled(const Params &p) {
-        return p.h_bias > 0 || p.v_bias > 0 || p.h_white > 0 || p.v_white > 0 || p.vel_noise > 0;
+        return p.h_bias > 0 || p.v_bias > 0 || p.h_white > 0 || p.v_white > 0 || p.vel_noise > 0 ||
+               p.h_fast > 0 || p.v_fast > 0 || p.h_ppm > 0 || p.v_ppm > 0;
     }
 
-    // advance the model to now_ms and return the current error
-    Error update(const Params &p, uint32_t now_ms, uint8_t instance);
+    // advance the model to now_ms and return the current error, baseline_m from home
+    Error update(const Params &p, uint32_t now_ms, uint8_t instance, float baseline_m);
 
 private:
+    static void propagate(double state[3], double dt, float tau, std::mt19937 &gen, std::normal_distribution<double> &n);
+
     std::mt19937 generator;
     std::normal_distribution<double> unit_normal{0.0, 1.0};
+    std::mt19937 generator2;    // fast and baseline terms
+    std::normal_distribution<double> unit_normal2{0.0, 1.0};
     double state[3] {};         // correlated error per axis in units of its sigma
+    double fast[3] {};          // fast correlated error per axis in units of its sigma
+    double base[3] {};          // baseline error per axis in units of its sigma
     uint32_t last_ms;
     uint32_t seed_used;
     bool initialised;

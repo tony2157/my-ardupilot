@@ -231,6 +231,12 @@ public:
     AP_Float gps_v_white;   // vertical white noise, 1-sigma (m)
     AP_Float gps_vel_noise; // velocity white noise, 1-sigma per axis (m/s)
     AP_Int32 gps_seed;      // random seed, 0 = random
+    AP_Float gps_h_fast;    // horizontal fast correlated error, 1-sigma per axis (m)
+    AP_Float gps_v_fast;    // vertical fast correlated error, 1-sigma (m)
+    AP_Float gps_fast_tau;  // correlation time of the fast error (s)
+    AP_Float gps_h_ppm;     // horizontal baseline error, 1-sigma per axis (ppm of the distance from home)
+    AP_Float gps_v_ppm;     // vertical baseline error, 1-sigma (ppm of the horizontal distance from home)
+    AP_Float gps_pco_up;    // constant vertical antenna phase-centre error (m, positive reads high)
     AP_Float gps_geoid;     // geoid height above the WGS84 ellipsoid (m)
     AP_Int8  geodesy;       // RFSonde exact geodesy, see enum Geodesy
 
