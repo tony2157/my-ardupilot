@@ -644,7 +644,8 @@ void AP_ARRC_SDR::send_sensor_raw(mavlink_channel_t chan)
                                      _meas.phi_x,
                                      _meas.snr_db,
                                      _meas.flags,
-                                     _meas.n_avg);
+                                     _meas.n_avg,
+                                     _meas.noise_dbm);
     _last_sent_seq[chan] = _meas.seq;
     _sent_any[chan] = true;
 }
