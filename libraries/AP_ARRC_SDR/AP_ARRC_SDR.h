@@ -60,6 +60,10 @@ public:
     // False if there is none or it is not a valid measurement (ARRC_MEAS_FLAGS_VALID)
     bool get_copol(float &power_dbm, uint32_t &count) const;
 
+    // latest measurement as received (ARRC_SDR_MEAS: power, flags, pulses averaged) and the number received since
+    // boot (changes with each one). False if there is none
+    bool get_meas(mavlink_arrc_sdr_meas_t &meas, uint32_t &count) const;
+
     // send the latest measurement as ARRC_SENSOR_RAW on a channel. Each measurement is sent once per channel
     void send_sensor_raw(mavlink_channel_t chan);
 

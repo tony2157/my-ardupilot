@@ -622,6 +622,13 @@ bool AP_ARRC_SDR::get_copol(float &power_dbm, uint32_t &count) const
     return _have_meas && (_meas.flags & ARRC_MEAS_FLAGS_VALID) && isfinite(_meas.pwr_c);
 }
 
+bool AP_ARRC_SDR::get_meas(mavlink_arrc_sdr_meas_t &meas, uint32_t &count) const
+{
+    count = _meas_count;
+    meas = _meas;
+    return _have_meas;
+}
+
 void AP_ARRC_SDR::send_sensor_raw(mavlink_channel_t chan)
 {
     if (!meas_fresh(MEAS_DOWNLINK_MAX_AGE_MS) || chan >= MAVLINK_COMM_NUM_BUFFERS) {
