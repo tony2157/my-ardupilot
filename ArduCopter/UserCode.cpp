@@ -493,11 +493,6 @@ void Copter::userhook_auxSwitch1(const RC_Channel::AuxSwitchPos ch_flag)
         break;
     }
     case RC_Channel::AuxSwitchPos::LOW:
-        // the phase sweep owns the offset while it runs and puts it back at its end
-        if (arrc_dphase_running()) {
-            GCS_SEND_TEXT(MAV_SEVERITY_WARNING, "Gimbal offset kept: TX phase sweep running");
-            return;
-        }
         if (gimbal_align.state != AlignState::IDLE) {
             gimbal_align.state = AlignState::IDLE;
             GCS_SEND_TEXT(MAV_SEVERITY_INFO, "Gimbal alignment stopped");

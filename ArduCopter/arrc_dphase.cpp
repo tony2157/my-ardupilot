@@ -4,15 +4,16 @@
 /*
   ARRC transmit differential phase sweep (MAV_CMD_ARRC_DPHASE)
 
-  In Hpol-aligned mode (MNT1_ARRC_GMODE 2) the gimbal turns the probe about its boresight through the angles
-  -span..+span, and back unless one way, by setting MNT1_ARRC_POFF (never saved). At each angle it waits for the
-  gimbal to settle, averages the RF power in mW and the polarization error of the gimbal's measured attitude about
-  the commanded boresight; the fit uses that measured angle. The three-term fit (arrc_polfit.h) of a beam that
-  carries H and V at once gives abs(beta), ZDR_tx and the swing. Every exit puts POFF back to its value from before
-  the sweep. Reported in ARRC_DPHASE_STATUS and ARRC_DPHASE_STEP, the ARDP and ARDR logs and GCS text.
+  In parallel planes (MNT1_ARRC_GMODE 1) the probe faces along the AUT boresight (MNT1_ARRC_AZTH, pitch
+  -MNT1_ARRC_ELEV) and the gimbal turns it about that boresight through the angles -span..+span, and back unless
+  one way (AP_Mount::set_ARRC_parallel_rotation, not stored; MNT1_ARRC_POFF is not used). At each angle it waits
+  for the gimbal to settle, averages the RF power in mW and the polarization error of the gimbal's measured
+  attitude about the commanded boresight; the fit uses that measured angle. The three-term fit (arrc_polfit.h) of a
+  beam that carries H and V at once gives abs(beta), ZDR_tx and the swing. Every exit sets the rotation back to 0.
+  Reported in ARRC_DPHASE_STATUS and ARRC_DPHASE_STEP, the ARDP and ARDR logs and GCS text.
 
-  Convention: POFF turns the probe from the AUT y axis, to the right seen from behind the radar looking along the
-  beam, toward up. beta is given with H to the left and V up seen from behind the radar, so POFF 0 is along -H
+  Convention: the angle turns the probe from the AUT y axis, to the right seen from behind the radar looking along
+  the beam, toward up. beta is given with H to the left and V up seen from behind the radar, so angle 0 is along -H
   (h_sign -1); with the opposite polarity of H or V it is 180 - beta.
 */
 
@@ -25,7 +26,7 @@ static constexpr uint32_t DPH_ARRIVE_TIMEOUT_MS = 5000; // extra wait for the gi
 static constexpr float DPH_ARRIVE_TOL_DEG = 3;          // measured polarization error accepted to start averaging
 static constexpr uint32_t DPH_SENSOR_TIMEOUT_MS = 1000; // stop if the RF source has no new reading for this long
 static constexpr uint16_t DPH_MIN_SAMPLES = 5;          // valid readings needed at each angle
-static constexpr int8_t DPH_H_SIGN = -1;                // POFF 0 is along -H (see above)
+static constexpr int8_t DPH_H_SIGN = -1;                // angle 0 is along -H (see above)
 // readings left out of the average: clipped, samples lost, another waveform averaged in, or transmitting
 static constexpr uint16_t DPH_REJECT_FLAGS = ARRC_MEAS_FLAGS_SATURATED | ARRC_MEAS_FLAGS_OVERRUN |
                                              ARRC_MEAS_FLAGS_WF_MISMATCH | ARRC_MEAS_FLAGS_TX_ACTIVE;
@@ -46,7 +47,6 @@ static struct {
     // progress
     uint8_t idx;            // current angle
     uint8_t n_done;         // angles averaged
-    float start_offset;     // MNT1_ARRC_POFF before the run
     uint32_t state_ms;      // system time the state started
     uint32_t last_sample_ms;
     uint32_t last_count;    // RF source reading count at the last reading
@@ -92,9 +92,9 @@ static const char *dph_reason_text(uint8_t reason)
     case ARRC_DPHASE_REASON_COMMAND:
         return "stopped by command";
     case ARRC_DPHASE_REASON_GIMBAL_MODE:
-        return "needs MNT1_ARRC_GMODE 2";
+        return "needs MNT1_ARRC_GMODE 1";
     case ARRC_DPHASE_REASON_NO_SOLUTION:
-        return "no Hpol pointing at the AUT";
+        return "no parallel-planes pointing";
     case ARRC_DPHASE_REASON_LIMIT:
         return "gimbal roll or pitch limit";
     case ARRC_DPHASE_REASON_RF_SOURCE:
@@ -169,7 +169,7 @@ void Copter::arrc_dphase_stop(uint8_t reason)
 #if AP_ARRC_SDR_ENABLED
     ARRC_SDR.accum_stop();
 #endif
-    camera_mount.set_ARRC_pol_offset(dph.start_offset, false);
+    camera_mount.set_ARRC_parallel_rotation(0);
     dph.state = ARRC_DPHASE_STATE_STOPPED;
     dph.reason = reason;
     GCS_SEND_TEXT(MAV_SEVERITY_WARNING, "TX phase stopped: %s", dph_reason_text(reason));
@@ -224,12 +224,12 @@ MAV_RESULT Copter::arrc_dphase_command(const mavlink_command_int_t &packet)
     if (!arrc_dphase_vehicle_ok()) {
         return deny(ARRC_DPHASE_REASON_VEHICLE);
     }
-    if (camera_mount.get_ARRC_gimbal_mode() != ARRC_GIMBAL_MODE_HPOL) {
+    if (camera_mount.get_ARRC_gimbal_mode() != ARRC_GIMBAL_MODE_PARALLEL_PLANES) {
         return deny(ARRC_DPHASE_REASON_GIMBAL_MODE);
     }
     uint8_t mode, flags;
     float pol_err;
-    if (!camera_mount.get_ARRC_solution(mode, flags, pol_err) || mode != ARRC_GIMBAL_MODE_HPOL ||
+    if (!camera_mount.get_ARRC_solution(mode, flags, pol_err) || mode != ARRC_GIMBAL_MODE_PARALLEL_PLANES ||
         (flags & (ARRC_GIMBAL_FLAGS_TOO_CLOSE | ARRC_GIMBAL_FLAGS_PITCH_LIMIT))) {
         return deny(ARRC_DPHASE_REASON_NO_SOLUTION);
     }
@@ -266,10 +266,9 @@ MAV_RESULT Copter::arrc_dphase_command(const mavlink_command_int_t &packet)
     dph.n_done = 0;
     dph.fit_r = NaNf;
     dph.result = {NaNf, NaNf, NaNf, NaNf, NaNf, false};
-    dph.start_offset = camera_mount.get_ARRC_pol_offset();
     dph.state = ARRC_DPHASE_STATE_MOVING;
     dph.state_ms = AP_HAL::millis();
-    camera_mount.set_ARRC_pol_offset(dph_angle(0), false);
+    camera_mount.set_ARRC_parallel_rotation(dph_angle(0));
     GCS_SEND_TEXT(MAV_SEVERITY_INFO, "TX phase sweep %u: +-%.0f by %.0f, %u angles (%s)", unsigned(dph.run_id),
                   span, step, unsigned(n_steps), sdr ? "SDR" : "LB5900");
     dph_push(MSG_ARRC_DPHASE_STATUS);
@@ -286,13 +285,13 @@ void Copter::arrc_dphase_update()
         arrc_dphase_stop(ARRC_DPHASE_REASON_VEHICLE);
         return;
     }
-    if (camera_mount.get_ARRC_gimbal_mode() != ARRC_GIMBAL_MODE_HPOL) {
+    if (camera_mount.get_ARRC_gimbal_mode() != ARRC_GIMBAL_MODE_PARALLEL_PLANES) {
         arrc_dphase_stop(ARRC_DPHASE_REASON_GIMBAL_MODE);
         return;
     }
     uint8_t mode, flags;
     float pol_err;
-    if (!camera_mount.get_ARRC_solution(mode, flags, pol_err) || mode != ARRC_GIMBAL_MODE_HPOL ||
+    if (!camera_mount.get_ARRC_solution(mode, flags, pol_err) || mode != ARRC_GIMBAL_MODE_PARALLEL_PLANES ||
         (flags & ARRC_GIMBAL_FLAGS_TOO_CLOSE)) {
         arrc_dphase_stop(ARRC_DPHASE_REASON_NO_SOLUTION);
         return;
@@ -423,7 +422,7 @@ void Copter::arrc_dphase_update()
         // next angle, or the fit
         dph.idx++;
         if (dph.idx < dph.n_steps) {
-            camera_mount.set_ARRC_pol_offset(dph_angle(dph.idx), false);
+            camera_mount.set_ARRC_parallel_rotation(dph_angle(dph.idx));
             dph.state = ARRC_DPHASE_STATE_MOVING;
             dph.state_ms = now_ms;
             dph_push(MSG_ARRC_DPHASE_STATUS);
@@ -455,7 +454,7 @@ void Copter::arrc_dphase_finish()
         arrc_dphase_stop(ARRC_DPHASE_REASON_FIT);
         return;
     }
-    camera_mount.set_ARRC_pol_offset(dph.start_offset, false);
+    camera_mount.set_ARRC_parallel_rotation(0);
     dph.result = res;
     dph.fit_r = terms.r;
     dph.flags |= ARRC_DPHASE_FLAGS_RESULT | (res.clamped ? ARRC_DPHASE_FLAGS_COS_CLAMPED : 0);
@@ -477,7 +476,7 @@ void Copter::arrc_dphase_log_step(uint8_t index)
 // @Field: TimeUS: Time since system startup
 // @Field: Run: Run counter
 // @Field: Stp: Angle index
-// @Field: Psi: Commanded probe angle from H (MNT1_ARRC_POFF)
+// @Field: Psi: Commanded probe angle about the boresight from the AUT y axis
 // @Field: PsiM: Measured probe angle about the boresight (NaN without a gimbal attitude report)
 // @Field: P: Mean power of the valid readings (dBm, averaged in mW)
 // @Field: PSd: Standard deviation of the valid readings (dB)
