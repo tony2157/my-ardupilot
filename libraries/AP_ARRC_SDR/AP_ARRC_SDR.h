@@ -64,6 +64,22 @@ public:
     // boot (changes with each one). False if there is none
     bool get_meas(mavlink_arrc_sdr_meas_t &meas, uint32_t &count) const;
 
+    // every measurement received since accum_start() with VALID and a finite co-polar power: those with a flag in
+    // reject_mask are only counted, the others are summed (power in mW weighted by the pulses each averages)
+    struct Accum {
+        double sum_mw;          // weighted power in mW
+        double sum_w;           // weights (pulses averaged)
+        double sum_db;          // powers in dBm and their squares, for the spread
+        double sum_db2;
+        uint16_t n;             // measurements summed
+        uint16_t n_rej;         // measurements left out for their flags
+        uint16_t flags;         // ARRC_MEAS_FLAGS of the summed ones, ORed
+        uint32_t last_ms;       // system time of the last VALID measurement, 0 before the first
+    };
+    void accum_start(uint16_t reject_mask);
+    void accum_stop(void) { _accum_active = false; }
+    const Accum &accum(void) const { return _accum; }
+
     // send the latest measurement as ARRC_SENSOR_RAW on a channel. Each measurement is sent once per channel
     void send_sensor_raw(mavlink_channel_t chan);
 
@@ -180,6 +196,9 @@ private:
 
     // latest measurement
     mavlink_arrc_sdr_meas_t _meas;
+    Accum _accum;
+    uint16_t _accum_reject;
+    bool _accum_active;
     uint32_t _meas_ms;
     uint32_t _meas_count;
     bool _have_meas;

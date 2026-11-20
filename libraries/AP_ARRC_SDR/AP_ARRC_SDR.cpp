@@ -56,6 +56,9 @@ AP_ARRC_SDR::AP_ARRC_SDR(void) :
     _have_meas(false)
 {
     memset(&_meas, 0, sizeof(_meas));
+    _accum = {};
+    _accum_reject = 0;
+    _accum_active = false;
     memset(_last_sent_seq, 0, sizeof(_last_sent_seq));
     memset(_sent_any, 0, sizeof(_sent_any));
     memset(_nav_cap, 0, sizeof(_nav_cap));
@@ -220,12 +223,34 @@ void AP_ARRC_SDR::handle_command_ack(const mavlink_message_t &msg)
     }
 }
 
+void AP_ARRC_SDR::accum_start(uint16_t reject_mask)
+{
+    _accum = {};
+    _accum_reject = reject_mask;
+    _accum_active = true;
+}
+
 void AP_ARRC_SDR::handle_meas(const mavlink_message_t &msg)
 {
     mavlink_msg_arrc_sdr_meas_decode(&msg, &_meas);
     _meas_ms = AP_HAL::millis();
     _meas_count++;
     _have_meas = true;
+
+    if (_accum_active && (_meas.flags & ARRC_MEAS_FLAGS_VALID) && isfinite(_meas.pwr_c)) {
+        _accum.last_ms = _meas_ms;
+        if (_meas.flags & _accum_reject) {
+            _accum.n_rej++;
+        } else if (_accum.n < UINT16_MAX) {
+            const double w = MAX(_meas.n_avg, 1);
+            _accum.sum_mw += w * pow(10.0, 0.1 * _meas.pwr_c);
+            _accum.sum_w += w;
+            _accum.sum_db += _meas.pwr_c;
+            _accum.sum_db2 += double(_meas.pwr_c) * _meas.pwr_c;
+            _accum.n++;
+            _accum.flags |= _meas.flags;
+        }
+    }
 
     // offer it now to the channels streaming ARRC_SENSOR_RAW: polled at the stream interval, a measurement
     // arriving just after the poll would wait a whole interval or be replaced. send_sensor_raw() caps the rate
