@@ -155,29 +155,20 @@ bool Copter::arrc_dphase_vehicle_ok() const
     }
 }
 
-// the latest RF power reading of the source in use: count changes with each reading; valid is false for a reading
-// without a measurement. flags are the SDR's ARRC_MEAS_FLAGS (0 for the LB5900) and weight the pulses averaged
+// the latest LB5900 reading: count changes with each reading. flags 0 and weight 1 (the SDR's measurements are
+// summed as they arrive, AP_ARRC_SDR::accum())
 bool Copter::arrc_dphase_sample(uint32_t &count, float &power_dbm, uint16_t &flags, float &weight) const
 {
     flags = 0;
     weight = 1;
-#if AP_ARRC_SDR_ENABLED
-    if (dph.sdr) {
-        mavlink_arrc_sdr_meas_t meas;
-        if (!ARRC_SDR.get_meas(meas, count)) {
-            return false;
-        }
-        power_dbm = meas.pwr_c;
-        flags = meas.flags;
-        weight = MAX(meas.n_avg, 1);
-        return (meas.flags & ARRC_MEAS_FLAGS_VALID) && isfinite(meas.pwr_c);
-    }
-#endif
     return arrc_align_sample(false, count, power_dbm);
 }
 
 void Copter::arrc_dphase_stop(uint8_t reason)
 {
+#if AP_ARRC_SDR_ENABLED
+    ARRC_SDR.accum_stop();
+#endif
     camera_mount.set_ARRC_pol_offset(dph.start_offset, false);
     dph.state = ARRC_DPHASE_STATE_STOPPED;
     dph.reason = reason;
@@ -329,13 +320,18 @@ void Copter::arrc_dphase_update()
             return;
         }
         // a reading already there may be from before the gimbal arrived: average only the next ones
-        uint32_t count;
-        float power_dbm, weight;
-        uint16_t meas_flags;
+        uint32_t count = 0;
+        float power_dbm = 0, weight = 1;
+        uint16_t meas_flags = 0;
         IGNORE_RETURN(arrc_dphase_sample(count, power_dbm, meas_flags, weight));
         dph.last_count = count;
         dph.sum_mw = dph.sum_w = dph.sum_db = dph.sum_db2 = dph.sum_pol = 0;
         dph.n = dph.n_rej = dph.n_pol = dph.meas_flags = 0;
+#if AP_ARRC_SDR_ENABLED
+        if (dph.sdr) {
+            ARRC_SDR.accum_start(DPH_REJECT_FLAGS);
+        }
+#endif
         dph.state = ARRC_DPHASE_STATE_SAMPLING;
         dph.state_ms = now_ms;
         dph.last_sample_ms = now_ms;
@@ -348,11 +344,27 @@ void Copter::arrc_dphase_update()
             dph.sum_pol += pol_err;
             dph.n_pol++;
         }
-        uint32_t count;
-        float power_dbm, weight;
-        uint16_t meas_flags;
-        const bool valid = arrc_dphase_sample(count, power_dbm, meas_flags, weight);
-        if (count != dph.last_count) {
+#if AP_ARRC_SDR_ENABLED
+        if (dph.sdr) {
+            // every measurement since the averaging started (the companion sends faster than this loop runs)
+            const auto &a = ARRC_SDR.accum();
+            dph.sum_mw = a.sum_mw;
+            dph.sum_w = a.sum_w;
+            dph.sum_db = a.sum_db;
+            dph.sum_db2 = a.sum_db2;
+            dph.n = a.n;
+            dph.n_rej = a.n_rej;
+            dph.meas_flags = a.flags;
+            if (a.last_ms != 0 && int32_t(a.last_ms - dph.last_sample_ms) > 0) {
+                dph.last_sample_ms = a.last_ms;
+            }
+        }
+#endif
+        uint32_t count = 0;
+        float power_dbm = 0, weight = 1;
+        uint16_t meas_flags = 0;
+        const bool valid = !dph.sdr && arrc_dphase_sample(count, power_dbm, meas_flags, weight);
+        if (!dph.sdr && count != dph.last_count) {
             dph.last_count = count;
             if (valid) {
                 dph.last_sample_ms = now_ms;
@@ -380,6 +392,9 @@ void Copter::arrc_dphase_update()
             return;
         }
 
+#if AP_ARRC_SDR_ENABLED
+        ARRC_SDR.accum_stop();
+#endif
         // record the angle
         auto &s = dph.steps[dph.idx];
         s.time_ms = now_ms;
