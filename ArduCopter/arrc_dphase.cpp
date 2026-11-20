@@ -554,6 +554,7 @@ bool Copter::arrc_dphase_send_step(mavlink_channel_t chan, uint32_t index) const
     }
     const auto &s = dph.steps[index];
     mavlink_msg_arrc_dphase_step_send(chan,
+                                      AP_HAL::millis(),
                                       s.time_ms,
                                       s.psi,
                                       s.psi_meas,
