@@ -214,6 +214,11 @@ public:
     // errors of the measured attitude (NaN if the gimbal does not report it). False if there is no recent solution
     bool get_ARRC_pointing(Quaternion &q_cmd, float &pointing_err, float &pol_err) const;
 
+    // ARRC mode and limit flags (ARRCFlags) of the latest pointing solution, and the polarization error of the
+    // measured attitude about the commanded boresight (NaN if the gimbal does not report it). False if there is
+    // no recent solution
+    bool get_ARRC_solution(uint8_t &mode, uint8_t &flags, float &pol_err) const;
+
     //
     // camera controls for gimbals that include a camera
     //

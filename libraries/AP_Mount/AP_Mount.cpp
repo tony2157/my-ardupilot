@@ -917,6 +917,15 @@ uint8_t AP_Mount::get_ARRC_gimbal_mode(uint8_t instance) const
     return uint8_t(backend->get_ARRC_gimbal_mode());
 }
 
+bool AP_Mount::get_ARRC_solution(uint8_t instance, uint8_t &mode, uint8_t &flags, float &pol_err_deg) const
+{
+    auto *backend = get_instance(instance);
+    if (backend == nullptr) {
+        return false;
+    }
+    return backend->get_ARRC_solution(mode, flags, pol_err_deg);
+}
+
 
 //
 // camera controls for gimbals that include a camera

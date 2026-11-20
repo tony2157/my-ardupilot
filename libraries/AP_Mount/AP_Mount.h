@@ -209,6 +209,12 @@ public:
     uint8_t get_ARRC_gimbal_mode() const { return get_ARRC_gimbal_mode(_primary); }
     uint8_t get_ARRC_gimbal_mode(uint8_t instance) const;
 
+    // ARRC mode of the latest pointing solution (ArduPilot pointing when the ARRC mode could not be used), its
+    // limit flags (ARRC_GIMBAL_FLAGS, plus 8 while slew limited) and the polarization error of the measured attitude
+    // about the commanded boresight in degrees (NaN if the gimbal does not report it). False without a recent solution
+    bool get_ARRC_solution(uint8_t &mode, uint8_t &flags, float &pol_err_deg) const { return get_ARRC_solution(_primary, mode, flags, pol_err_deg); }
+    bool get_ARRC_solution(uint8_t instance, uint8_t &mode, uint8_t &flags, float &pol_err_deg) const;
+
     // set_roi_target - sets target location that mount should attempt to point towards
     void set_roi_target(const Location &target_loc) { set_roi_target(_primary,target_loc); }
     void set_roi_target(uint8_t instance, const Location &target_loc);

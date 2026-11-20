@@ -788,6 +788,19 @@ bool AP_Mount_Backend::get_ARRC_pointing(Quaternion &q_cmd, float &pointing_err,
     return true;
 }
 
+// ARRC mode, limit flags and polarization error of the latest pointing solution
+bool AP_Mount_Backend::get_ARRC_solution(uint8_t &mode, uint8_t &flags, float &pol_err) const
+{
+    Quaternion q_cmd;
+    float pointing_err;
+    if (!get_ARRC_pointing(q_cmd, pointing_err, pol_err)) {
+        return false;
+    }
+    mode = uint8_t(_arrc.mode);
+    flags = _arrc.flags;
+    return true;
+}
+
 #if HAL_GCS_ENABLED
 // ARRC send the latest pointing solution to the companion computer (what ARGM logs)
 void AP_Mount_Backend::send_ARRC_pointing(mavlink_channel_t chan) const
