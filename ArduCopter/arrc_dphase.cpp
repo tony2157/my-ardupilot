@@ -520,14 +520,16 @@ void Copter::arrc_dphase_log_result()
 void Copter::arrc_dphase_send_status(mavlink_channel_t chan) const
 {
     const bool running = arrc_dphase_running();
+    // no run since boot: the result fields are NaN, as after a run without a result
+    const bool ran = dph.run_id != 0;
     mavlink_msg_arrc_dphase_status_send(chan,
                                         AP_HAL::millis(),
-                                        dph.result.beta_deg,
-                                        dph.result.sigma_deg,
-                                        dph.result.zdr_db,
-                                        dph.result.swing_db,
-                                        dph.result.peak_deg,
-                                        dph.fit_r,
+                                        ran ? dph.result.beta_deg : NaNf,
+                                        ran ? dph.result.sigma_deg : NaNf,
+                                        ran ? dph.result.zdr_db : NaNf,
+                                        ran ? dph.result.swing_db : NaNf,
+                                        ran ? dph.result.peak_deg : NaNf,
+                                        ran ? dph.fit_r : NaNf,
                                         running ? dph_angle(dph.idx) : NaNf,
                                         dph.span,
                                         dph.step,
