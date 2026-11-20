@@ -123,5 +123,7 @@ enum ap_message : uint8_t {
     MSG_ARRC_NAV_GPS                   = 107,
     MSG_ARRC_NAV_ECEF                  = 108,
     MSG_ARRC_GIMBAL_POINTING           = 109,
+    MSG_ARRC_DPHASE_STATUS             = 110,
+    MSG_ARRC_DPHASE_STEP               = 111,
     MSG_LAST // MSG_LAST must be the last entry in this enum
 };

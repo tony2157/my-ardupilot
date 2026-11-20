@@ -1217,6 +1217,9 @@ ap_message GCS_MAVLINK::mavlink_id_to_ap_message_id(const uint32_t mavlink_id) c
         { MAVLINK_MSG_ID_ARRC_NAV_ECEF,         MSG_ARRC_NAV_ECEF},
         { MAVLINK_MSG_ID_ARRC_GIMBAL_POINTING,  MSG_ARRC_GIMBAL_POINTING},
 #endif
+#if APM_BUILD_COPTER_OR_HELI && HAL_MOUNT_ENABLED
+        { MAVLINK_MSG_ID_ARRC_DPHASE_STATUS,    MSG_ARRC_DPHASE_STATUS},
+#endif
     };
 
     for (uint8_t i=0; i<ARRAY_SIZE(map); i++) {
