@@ -136,6 +136,8 @@ public:
         UNKNOWN = 255,
     };
     ARRCGimbalMode get_ARRC_gimbal_mode() const;
+    // ARRC set MNT1_ARRC_GMODE for now (the GCS is told, storage keeps the saved value)
+    void set_ARRC_gimbal_mode(ARRCGimbalMode mode) { _params.pitch_stb_lead.set_and_notify(float(uint8_t(mode))); }
 
     // ARRC set polarization offset (rotation about the probe boresight) in degrees. save writes it to storage
     void set_ARRC_pol_offset(float offset_deg, bool save);

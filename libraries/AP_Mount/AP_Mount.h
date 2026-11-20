@@ -208,6 +208,9 @@ public:
     // ARRC get gimbal mode (MNT1_ARRC_GMODE)
     uint8_t get_ARRC_gimbal_mode() const { return get_ARRC_gimbal_mode(_primary); }
     uint8_t get_ARRC_gimbal_mode(uint8_t instance) const;
+    // ARRC set MNT1_ARRC_GMODE (0 to 3) for now: the GCS is told, storage keeps the saved value
+    void set_ARRC_gimbal_mode(uint8_t mode) { set_ARRC_gimbal_mode(_primary, mode); }
+    void set_ARRC_gimbal_mode(uint8_t instance, uint8_t mode);
 
     // ARRC rotation of the probe about its boresight in parallel planes (MNT1_ARRC_GMODE 1), degrees from the AUT y
     // axis toward up; not stored, 0 is the plain parallel-planes solution

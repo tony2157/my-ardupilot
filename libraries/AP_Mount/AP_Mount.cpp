@@ -917,6 +917,15 @@ uint8_t AP_Mount::get_ARRC_gimbal_mode(uint8_t instance) const
     return uint8_t(backend->get_ARRC_gimbal_mode());
 }
 
+void AP_Mount::set_ARRC_gimbal_mode(uint8_t instance, uint8_t mode)
+{
+    auto *backend = get_instance(instance);
+    if (backend == nullptr || mode > uint8_t(AP_Mount_Backend::ARRCGimbalMode::VPOL)) {
+        return;
+    }
+    backend->set_ARRC_gimbal_mode(AP_Mount_Backend::ARRCGimbalMode(mode));
+}
+
 void AP_Mount::set_ARRC_parallel_rotation(uint8_t instance, float deg)
 {
     auto *backend = get_instance(instance);
