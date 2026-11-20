@@ -214,6 +214,11 @@ public:
     // errors of the measured attitude (NaN if the gimbal does not report it). False if there is no recent solution
     bool get_ARRC_pointing(Quaternion &q_cmd, float &pointing_err, float &pol_err) const;
 
+    // ARRC rotation of the probe about its boresight in parallel planes (MNT1_ARRC_GMODE 1), from the AUT y axis
+    // toward up, in degrees. Not stored: 0 (the default) is the plain parallel-planes solution
+    void set_ARRC_parallel_rotation(float deg) { _arrc.parallel_rotation_deg = deg; }
+    float get_ARRC_parallel_rotation() const { return _arrc.parallel_rotation_deg; }
+
     // ARRC mode and limit flags (ARRCFlags) of the latest pointing solution, and the polarization error of the
     // measured attitude about the commanded boresight (NaN if the gimbal does not report it). False if there is
     // no recent solution
@@ -455,6 +460,7 @@ protected:
         uint32_t cmd_ms;
         ARRCGimbalMode cmd_mode;    // MNT1_ARRC_GMODE it was computed for
         float cmd_roll, cmd_pitch, cmd_yaw;     // earth-frame 312 Euler angles in radians
+        float parallel_rotation_deg;            // rotation about the boresight in parallel planes (not stored)
     } _arrc {};
 
     AP_Mount    &_frontend; // reference to the front end which holds parameters

@@ -209,6 +209,11 @@ public:
     uint8_t get_ARRC_gimbal_mode() const { return get_ARRC_gimbal_mode(_primary); }
     uint8_t get_ARRC_gimbal_mode(uint8_t instance) const;
 
+    // ARRC rotation of the probe about its boresight in parallel planes (MNT1_ARRC_GMODE 1), degrees from the AUT y
+    // axis toward up; not stored, 0 is the plain parallel-planes solution
+    void set_ARRC_parallel_rotation(float deg) { set_ARRC_parallel_rotation(_primary, deg); }
+    void set_ARRC_parallel_rotation(uint8_t instance, float deg);
+
     // ARRC mode of the latest pointing solution (ArduPilot pointing when the ARRC mode could not be used), its
     // limit flags (ARRC_GIMBAL_FLAGS, plus 8 while slew limited) and the polarization error of the measured attitude
     // about the commanded boresight in degrees (NaN if the gimbal does not report it). False without a recent solution

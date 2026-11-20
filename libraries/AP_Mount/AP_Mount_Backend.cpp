@@ -1304,21 +1304,34 @@ bool AP_Mount_Backend::get_angle_target_to_location(const Location &target, Moun
         break;
 
     case ARRCGimbalMode::PARALLEL:
-        // probe plane parallel to AUT plane
-        pitch = -el;
-        yaw = fixed_yaw;
-        if (pitch < pitch_min || pitch > pitch_max) {
-            pitch = constrain_float(pitch, pitch_min, pitch_max);
-            _arrc.flags |= ARRC_PITCH_LIMIT;
+        if (is_zero(_arrc.parallel_rotation_deg)) {
+            // probe plane parallel to AUT plane
+            pitch = -el;
+            yaw = fixed_yaw;
+            if (pitch < pitch_min || pitch > pitch_max) {
+                pitch = constrain_float(pitch, pitch_min, pitch_max);
+                _arrc.flags |= ARRC_PITCH_LIMIT;
+            }
+            break;
         }
-        break;
+        // turned about the boresight (set_ARRC_parallel_rotation): solved like Hpol from the AUT y axis
+        FALLTHROUGH;
 
     case ARRCGimbalMode::HPOL:
     case ARRCGimbalMode::VPOL: {
-        Vector3d c = a % b;
+        // the boresight: at the AUT (a in the AUT frame, los in NED), or in parallel planes along MNT1_ARRC_AZTH at
+        // pitch -MNT1_ARRC_ELEV whatever the probe position
+        const bool parallel = (_arrc.mode == ARRCGimbalMode::PARALLEL);
+        const Vector3d ab = parallel ? Vector3d{cos(el), 0, -sin(el)} : a;
+        const Vector3d lb = parallel ? Vector3d{cos(el) * cos_az, cos(el) * sin_az, sin(el)} : los;
+        if (parallel) {
+            b = Vector3d{0, 1, 0};
+        }
+        Vector3d c = ab % b;
 
-        // rotate the probe about its boresight by the polarization offset from the gimbal alignment
-        const double pol_offset = _params.ARRC_pol_offset.get() * DEG_TO_RAD;
+        // rotate the probe about its boresight by the polarization offset from the gimbal alignment, or in
+        // parallel planes by the rotation set for it
+        const double pol_offset = (parallel ? _arrc.parallel_rotation_deg : _params.ARRC_pol_offset.get()) * DEG_TO_RAD;
         if (!is_zero(pol_offset)) {
             const double cos_po = cos(pol_offset);
             const double sin_po = sin(pol_offset);
@@ -1341,14 +1354,14 @@ bool AP_Mount_Backend::get_angle_target_to_location(const Location &target, Moun
             s.flags = 0;
             // Euler angles in the gimbal's yaw-roll-pitch (312) axis order
             s.roll = atan2(bk.z, sqrt(bk.x * bk.x + bk.y * bk.y));
-            s.pitch = atan2(a.z, ck.z);
+            s.pitch = atan2(ab.z, ck.z);
             s.yaw = atan2(bk.x, bk.y) + fixed_yaw;
             if (s.roll < roll_min || s.roll > roll_max) {
-                // keep pointing at the AUT with the roll at its limit; polarization is no longer aligned
+                // keep the boresight with the roll at its limit; polarization is no longer aligned
                 s.roll = constrain_float(s.roll, roll_min, roll_max);
-                const float sin_pitch = constrain_float(-los.z / cosf(s.roll), -1.0f, 1.0f);
+                const float sin_pitch = constrain_float(-lb.z / cosf(s.roll), -1.0f, 1.0f);
                 s.pitch = asinf(sin_pitch);
-                s.yaw = atan2f(los.y, los.x) - atan2f(sinf(s.roll) * sin_pitch, cosf(s.pitch));
+                s.yaw = atan2f(lb.y, lb.x) - atan2f(sinf(s.roll) * sin_pitch, cosf(s.pitch));
                 s.flags |= ARRC_ROLL_LIMIT;
             }
             if (s.pitch < pitch_min || s.pitch > pitch_max) {
