@@ -4,9 +4,10 @@
 /*
   ARRC transmit differential phase sweep (MAV_CMD_ARRC_DPHASE)
 
-  In parallel planes (MNT1_ARRC_GMODE 1) the probe faces along the AUT boresight (MNT1_ARRC_AZTH, pitch
-  -MNT1_ARRC_ELEV) and the gimbal turns it about that boresight through the angles -span..+span, and back unless
-  one way (AP_Mount::set_ARRC_parallel_rotation, not stored; MNT1_ARRC_POFF is not used). At each angle it waits
+  The sweep switches the gimbal to parallel planes (MNT1_ARRC_GMODE 1, not saved) and back to its mode at the end:
+  the probe faces along the AUT boresight (MNT1_ARRC_AZTH, pitch -MNT1_ARRC_ELEV) and the gimbal turns it about
+  that boresight through the angles -span..+span, and back unless one way (AP_Mount::set_ARRC_parallel_rotation,
+  not stored; MNT1_ARRC_POFF is not used). A mode set by someone else during the sweep stops it and is kept. At each angle it waits
   for the gimbal to settle, averages the RF power in mW and the polarization error of the gimbal's measured
   attitude about the commanded boresight; the fit uses that measured angle. The three-term fit (arrc_polfit.h) of a
   beam that carries H and V at once gives abs(beta), ZDR_tx and the swing. Every exit sets the rotation back to 0.
@@ -25,6 +26,7 @@ static constexpr uint32_t DPH_FIRST_EXTRA_MS = 2000;    // extra settling for th
 static constexpr uint32_t DPH_ARRIVE_TIMEOUT_MS = 5000; // extra wait for the gimbal to arrive after settling
 static constexpr float DPH_ARRIVE_TOL_DEG = 3;          // measured polarization error accepted to start averaging
 static constexpr uint32_t DPH_SENSOR_TIMEOUT_MS = 1000; // stop if the RF source has no new reading for this long
+static constexpr uint32_t DPH_MODE_GRACE_MS = 1000;     // after the start, time for the parallel-planes solution
 static constexpr uint16_t DPH_MIN_SAMPLES = 5;          // valid readings needed at each angle
 static constexpr int8_t DPH_H_SIGN = -1;                // angle 0 is along -H (see above)
 // readings left out of the average: clipped, samples lost, another waveform averaged in, or transmitting
@@ -47,6 +49,8 @@ static struct {
     // progress
     uint8_t idx;            // current angle
     uint8_t n_done;         // angles averaged
+    uint8_t start_gmode;    // MNT1_ARRC_GMODE before the run, put back at its end
+    uint32_t run_start_ms;  // system time the run started
     uint32_t state_ms;      // system time the state started
     uint32_t last_sample_ms;
     uint32_t last_count;    // RF source reading count at the last reading
@@ -92,7 +96,7 @@ static const char *dph_reason_text(uint8_t reason)
     case ARRC_DPHASE_REASON_COMMAND:
         return "stopped by command";
     case ARRC_DPHASE_REASON_GIMBAL_MODE:
-        return "needs MNT1_ARRC_GMODE 1";
+        return "MNT1_ARRC_GMODE changed/invalid";
     case ARRC_DPHASE_REASON_NO_SOLUTION:
         return "no parallel-planes pointing";
     case ARRC_DPHASE_REASON_LIMIT:
@@ -164,12 +168,23 @@ bool Copter::arrc_dphase_sample(uint32_t &count, float &power_dbm, uint16_t &fla
     return arrc_align_sample(false, count, power_dbm);
 }
 
+// the gimbal mode from before the run, unless someone set another one than parallel planes during it
+void Copter::arrc_dphase_restore_gmode()
+{
+    if (dph.start_gmode != ARRC_GIMBAL_MODE_PARALLEL_PLANES &&
+        camera_mount.get_ARRC_gimbal_mode() == ARRC_GIMBAL_MODE_PARALLEL_PLANES) {
+        camera_mount.set_ARRC_gimbal_mode(dph.start_gmode);
+        GCS_SEND_TEXT(MAV_SEVERITY_INFO, "TX phase: MNT1_ARRC_GMODE back to %u", unsigned(dph.start_gmode));
+    }
+}
+
 void Copter::arrc_dphase_stop(uint8_t reason)
 {
 #if AP_ARRC_SDR_ENABLED
     ARRC_SDR.accum_stop();
 #endif
     camera_mount.set_ARRC_parallel_rotation(0);
+    arrc_dphase_restore_gmode();
     dph.state = ARRC_DPHASE_STATE_STOPPED;
     dph.reason = reason;
     GCS_SEND_TEXT(MAV_SEVERITY_WARNING, "TX phase stopped: %s", dph_reason_text(reason));
@@ -224,13 +239,14 @@ MAV_RESULT Copter::arrc_dphase_command(const mavlink_command_int_t &packet)
     if (!arrc_dphase_vehicle_ok()) {
         return deny(ARRC_DPHASE_REASON_VEHICLE);
     }
-    if (camera_mount.get_ARRC_gimbal_mode() != ARRC_GIMBAL_MODE_PARALLEL_PLANES) {
+    const uint8_t gmode = camera_mount.get_ARRC_gimbal_mode();
+    if (gmode > ARRC_GIMBAL_MODE_VPOL) {
         return deny(ARRC_DPHASE_REASON_GIMBAL_MODE);
     }
+    // pointing at a location (the ROI on the AUT) in any mode; the parallel-planes solution follows the switch
     uint8_t mode, flags;
     float pol_err;
-    if (!camera_mount.get_ARRC_solution(mode, flags, pol_err) || mode != ARRC_GIMBAL_MODE_PARALLEL_PLANES ||
-        (flags & (ARRC_GIMBAL_FLAGS_TOO_CLOSE | ARRC_GIMBAL_FLAGS_PITCH_LIMIT))) {
+    if (!camera_mount.get_ARRC_solution(mode, flags, pol_err) || (flags & ARRC_GIMBAL_FLAGS_TOO_CLOSE)) {
         return deny(ARRC_DPHASE_REASON_NO_SOLUTION);
     }
 
@@ -268,6 +284,12 @@ MAV_RESULT Copter::arrc_dphase_command(const mavlink_command_int_t &packet)
     dph.result = {NaNf, NaNf, NaNf, NaNf, NaNf, false};
     dph.state = ARRC_DPHASE_STATE_MOVING;
     dph.state_ms = AP_HAL::millis();
+    dph.run_start_ms = dph.state_ms;
+    dph.start_gmode = gmode;
+    if (gmode != ARRC_GIMBAL_MODE_PARALLEL_PLANES) {
+        camera_mount.set_ARRC_gimbal_mode(ARRC_GIMBAL_MODE_PARALLEL_PLANES);
+        GCS_SEND_TEXT(MAV_SEVERITY_INFO, "TX phase: MNT1_ARRC_GMODE %u -> 1 for the sweep", unsigned(gmode));
+    }
     camera_mount.set_ARRC_parallel_rotation(dph_angle(0));
     GCS_SEND_TEXT(MAV_SEVERITY_INFO, "TX phase sweep %u: +-%.0f by %.0f, %u angles (%s)", unsigned(dph.run_id),
                   span, step, unsigned(n_steps), sdr ? "SDR" : "LB5900");
@@ -285,14 +307,19 @@ void Copter::arrc_dphase_update()
         arrc_dphase_stop(ARRC_DPHASE_REASON_VEHICLE);
         return;
     }
+    // a mode set by someone else stops the sweep and is kept
     if (camera_mount.get_ARRC_gimbal_mode() != ARRC_GIMBAL_MODE_PARALLEL_PLANES) {
         arrc_dphase_stop(ARRC_DPHASE_REASON_GIMBAL_MODE);
         return;
     }
     uint8_t mode, flags;
     float pol_err;
-    if (!camera_mount.get_ARRC_solution(mode, flags, pol_err) || mode != ARRC_GIMBAL_MODE_PARALLEL_PLANES ||
-        (flags & ARRC_GIMBAL_FLAGS_TOO_CLOSE)) {
+    const bool have = camera_mount.get_ARRC_solution(mode, flags, pol_err);
+    if (!have || mode != ARRC_GIMBAL_MODE_PARALLEL_PLANES || (flags & ARRC_GIMBAL_FLAGS_TOO_CLOSE)) {
+        // right after the switch the latest solution may still be the previous mode's
+        if (AP_HAL::millis() - dph.run_start_ms < DPH_MODE_GRACE_MS) {
+            return;
+        }
         arrc_dphase_stop(ARRC_DPHASE_REASON_NO_SOLUTION);
         return;
     }
@@ -455,6 +482,7 @@ void Copter::arrc_dphase_finish()
         return;
     }
     camera_mount.set_ARRC_parallel_rotation(0);
+    arrc_dphase_restore_gmode();
     dph.result = res;
     dph.fit_r = terms.r;
     dph.flags |= ARRC_DPHASE_FLAGS_RESULT | (res.clamped ? ARRC_DPHASE_FLAGS_COS_CLAMPED : 0);
@@ -507,6 +535,7 @@ void Copter::arrc_dphase_log_result()
 // @Field: St: ARRC_DPHASE_STATE (3 done, 4 stopped)
 // @Field: Rsn: ARRC_DPHASE_REASON why it stopped
 // @Field: N: Angles averaged
+// @Field: GM: MNT1_ARRC_GMODE before the run (put back at its end)
 // @Field: Bet: abs(beta), H to the left and V up seen from behind the radar (180 - Bet with the opposite polarity)
 // @Field: BSd: Standard error of Bet
 // @Field: Zdr: Transmit H to V power ratio at the probe (dB)
@@ -514,13 +543,14 @@ void Copter::arrc_dphase_log_result()
 // @Field: Pk: Probe angle of the fitted peak
 // @Field: R: Correlation coefficient of the fit
 // @Field: Flg: ARRC_DPHASE_FLAGS
-    logger.Write("ARDR", "TimeUS,Run,St,Rsn,N,Bet,BSd,Zdr,Sw,Pk,R,Flg", "s----dd--d--", "F-----------",
-                 "QHBBBffffffH",
+    logger.Write("ARDR", "TimeUS,Run,St,Rsn,N,GM,Bet,BSd,Zdr,Sw,Pk,R,Flg", "s-----dd--d--", "F------------",
+                 "QHBBBBffffffH",
                  AP_HAL::micros64(),
                  dph.run_id,
                  dph.state,
                  dph.reason,
                  dph.n_done,
+                 dph.start_gmode,
                  dph.result.beta_deg,
                  dph.result.sigma_deg,
                  dph.result.zdr_db,

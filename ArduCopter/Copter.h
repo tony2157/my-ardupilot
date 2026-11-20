@@ -317,6 +317,7 @@ private:
     bool arrc_dphase_vehicle_ok() const;
     bool arrc_dphase_sample(uint32_t &count, float &power_dbm, uint16_t &flags, float &weight) const;
     void arrc_dphase_stop(uint8_t reason);
+    void arrc_dphase_restore_gmode();
     void arrc_dphase_finish();
     void arrc_dphase_log_step(uint8_t index);
     void arrc_dphase_log_result();
