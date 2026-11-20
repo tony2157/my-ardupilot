@@ -213,7 +213,7 @@ const AP_Param::GroupInfo AP_Mount_Params::var_info[] = {
 
     // @Param: _ARRC_POFF
     // @DisplayName: ARRC polarization offset
-    // @Description: Rotation of the probe about its boresight applied in modes 2 and 3. Set by the gimbal alignment (aux switch) and kept across reboots; the switch clears it to 0
+    // @Description: Rotation of the probe about its boresight applied in modes 2 and 3. The gimbal alignment (aux switch) suggests a value in a GCS message; the user writes it. Not used in mode 1
     // @Units: deg
     // @Range: -90 90
     // @Increment: .01

@@ -4,10 +4,11 @@
 // ARRC gimbal alignment
 // Rotates the probe about its boresight from -ALIGN_HALF_SPAN_DEG to +ALIGN_HALF_SPAN_DEG, averages the received
 // power at each angle step and fits the polarization loss (see arrc_polfit.h) to find the rotation that aligns the
-// probe polarization with the AUT. The result is saved in MNT1_ARRC_POFF; a failed or stopped alignment puts back
-// the offset it started from. The power comes from the RF source in use when it starts: the SDR (co-polar power)
-// while it is detected and an RF source, otherwise the LB5900. Aux switch 1 (RCx_OPTION 47) high starts it while
-// MNT1_ARRC_GMODE is 2 (Hpol) or 3 (Vpol); low stops it and clears the offset
+// probe polarization with the AUT. The result is only suggested: MNT1_ARRC_POFF goes back to the offset it started
+// from (the scan never saves it) and the user decides whether to write the suggested value. Each averaged angle and
+// the result are sent as GCS text and logged (ARAL, ARAR). The power comes from the RF source in use when it starts:
+// the SDR (co-polar power) while it is detected and an RF source, otherwise the LB5900. Aux switch 1 (RCx_OPTION 47)
+// high starts it while MNT1_ARRC_GMODE is 2 (Hpol) or 3 (Vpol); low stops it
 static constexpr int8_t ALIGN_HALF_SPAN_DEG = 32;           // scan from -32 to +32 degrees
 static constexpr uint8_t ALIGN_STEP_DEG = 8;                // angle step
 static constexpr uint8_t ALIGN_NUM_STEPS = 2 * ALIGN_HALF_SPAN_DEG / ALIGN_STEP_DEG + 1;
@@ -142,8 +143,28 @@ void Copter::user_ARRC_gimbal()
             return;
         }
 
-        // Average the collected power measurements
+        // Average the collected power measurements; report and log the angle
         gimbal_align.power_mw[gimbal_align.step] = gimbal_align.power_sum_mw / gimbal_align.num_samples;
+        {
+            const float p_dbm = 10.0f * log10f(gimbal_align.power_mw[gimbal_align.step]);
+            GCS_SEND_TEXT(MAV_SEVERITY_INFO, "Gimbal align %u/%u: POFF %+.0f, %.2f dBm", unsigned(gimbal_align.step + 1),
+                          unsigned(ALIGN_NUM_STEPS), gimbal_align.angle_deg[gimbal_align.step], p_dbm);
+#if HAL_LOGGING_ENABLED
+// @LoggerMessage: ARAL
+// @Description: ARRC gimbal alignment: one averaged angle
+// @Field: TimeUS: Time since system startup
+// @Field: Stp: Angle index
+// @Field: POff: Polarization offset of the angle (MNT1_ARRC_POFF during the scan)
+// @Field: P: Mean power (dBm, averaged in mW)
+// @Field: N: Power readings averaged
+            logger.Write("ARAL", "TimeUS,Stp,POff,P,N", "s-d--", "F----", "QBffI",
+                         AP_HAL::micros64(),
+                         gimbal_align.step,
+                         gimbal_align.angle_deg[gimbal_align.step],
+                         p_dbm,
+                         gimbal_align.num_samples);
+#endif
+        }
 
         // Rotate the gimbal to the next angle step
         gimbal_align.step++;
@@ -154,7 +175,7 @@ void Copter::user_ARRC_gimbal()
             return;
         }
 
-        // All angle steps done: fit the polarization loss and apply the resultant offset if it is well determined
+        // All angle steps done: fit the polarization loss and suggest the offset if it is well determined
         float angle_offset = 0;
         float corr = 0;
         float sigma = 0;
@@ -163,6 +184,21 @@ void Copter::user_ARRC_gimbal()
             abort_alignment("no power variation");
             return;
         }
+#if HAL_LOGGING_ENABLED
+// @LoggerMessage: ARAR
+// @Description: ARRC gimbal alignment: result of the fit (a suggestion, MNT1_ARRC_POFF is not changed)
+// @Field: TimeUS: Time since system startup
+// @Field: POff: Fitted offset that aligns the probe with the AUT
+// @Field: Sd: Standard error of POff
+// @Field: R: Correlation coefficient of the fit
+// @Field: Ok: 1 if suggested, 0 if rejected (peak outside the scan or too uncertain)
+        logger.Write("ARAR", "TimeUS,POff,Sd,R,Ok", "sdd--", "F----", "QfffB",
+                     AP_HAL::micros64(),
+                     angle_offset,
+                     sigma,
+                     corr,
+                     uint8_t(fabsf(angle_offset) <= ALIGN_HALF_SPAN_DEG && sigma <= ALIGN_MAX_SIGMA_DEG));
+#endif
         // a peak outside the scan is extrapolated, e.g. the +-45 deg axis of a radar transmitting H and V at once
         if (fabsf(angle_offset) > ALIGN_HALF_SPAN_DEG) {
             GCS_SEND_TEXT(MAV_SEVERITY_WARNING, "Gimbal alignment: peak %.1f deg outside +-%d", angle_offset,
@@ -175,10 +211,11 @@ void Copter::user_ARRC_gimbal()
             abort_alignment("offset too uncertain");
             return;
         }
+        // only a suggestion: the offset goes back to its value from before the scan, the user writes POFF
         gimbal_align.state = AlignState::IDLE;
-        camera_mount.set_ARRC_pol_offset(angle_offset, true);
-        GCS_SEND_TEXT(MAV_SEVERITY_INFO, "Gimbal alignment correction: %.2f deg", angle_offset);
-        GCS_SEND_TEXT(MAV_SEVERITY_INFO, "Gimbal alignment success: +-%.2f deg, R = %.3f", sigma, corr);
+        camera_mount.set_ARRC_pol_offset(gimbal_align.start_offset_deg, false);
+        GCS_SEND_TEXT(MAV_SEVERITY_INFO, "Gimbal alignment: POFF %.2f +-%.2f R %.3f", angle_offset, sigma, corr);
+        GCS_SEND_TEXT(MAV_SEVERITY_INFO, "Gimbal alignment: not saved, write POFF to apply");
         break;
     }
     }
@@ -451,7 +488,7 @@ void Copter::userhook_SuperSlowLoop()
 void Copter::userhook_auxSwitch1(const RC_Channel::AuxSwitchPos ch_flag)
 {
     // put your aux switch #1 handler here (CHx_OPT = 47)
-    // ARRC gimbal alignment: high starts it, low stops it (if running) and clears the polarization offset
+    // ARRC gimbal alignment: high starts it, low stops it (if running); MNT1_ARRC_POFF is left to the user
 #if HAL_MOUNT_ENABLED
     switch (ch_flag) {
     case RC_Channel::AuxSwitchPos::HIGH: {
@@ -493,12 +530,12 @@ void Copter::userhook_auxSwitch1(const RC_Channel::AuxSwitchPos ch_flag)
         break;
     }
     case RC_Channel::AuxSwitchPos::LOW:
+        // stops a running alignment; MNT1_ARRC_POFF is only changed by the user
         if (gimbal_align.state != AlignState::IDLE) {
+            camera_mount.set_ARRC_pol_offset(gimbal_align.start_offset_deg, false);
             gimbal_align.state = AlignState::IDLE;
             GCS_SEND_TEXT(MAV_SEVERITY_INFO, "Gimbal alignment stopped");
         }
-        camera_mount.set_ARRC_pol_offset(0.0f, true);
-        GCS_SEND_TEXT(MAV_SEVERITY_INFO, "Gimbal polarization offset cleared");
         break;
     case RC_Channel::AuxSwitchPos::MIDDLE:
         break;
