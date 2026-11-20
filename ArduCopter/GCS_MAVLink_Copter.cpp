@@ -417,6 +417,19 @@ bool GCS_MAVLINK_Copter::try_send_message(enum ap_message id)
         break;
 #endif  // AP_ARRC_SDR_ENABLED
 
+#if HAL_MOUNT_ENABLED
+    // transmit differential phase sweep: the status at the link's interval and on changes, each averaged angle once
+    case MSG_ARRC_DPHASE_STATUS:
+        CHECK_PAYLOAD_SIZE(ARRC_DPHASE_STATUS);
+        copter.arrc_dphase_send_status(chan);
+        break;
+
+    case MSG_ARRC_DPHASE_STEP:
+        CHECK_PAYLOAD_SIZE(ARRC_DPHASE_STEP);
+        IGNORE_RETURN(copter.arrc_dphase_send_step(chan, UINT32_MAX));
+        break;
+#endif
+
     default:
         return GCS_MAVLINK::try_send_message(id);
     }
@@ -589,6 +602,21 @@ MAV_RESULT GCS_MAVLINK_Copter::handle_command_int_packet(const mavlink_command_i
 
     case MAV_CMD_DO_MOTOR_TEST:
         return handle_MAV_CMD_DO_MOTOR_TEST(packet);
+
+#if HAL_MOUNT_ENABLED
+    case MAV_CMD_ARRC_DPHASE:
+        return copter.arrc_dphase_command(packet);
+
+    case MAV_CMD_REQUEST_MESSAGE:
+        // an averaged angle of the phase sweep by index (param2)
+        if (uint32_t(packet.param1) == MAVLINK_MSG_ID_ARRC_DPHASE_STEP) {
+            if (!(packet.param2 >= 0)) {
+                return MAV_RESULT_DENIED;
+            }
+            return copter.arrc_dphase_send_step(chan, uint32_t(packet.param2)) ? MAV_RESULT_ACCEPTED : MAV_RESULT_FAILED;
+        }
+        return GCS_MAVLINK::handle_command_int_packet(packet, msg);
+#endif
 
     case MAV_CMD_NAV_TAKEOFF:
     case MAV_CMD_NAV_VTOL_TAKEOFF:

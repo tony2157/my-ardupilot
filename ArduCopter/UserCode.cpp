@@ -68,10 +68,16 @@ bool Copter::arrc_align_sample(bool sdr, uint32_t &count, float &power_dbm) cons
 #endif
 }
 
+bool Copter::arrc_align_running() const
+{
+    return gimbal_align.state != AlignState::IDLE;
+}
+
 #ifdef USER_GIMBAL_LOOP
 void Copter::user_ARRC_gimbal()
 {
 #if HAL_MOUNT_ENABLED
+    arrc_dphase_update();
     if (gimbal_align.state == AlignState::IDLE) {
         return;
     }
@@ -452,6 +458,10 @@ void Copter::userhook_auxSwitch1(const RC_Channel::AuxSwitchPos ch_flag)
         if (gimbal_align.state != AlignState::IDLE) {
             return;
         }
+        if (arrc_dphase_running()) {
+            GCS_SEND_TEXT(MAV_SEVERITY_WARNING, "Gimbal alignment: TX phase sweep running");
+            return;
+        }
         const uint8_t gimbal_mode = camera_mount.get_ARRC_gimbal_mode();
         if (gimbal_mode != 2 && gimbal_mode != 3) {
             GCS_SEND_TEXT(MAV_SEVERITY_WARNING, "Gimbal alignment needs MNT1_ARRC_GMODE 2 or 3");
@@ -483,6 +493,11 @@ void Copter::userhook_auxSwitch1(const RC_Channel::AuxSwitchPos ch_flag)
         break;
     }
     case RC_Channel::AuxSwitchPos::LOW:
+        // the phase sweep owns the offset while it runs and puts it back at its end
+        if (arrc_dphase_running()) {
+            GCS_SEND_TEXT(MAV_SEVERITY_WARNING, "Gimbal offset kept: TX phase sweep running");
+            return;
+        }
         if (gimbal_align.state != AlignState::IDLE) {
             gimbal_align.state = AlignState::IDLE;
             GCS_SEND_TEXT(MAV_SEVERITY_INFO, "Gimbal alignment stopped");

@@ -305,6 +305,22 @@ private:
     uint8_t arrc_mavlink1_reported;     // channels already reported
     // latest RF power of the SDR (co-polar) or the LB5900 for the gimbal alignment; count changes with each sample
     bool arrc_align_sample(bool sdr, uint32_t &count, float &power_dbm) const;
+    bool arrc_align_running() const;
+#if HAL_MOUNT_ENABLED
+    // ARRC transmit differential phase sweep (arrc_dphase.cpp, MAV_CMD_ARRC_DPHASE)
+    MAV_RESULT arrc_dphase_command(const mavlink_command_int_t &packet);
+    void arrc_dphase_update();
+    bool arrc_dphase_running() const;
+    void arrc_dphase_send_status(mavlink_channel_t chan) const;
+    // send an averaged angle of the current or last run (index UINT32_MAX: the latest); false if there is none
+    bool arrc_dphase_send_step(mavlink_channel_t chan, uint32_t index) const;
+    bool arrc_dphase_vehicle_ok() const;
+    bool arrc_dphase_sample(uint32_t &count, float &power_dbm, uint16_t &flags, float &weight) const;
+    void arrc_dphase_stop(uint8_t reason);
+    void arrc_dphase_finish();
+    void arrc_dphase_log_step(uint8_t index);
+    void arrc_dphase_log_result();
+#endif
     bool arrc_lb5900_latched_off;   // LB5900 disabled in AUTO after the SDR was detected
     bool arrc_was_armed;            // armed state at the last SDR update
     bool arrc_was_failsafe;         // failsafe state at the last SDR update
