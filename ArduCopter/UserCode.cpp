@@ -157,6 +157,13 @@ void Copter::user_ARRC_gimbal()
             abort_alignment("no power variation");
             return;
         }
+        // a peak outside the scan is extrapolated, e.g. the +-45 deg axis of a radar transmitting H and V at once
+        if (fabsf(angle_offset) > ALIGN_HALF_SPAN_DEG) {
+            GCS_SEND_TEXT(MAV_SEVERITY_WARNING, "Gimbal alignment: peak %.1f deg outside +-%d", angle_offset,
+                          int(ALIGN_HALF_SPAN_DEG));
+            abort_alignment("peak outside the scan");
+            return;
+        }
         if (sigma > ALIGN_MAX_SIGMA_DEG) {
             GCS_SEND_TEXT(MAV_SEVERITY_WARNING, "Gimbal alignment: %.1f deg +-%.1f, R %.3f", angle_offset, sigma, corr);
             abort_alignment("offset too uncertain");
