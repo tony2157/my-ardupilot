@@ -62,6 +62,17 @@ bool AP_Mount_MAVLink::healthy() const
 bool AP_Mount_MAVLink::get_attitude_quaternion(Quaternion& att_quat)
 {
     att_quat = _gimbal_device_attitude_status.q;
+    // ARRC: the callers take the yaw as relative to the vehicle heading. A gimbal asked for an earth-frame yaw
+    // (send_target_angles) reports its yaw in the earth frame: take the vehicle heading out
+    if (_gimbal_device_attitude_status.flags & GIMBAL_DEVICE_FLAGS_YAW_IN_EARTH_FRAME) {
+        const float len = att_quat.length();
+        if (isfinite(len) && fabsf(len - 1.0f) <= 0.1f) {
+            Quaternion q_vehicle_yaw;
+            q_vehicle_yaw.from_euler(0, 0, AP::ahrs().get_yaw());
+            att_quat = q_vehicle_yaw.inverse() * att_quat;
+            att_quat.normalize();
+        }
+    }
     return true;
 }
 
@@ -299,7 +310,11 @@ void AP_Mount_MAVLink::send_target_rates(const MountRateTarget &rate_rads)
     const bool earth_frame = rate_rads.yaw_is_ef;
 
     // prepare flags
-    const uint16_t flags = earth_frame ? (GIMBAL_DEVICE_FLAGS_ROLL_LOCK | GIMBAL_DEVICE_FLAGS_PITCH_LOCK | GIMBAL_DEVICE_FLAGS_YAW_LOCK) : 0;
+    // ARRC: YAW_IN_EARTH_FRAME says the yaw of this message is from north, and asks the gimbal to report its yaw in
+    // that frame too. Without it the Gremsy T7 reports its pan joint angle as the yaw "in the vehicle frame", which
+    // is not the yaw relative to the vehicle heading once the vehicle is tilted and the payload rolled
+    const uint16_t flags = earth_frame ? (GIMBAL_DEVICE_FLAGS_ROLL_LOCK | GIMBAL_DEVICE_FLAGS_PITCH_LOCK |
+                                          GIMBAL_DEVICE_FLAGS_YAW_LOCK | GIMBAL_DEVICE_FLAGS_YAW_IN_EARTH_FRAME) : 0;
 
     const mavlink_gimbal_device_set_attitude_t pkt {
         {NAN, NAN, NAN, NAN},  // attitude
@@ -328,7 +343,11 @@ void AP_Mount_MAVLink::send_target_angles(const MountAngleTarget &angle_rad)
     }
 
     // prepare flags
-    const uint16_t flags = earth_frame ? (GIMBAL_DEVICE_FLAGS_ROLL_LOCK | GIMBAL_DEVICE_FLAGS_PITCH_LOCK | GIMBAL_DEVICE_FLAGS_YAW_LOCK) : 0;
+    // ARRC: YAW_IN_EARTH_FRAME says the yaw of this message is from north, and asks the gimbal to report its yaw in
+    // that frame too. Without it the Gremsy T7 reports its pan joint angle as the yaw "in the vehicle frame", which
+    // is not the yaw relative to the vehicle heading once the vehicle is tilted and the payload rolled
+    const uint16_t flags = earth_frame ? (GIMBAL_DEVICE_FLAGS_ROLL_LOCK | GIMBAL_DEVICE_FLAGS_PITCH_LOCK |
+                                          GIMBAL_DEVICE_FLAGS_YAW_LOCK | GIMBAL_DEVICE_FLAGS_YAW_IN_EARTH_FRAME) : 0;
 
     // convert euler angles to quaternion
     // ARRC mod: the angles are yaw-roll-pitch (312), the gimbal's axis order and the order the ARRC angles are
