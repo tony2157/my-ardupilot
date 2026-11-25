@@ -16,6 +16,12 @@
   Convention: the angle turns the probe from the AUT y axis, to the right seen from behind the radar looking along
   the beam, toward up. beta is given with H to the left and V up seen from behind the radar, so angle 0 is along -H
   (h_sign -1); with the opposite polarity of H or V it is 180 - beta.
+
+  Probe orientation: the fit needs the angle of the probe's polarization, and the gimbal only knows its own roll.
+  The command says how the probe is mounted (ARRC_DPHASE_OPTIONS_PROBE_H or PROBE_V: its polarization at angle 0).
+  A vertical probe is 90 deg further round, so the fit takes the angle plus 90 deg and beta and ZDR_tx come out for
+  the probe as mounted. With neither option the result assumes a horizontal probe, as before, and both candidates
+  are printed.
 */
 
 #if HAL_MOUNT_ENABLED
@@ -50,6 +56,7 @@ static struct {
     uint8_t idx;            // current angle
     uint8_t n_done;         // angles averaged
     uint8_t start_gmode;    // MNT1_ARRC_GMODE before the run, put back at its end
+    float probe_deg;        // angle of the probe's polarization at gimbal angle 0: 0 horizontal, 90 vertical
     uint32_t run_start_ms;  // system time the run started
     uint32_t state_ms;      // system time the state started
     uint32_t last_sample_ms;
@@ -232,6 +239,12 @@ MAV_RESULT Copter::arrc_dphase_command(const mavlink_command_int_t &packet)
     if (n_one_way < 4 || n_steps > DPH_MAX_STEPS) {
         return deny(ARRC_DPHASE_REASON_SETTINGS);
     }
+    // the probe is mounted one way or the other
+    const bool probe_h = (options & ARRC_DPHASE_OPTIONS_PROBE_H) != 0;
+    const bool probe_v = (options & ARRC_DPHASE_OPTIONS_PROBE_V) != 0;
+    if (probe_h && probe_v) {
+        return deny(ARRC_DPHASE_REASON_SETTINGS);
+    }
 
     if (arrc_align_running()) {
         return deny(ARRC_DPHASE_REASON_ALIGNMENT);
@@ -276,7 +289,9 @@ MAV_RESULT Copter::arrc_dphase_command(const mavlink_command_int_t &packet)
     dph.dwell = uint8_t(dwell);
     dph.n_one_way = uint8_t(n_one_way);
     dph.n_steps = uint8_t(n_steps);
-    dph.flags = (sdr ? ARRC_DPHASE_FLAGS_SDR : 0) | ((options & ARRC_DPHASE_OPTIONS_ONE_WAY) ? ARRC_DPHASE_FLAGS_ONE_WAY : 0);
+    dph.flags = (sdr ? ARRC_DPHASE_FLAGS_SDR : 0) | ((options & ARRC_DPHASE_OPTIONS_ONE_WAY) ? ARRC_DPHASE_FLAGS_ONE_WAY : 0) |
+                (probe_h ? ARRC_DPHASE_FLAGS_PROBE_H : 0) | (probe_v ? ARRC_DPHASE_FLAGS_PROBE_V : 0);
+    dph.probe_deg = probe_v ? 90.0f : 0.0f;
     dph.reason = ARRC_DPHASE_REASON_NONE;
     dph.idx = 0;
     dph.n_done = 0;
@@ -293,6 +308,9 @@ MAV_RESULT Copter::arrc_dphase_command(const mavlink_command_int_t &packet)
     camera_mount.set_ARRC_parallel_rotation(dph_angle(0));
     GCS_SEND_TEXT(MAV_SEVERITY_INFO, "TX phase sweep %u: +-%.0f by %.0f, %u angles (%s)", unsigned(dph.run_id),
                   span, step, unsigned(n_steps), sdr ? "SDR" : "LB5900");
+    if (probe_h || probe_v) {
+        GCS_SEND_TEXT(MAV_SEVERITY_INFO, "TX phase: probe %s at angle 0", probe_v ? "V" : "H");
+    }
     dph_push(MSG_ARRC_DPHASE_STATUS);
     return MAV_RESULT_ACCEPTED;
 }
@@ -466,12 +484,12 @@ void Copter::arrc_dphase_update()
 
 void Copter::arrc_dphase_finish()
 {
-    // the measured angle about the boresight, else the commanded one
+    // the measured angle about the boresight, else the commanded one, turned to the angle of the probe's polarization
     float psi[DPH_MAX_STEPS];
     float power_mw[DPH_MAX_STEPS];
     for (uint8_t i = 0; i < dph.n_steps; i++) {
         const auto &s = dph.steps[i];
-        psi[i] = isfinite(s.psi_meas) ? s.psi_meas : s.psi;
+        psi[i] = (isfinite(s.psi_meas) ? s.psi_meas : s.psi) + dph.probe_deg;
         power_mw[i] = powf(10.0f, 0.1f * s.power_dbm);
     }
     ARRC_PolFitTerms terms;
@@ -481,14 +499,27 @@ void Copter::arrc_dphase_finish()
         arrc_dphase_stop(ARRC_DPHASE_REASON_FIT);
         return;
     }
+    // the peak is reported as a gimbal angle
+    res.peak_deg = wrap_180(res.peak_deg - dph.probe_deg);
+    if (res.peak_deg > 90.0f) {
+        res.peak_deg -= 180.0f;
+    } else if (res.peak_deg <= -90.0f) {
+        res.peak_deg += 180.0f;
+    }
     camera_mount.set_ARRC_parallel_rotation(0);
     arrc_dphase_restore_gmode();
     dph.result = res;
     dph.fit_r = terms.r;
     dph.flags |= ARRC_DPHASE_FLAGS_RESULT | (res.clamped ? ARRC_DPHASE_FLAGS_COS_CLAMPED : 0);
     dph.state = ARRC_DPHASE_STATE_DONE;
-    GCS_SEND_TEXT(MAV_SEVERITY_INFO, "TX phase: |b| %.1f +-%.1f deg (or %.1f)", res.beta_deg, res.sigma_deg,
-                  180.0f - res.beta_deg);
+    if (dph.flags & (ARRC_DPHASE_FLAGS_PROBE_H | ARRC_DPHASE_FLAGS_PROBE_V)) {
+        GCS_SEND_TEXT(MAV_SEVERITY_INFO, "TX phase: |b| %.1f +-%.1f deg (probe %s)", res.beta_deg, res.sigma_deg,
+                      (dph.flags & ARRC_DPHASE_FLAGS_PROBE_V) ? "V" : "H");
+    } else {
+        // probe orientation not given: a horizontal probe is assumed; for a vertical one it is the other value
+        GCS_SEND_TEXT(MAV_SEVERITY_INFO, "TX phase: |b| %.1f +-%.1f deg (or %.1f)", res.beta_deg, res.sigma_deg,
+                      180.0f - res.beta_deg);
+    }
     GCS_SEND_TEXT(MAV_SEVERITY_INFO, "TX phase: ZDRtx %.2f dB, swing %.1f dB, R %.3f", res.zdr_db, res.swing_db,
                   terms.r);
     arrc_dphase_log_result();
@@ -542,7 +573,7 @@ void Copter::arrc_dphase_log_result()
 // @Field: Sw: Peak to null ratio of the fitted curve (dB)
 // @Field: Pk: Probe angle of the fitted peak
 // @Field: R: Correlation coefficient of the fit
-// @Field: Flg: ARRC_DPHASE_FLAGS
+// @Field: Flg: ARRC_DPHASE_FLAGS (128 / 256: the result is for a probe that is horizontal / vertical at angle 0)
     logger.Write("ARDR", "TimeUS,Run,St,Rsn,N,GM,Bet,BSd,Zdr,Sw,Pk,R,Flg", "s-----dd--d--", "F------------",
                  "QHBBBBffffffH",
                  AP_HAL::micros64(),
