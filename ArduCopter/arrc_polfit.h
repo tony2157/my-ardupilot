@@ -16,6 +16,10 @@
   D = (E_h^2 + E_v^2)/2, B = (E_h^2 - E_v^2)/2 and A = E_h*E_v*cos(beta), so cos(beta) = A/sqrt(D^2 - B^2). The
   power never shows the sign of sin(beta): only abs(beta) follows (ARRC_tx_diff_phase).
 
+  Three terms is the exact law of an ideal probe. A response of the installed probe that changes with its roll, like
+  1 + a*cos(2*psi), multiplies that curve and adds sin(4*psi) and cos(4*psi) terms. ARRC_fit_polarization_terms_4psi
+  fits them too, so that they do not bias D, A and B; beta still comes from D, A and B.
+
   Has no ArduPilot dependencies so it can be tested on its own.
 */
 
@@ -147,6 +151,140 @@ inline bool ARRC_fit_polarization_terms(const float *phi_deg, const float *power
     const double r2 = (ss_tot > 1e-12) ? 1.0 - ss_res / ss_tot : 0.0;
     t.r = (r2 > 0) ? sqrtf(float(r2)) : 0.0f;
     return true;
+}
+
+/*
+  The three terms plus C*sin(4*phi) + E*cos(4*phi), by least squares on the relative error: each sample is weighted by
+  1/power, which is the fit of the power in dB to first order and gives the null of the sweep the same say as the
+  peak. One linear solve of five equations.
+
+  phi_deg, power, n: as ARRC_fit_polarization_terms; at least 7 distinct angles spread over 90 deg or more, or the
+           terms are poorly separated (the caller checks the sweep)
+  t:       D, A and B with the 3x3 part of the covariance that belongs to them and the variance of the relative
+           residuals (n - 5 degrees of freedom), ready for ARRC_tx_diff_phase; r is that of the weighted residuals
+  c4, e4:  the sin(4*phi) and cos(4*phi) terms in units of t.p_max
+  returns false if a power is not positive and finite, or the fit is singular
+*/
+inline bool ARRC_fit_polarization_terms_4psi(const float *phi_deg, const float *power, uint8_t n, ARRC_PolFitTerms &t,
+                                             double &c4, double &e4)
+{
+    const uint8_t NT = 5;
+    if (n < NT + 2) {
+        return false;
+    }
+    double p_max = 0;
+    for (uint8_t i = 0; i < n; i++) {
+        if (!(power[i] > 0) || !isfinite(power[i])) {
+            return false;
+        }
+        if (power[i] > p_max) {
+            p_max = power[i];
+        }
+    }
+
+    // weighted normal equations: rows and power divided by the power, floored 40 dB under the largest sample
+    double m[NT][NT] {};
+    double v[NT] {};
+    for (uint8_t i = 0; i < n; i++) {
+        const double two_phi = 2.0 * phi_deg[i] * (M_PI / 180.0);
+        const double x[NT] {1.0, sin(two_phi), cos(two_phi), sin(2 * two_phi), cos(2 * two_phi)};
+        const double p = power[i] / p_max;
+        const double w = 1.0 / ((p > 1e-4) ? p : 1e-4);
+        for (uint8_t j = 0; j < NT; j++) {
+            for (uint8_t k = 0; k < NT; k++) {
+                m[j][k] += w * w * x[j] * x[k];
+            }
+            v[j] += w * w * x[j] * p;
+        }
+    }
+
+    // invert by Gauss-Jordan elimination with partial pivoting
+    double inv[NT][NT] {};
+    for (uint8_t j = 0; j < NT; j++) {
+        inv[j][j] = 1;
+    }
+    for (uint8_t col = 0; col < NT; col++) {
+        uint8_t pivot = col;
+        for (uint8_t row = col + 1; row < NT; row++) {
+            if (fabs(m[row][col]) > fabs(m[pivot][col])) {
+                pivot = row;
+            }
+        }
+        if (fabs(m[pivot][col]) < 1e-9 * n) {
+            return false;
+        }
+        if (pivot != col) {
+            for (uint8_t k = 0; k < NT; k++) {
+                double tmp = m[col][k];
+                m[col][k] = m[pivot][k];
+                m[pivot][k] = tmp;
+                tmp = inv[col][k];
+                inv[col][k] = inv[pivot][k];
+                inv[pivot][k] = tmp;
+            }
+        }
+        const double d = m[col][col];
+        for (uint8_t k = 0; k < NT; k++) {
+            m[col][k] /= d;
+            inv[col][k] /= d;
+        }
+        for (uint8_t row = 0; row < NT; row++) {
+            if (row == col) {
+                continue;
+            }
+            const double f = m[row][col];
+            for (uint8_t k = 0; k < NT; k++) {
+                m[row][k] -= f * m[col][k];
+                inv[row][k] -= f * inv[col][k];
+            }
+        }
+    }
+    double coef[NT];
+    for (uint8_t j = 0; j < NT; j++) {
+        coef[j] = 0;
+        for (uint8_t k = 0; k < NT; k++) {
+            coef[j] += inv[j][k] * v[k];
+        }
+    }
+    t.D = coef[0];
+    t.A = coef[1];
+    t.B = coef[2];
+    c4 = coef[3];
+    e4 = coef[4];
+    for (uint8_t j = 0; j < 3; j++) {
+        for (uint8_t k = 0; k < 3; k++) {
+            t.inv[j][k] = inv[j][k];
+        }
+    }
+    t.p_max = p_max;
+
+    // goodness of fit, of the relative residuals
+    double mean = 0;
+    double sum_w2 = 0;
+    for (uint8_t i = 0; i < n; i++) {
+        const double p = power[i] / p_max;
+        const double w = 1.0 / ((p > 1e-4) ? p : 1e-4);
+        mean += w * w * p;
+        sum_w2 += w * w;
+    }
+    mean /= sum_w2;
+    double ss_tot = 0;
+    double ss_res = 0;
+    for (uint8_t i = 0; i < n; i++) {
+        const double two_phi = 2.0 * phi_deg[i] * (M_PI / 180.0);
+        const double p = power[i] / p_max;
+        const double w = 1.0 / ((p > 1e-4) ? p : 1e-4);
+        const double fit = coef[0] + coef[1] * sin(two_phi) + coef[2] * cos(two_phi) + coef[3] * sin(2 * two_phi) +
+                           coef[4] * cos(2 * two_phi);
+        ss_tot += w * w * (p - mean) * (p - mean);
+        ss_res += w * w * (p - fit) * (p - fit);
+    }
+    t.ss_tot = ss_tot;
+    t.ss_res = ss_res;
+    t.s2 = ss_res / (n - NT);
+    const double r2 = (ss_tot > 1e-12) ? 1.0 - ss_res / ss_tot : 0.0;
+    t.r = (r2 > 0) ? sqrtf(float(r2)) : 0.0f;
+    return isfinite(t.D) && isfinite(t.A) && isfinite(t.B) && isfinite(c4) && isfinite(e4);
 }
 
 /*

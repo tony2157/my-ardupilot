@@ -77,6 +77,13 @@ const AP_Param::GroupInfo UserParameters::var_info[] = {
     // @Increment: 0.5
     // @User: Advanced
     AP_GROUPINFO("_SDR_TOUT", 7, UserParameters, sdr_timeout, 3),
+
+    // @Param: _TXDIFFX_OPT
+    // @DisplayName: TX differential phase sweep fit
+    // @Description: Fit of the transmit differential phase sweep (MAV_CMD_ARRC_DPHASE) when the command does not choose one (ARRC_DPHASE_OPTIONS_FIT_3TERM or FIT_4PSI; Ludifly always chooses). The fit with the 4 psi terms adds sin(4 psi) and cos(4 psi) to the three terms D + A sin(2 psi) + B cos(2 psi), which takes up a response of the installed probe that changes with its roll; a sweep narrower than +-45 deg or with fewer than 7 angles is fitted with three terms whatever this says.
+    // @Values: 0:With the 4 psi terms,1:Three terms
+    // @User: Standard
+    AP_GROUPINFO("_TXDIFFX_OPT", 8, UserParameters, txdiff_fit, 0),
     
     AP_GROUPEND
 };

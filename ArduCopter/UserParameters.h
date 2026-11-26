@@ -25,6 +25,9 @@ public:
     int8_t get_rf_src() const { return rf_src; }
     int16_t get_sdr_options() const { return sdr_options; }
     float get_sdr_timeout() const { return sdr_timeout; }
+
+    // ARRC transmit differential phase sweep: 0 fit with the 4 psi terms, 1 three terms
+    int8_t get_txdiff_fit() const { return txdiff_fit; }
     
 private:
     // Put your parameter variable definitions here
@@ -43,4 +46,7 @@ private:
     AP_Int8 rf_src;
     AP_Int16 sdr_options;
     AP_Float sdr_timeout;
+
+    // ARRC transmit differential phase sweep
+    AP_Int8 txdiff_fit;
 };
