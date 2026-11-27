@@ -176,3 +176,4 @@ autotest_result_*_junit.xml
 
 # Claude Code personal settings
 .claude/settings.local.json
+.claude/
