@@ -37,6 +37,28 @@ GZ_SIM_SYSTEM_PLUGIN_PATH=~/Github/ardupilot_gazebo-RadarSim/build:$GZ_SIM_SYSTE
 ~/Github/my-ardupilot/RFSonde-sim/tools/rfsonde_radarsim.sh --beam -10,3 --gui
 ```
 
+Or all of it from one terminal (instance 0): Gazebo with the RadarSim plugins, `rfsonde_sitl.sh` with the RTK
+profile, `radarsim.parm` and no accuracy squares, then `rfsonde_radarsim.sh` with the radar GUI. The logs go to
+`~/.cache/rfsonde/radarsim_I0/` (`gz.log`, `sitl.log`, `launcher.log`, `stop.log`).
+
+```bash
+~/Github/my-ardupilot/RFSonde-sim/tools/rfsonde_radarsim_all.sh --beam -10,3
+# options: --beam AZ,EL  --gain DB  --scenario FILE  --no-gui  --gps PROFILE  --squares  --headless  --world FILE
+# and any rfsonde_sitl.sh / sim_vehicle.py option (e.g. -N: no rebuild); --help lists them
+~/Github/my-ardupilot/RFSonde-sim/tools/rfsonde_radarsim_all.sh --stop   # from another terminal
+```
+
+It stops everything it started when you press Ctrl+C, close its terminal, close the Gazebo window, the radar GUI
+or the ArduCopter window, when the T7 twin or another part ends, or on `--stop`: the radar and the companion first
+(they close their files), then SITL, the twin and Gazebo, with SIGKILL for what is left after 10 s. More Ctrl+C
+presses don't cut that short. Each run records its processes in `run.pids`, so a start after a launcher killed
+with `kill -9` first stops what that run left. It never starts while another program holds one of its ports
+(TCP 5760, 5762, 5763, 5765, 5800, 8077; UDP 9002, 9003, 9150, 15970, 15975), or while another ArduPilot SITL
+runs (`sim_vehicle.py` on instance 0 kills every SITL by name), and names that program instead. A twin left over
+from an earlier session holds UDP 9150 and TCP 5800, so the new twin cannot start and ArduPilot reports
+"Mount: not healthy". `--stop-leftovers` stops RadarSim processes that no launcher or terminal owns any more,
+then starts.
+
 The T7 twin may start before or after Gazebo (`rfsonde_sitl.sh` starts it): the gimbal plugin locksteps with it as
 soon as it answers. An older RadarSim build ran a late twin's start-up motor test without its torques, so the T7
 latched its motors off and ArduPilot reported "Mount: not healthy"; rebuild the RadarSim plugins if you see that.
