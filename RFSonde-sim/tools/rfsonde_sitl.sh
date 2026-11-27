@@ -94,10 +94,24 @@ if [ "$t7" = 1 ]; then
   if [ "$instance" != 0 ]; then
     echo "RFSonde: note: models/rfsonde_t7 talks to the twin on UDP 9150; edit its twin_port for instance $instance"
   fi
+  # a twin left running by an earlier session holds these ports: this one would die and the mount stay unhealthy
+  busy="$(ss -H -lunp "sport = :$((9150 + 10 * instance))" 2>/dev/null; ss -H -ltnp "sport = :$((5800 + 10 * instance))" 2>/dev/null)"
+  if [ -n "$busy" ]; then
+    echo "RFSonde: the T7 twin's ports are in use (a twin from an earlier session?); stop that first:"
+    echo "$busy"
+    exit 1
+  fi
   "$twin" --gz --gz-port $((9150 + 10 * instance)) --eeprom "$eeprom" \
     --com1 "tcp:$((5800 + 10 * instance))" --com2 "tcpclient:127.0.0.1:$((5763 + 10 * instance))" \
     --log "$cache/t7_twin_I$instance.csv" $RFSONDE_T7_ARGS > "$cache/t7_twin_I$instance.log" 2>&1 &
   twin_pid=$!
+  sleep 1
+  if ! kill -0 "$twin_pid" 2>/dev/null; then
+    echo "RFSonde: the T7 twin stopped at once:"
+    tail -3 "$cache/t7_twin_I$instance.log"
+    twin_pid=
+    exit 1
+  fi
   echo "RFSonde: T7 twin running (log: $cache/t7_twin_I$instance.log, gTune port TCP $((5800 + 10 * instance)))"
 fi
 
